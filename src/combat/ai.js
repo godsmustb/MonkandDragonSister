@@ -43,6 +43,7 @@ export function initMeleeAI(spirit) {
  */
 export function updateMeleeAI(spirit, dt, nearest, nearXZDist) {
   if (!spirit._aiState) initMeleeAI(spirit);
+  if (spirit._pinned) return true; // screenshot-probe hold: no movement
 
   const state = spirit._aiState;
 
@@ -67,8 +68,9 @@ export function updateMeleeAI(spirit, dt, nearest, nearXZDist) {
       spirit._aiState = 'telegraph';
       spirit._aiTimer = TELEGRAPH_DURATION;
       spirit._strikeHit = false;
-      // Scale up (wind-up visual)
-      spirit.mesh.scale.setScalar(1.25);
+      // Scale up (wind-up visual) — remember the demon's resting scale (per-type / boss).
+      spirit._restScale = spirit.mesh.scale.x;
+      spirit.mesh.scale.setScalar(spirit._restScale * 1.25);
       if (spirit._body && spirit._body.material && spirit._body.material.emissive !== undefined) {
         spirit._body.material.emissive = new THREE.Color(1.0, 0.4, 0);
       }
@@ -106,8 +108,8 @@ export function updateMeleeAI(spirit, dt, nearest, nearXZDist) {
         const len = Math.sqrt(dx * dx + dz * dz) || 1;
         spirit._strikeDirXZ.set(dx / len, 0, dz / len);
       }
-      // Reset scale
-      spirit.mesh.scale.setScalar(spirit._isBoss ? 2.2 : 1.0);
+      // Reset scale to the demon's resting scale (per-type / boss).
+      spirit.mesh.scale.setScalar(spirit._restScale != null ? spirit._restScale : 1.0);
       if (spirit._body && spirit._body.material && spirit._body.material.emissive !== undefined) {
         spirit._body.material.emissive = new THREE.Color(0, 0, 0);
       }

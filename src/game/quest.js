@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { ctx } from '../state.js';
 import { clearAllFx, _fxTimers, _fxEffects, spawnGoldCelebration } from '../combat/projectiles.js';
-import { spawnSpirits, spawnBoss } from '../combat/spirits.js';
+import { spawnSpirits, spawnBoss, spawnDemonLord } from '../combat/spirits.js';
 import { spawnRelicDrop } from './progression.js';
 import { updateHUD, updateObjective, showToast } from '../ui/hud.js';
 // clearLockTargets imported lazily below to avoid circular dep at module load time
@@ -54,17 +54,20 @@ export function startWave(n) {
 
 
   if (n === 1) {
-    spawnSpirits('neutral', 3);
-    showToast('Wave 1: Shadows approach! Use Space/I to attack.');
+    spawnSpirits('neutral', 3, 'shadowling');
+    showToast('Wave 1: Shadowlings approach! Use Space/I to attack.');
   } else if (n === 2) {
-    spawnSpirits('ice', 4);
-    showToast('Wave 2: Ice Imps! Fire is effective against Ice! ▲');
+    spawnSpirits('ice', 4, 'frostimp');
+    showToast('Wave 2: Frost Imps! Fire counters Ice! They lob icicles — dodge! ▲');
   } else if (n === 3) {
-    spawnSpirits('water', 4);
-    showToast('Wave 3: Water Wraiths! Poison is effective! Use shield to deflect bolts!');
+    spawnSpirits('water', 4, 'tidewraith');
+    showToast('Wave 3: Tide Wraiths! Poison counters Water! Shield deflects bolts!');
   } else if (n === 4) {
     spawnBoss();
-    showToast('WAVE 4 — BOSS: POISON ONI! Ice is effective! ▲');
+    showToast('WAVE 4 — MINI-BOSS: VENOM ONI! Ice counters Poison! ▲');
+  } else if (n === 5) {
+    spawnDemonLord();
+    showToast('WAVE 5 — FINAL BOSS: INFERNO DEMON LORD! Only WATER punishes him! ▲');
   }
 
   updateObjective();
@@ -80,7 +83,9 @@ export function checkWaveComplete() {
   gameState._waveClearing = true;
 
   const wave = gameState.wave;
-  const waveXP = [0, 120, 140, 160, 200];
+  // XP retuned for 5 waves so the boss kill lands ~L5-6 (XP_TO_LEVEL: L5=520, L6=700).
+  // Cumulative: 130,290,470,690 → ~L5 entering wave 5; final wave grants the rest.
+  const waveXP = [0, 130, 160, 180, 220, 300];
   const xpAmt = waveXP[Math.min(wave, waveXP.length - 1)];
 
   gameState.p1.gainXP(xpAmt);
@@ -94,17 +99,20 @@ export function checkWaveComplete() {
     } else if (wave === 2) {
       gameState.p2.unlockForm('poison');
       spawnRelicDrop('Prayer Beads', new THREE.Vector3(0, 0, 0));
-      showToast('POISON DRAGON unlocked!');
+      showToast('POISON DRAGON unlocked! Prayer Beads relic dropped.');
       _fxTimers.push(setTimeout(() => startWave(3), 3000));
     } else if (wave === 3) {
       gameState.p2.unlockForm('ice');
       spawnRelicDrop('Dragon Pearl', new THREE.Vector3(2, 0, 0));
-      showToast('ICE DRAGON unlocked!');
+      showToast('ICE DRAGON unlocked! Dragon Pearl relic dropped.');
       _fxTimers.push(setTimeout(() => startWave(4), 3000));
     } else if (wave === 4) {
       gameState.p2.unlockForm('water');
       spawnRelicDrop('Saffron Robe', new THREE.Vector3(0, 0, -15));
-      showToast('WATER DRAGON unlocked! Victory!');
+      showToast('WATER DRAGON unlocked! The final trial awaits — the sea answers fire.');
+      _fxTimers.push(setTimeout(() => startWave(5), 3500));
+    } else if (wave === 5) {
+      showToast('The Inferno Demon Lord has fallen. Victory!');
       questComplete();
     }
   }, 1500);

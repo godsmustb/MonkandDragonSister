@@ -120,8 +120,8 @@ try {
   await sleep(1000);
 
   let s = await snap();
-  check('Wave 1 spawns 3 spirits', s.spirits.length === 3, `${s.spirits.length} spirits`);
-  check('Wave 1 spirits are neutral element', s.spirits.every(x => x.element === 'neutral'), s.spirits.map(x => x.element).join(','));
+  check('Wave 1 spawns 3 Shadowlings', s.spirits.length === 3, `${s.spirits.length} spirits`);
+  check('Wave 1 spirits are neutral element (Shadowling)', s.spirits.every(x => x.element === 'neutral'), s.spirits.map(x => x.element).join(','));
   check('Players start at level 1', s.p1.level === 1 && s.p2.level === 1);
   check('P2 starts in human form', s.p2.form === 'human', s.p2.form);
 
@@ -230,7 +230,7 @@ try {
 
   // ---------- 7. Elemental advantage: fire vs ice = 2x ----------
   s = await snap();
-  check('Wave 2 spirits are ice', s.spirits.length > 0 && s.spirits.every(x => x.element === 'ice'), s.spirits.map(x => x.element).join(','));
+  check('Wave 2 spirits are ice (Frost Imps ×4)', s.spirits.length === 4 && s.spirits.every(x => x.element === 'ice'), `${s.spirits.length}: ` + s.spirits.map(x => x.element).join(','));
   if (s.spirits.length) {
     const dmg = await attackUntilDamage(2, 'Numpad8');
     check('Fire vs Ice deals 2.0x', !!dmg && Math.abs(dmg.mult - 2.0) < 0.01, dmg ? `mult=${dmg.mult} (${dmg.attackerElement}→${dmg.targetElement})` : 'no damage');
@@ -258,7 +258,7 @@ try {
 
   // ---------- 9. Wave 3: water spirits; fire vs water = 0.5x ----------
   s = await snap();
-  check('Wave 3 spirits are water', s.spirits.length > 0 && s.spirits.every(x => x.element === 'water'), s.spirits.map(x => x.element).join(','));
+  check('Wave 3 spirits are water (Tide Wraiths ×4)', s.spirits.length === 4 && s.spirits.every(x => x.element === 'water'), `${s.spirits.length}: ` + s.spirits.map(x => x.element).join(','));
   if (s.spirits.length) {
     for (let i = 0; i < 5 && (await g('G.p2.form')) !== 'fire'; i++) { await page.keyboard.press('Numpad4'); await sleep(1300); }
     check('P2 in fire form for weakness test', (await g('G.p2.form')) === 'fire', await g('G.p2.form'), true);
@@ -268,31 +268,65 @@ try {
   await shot('04-wave3');
 
   st = await clearWave('WAVE3');
-  check('Wave 3 cleared → WAVE4 (boss)', st === 'WAVE4', `state=${st}`);
+  check('Wave 3 cleared → WAVE4 (mini-boss)', st === 'WAVE4', `state=${st}`);
   await sleep(2000);
 
-  // ---------- 10. Boss wave ----------
+  // ---------- 10. Wave 4: VENOM ONI mini-boss (poison) ----------
   s = await snap();
-  check('Ice dragon unlocked before boss', s.p2.unlocked.includes('ice'), s.p2.unlocked.join(','));
-  check('Boss wave has spirits (boss + adds)', s.spirits.length >= 1, `${s.spirits.length} entities, elements: ${s.spirits.map(x => x.element).join(',')}`);
-  check('Boss is poison element', s.spirits.some(x => x.element === 'poison'), '', true);
+  check('Ice dragon unlocked before mini-boss', s.p2.unlocked.includes('ice'), s.p2.unlocked.join(','));
+  check('Wave 4 has mini-boss (+ adds)', s.spirits.length >= 1, `${s.spirits.length} entities, elements: ${s.spirits.map(x => x.element).join(',')}`);
+  check('Wave 4 mini-boss is poison element (Venom Oni)', s.spirits.some(x => x.element === 'poison'), s.spirits.map(x => x.element).join(','));
+  const bossBarVisibleW4 = await page.evaluate(() => {
+    const el = document.getElementById('boss-hp-bar');
+    return el && el.style.display === 'block';
+  });
+  check('Boss HP bar visible for wave-4 mini-boss', bossBarVisibleW4);
   for (let i = 0; i < 5; i++) {
     await page.keyboard.press('Numpad4'); await sleep(1200);
     if ((await g('G.p2.form')) === 'ice') break;
   }
-  check('P2 can cycle to ice form', (await g('G.p2.form')) === 'ice', await g('G.p2.form'), true);
-  await shot('05-boss');
+  check('P2 can cycle to ice form (counters poison)', (await g('G.p2.form')) === 'ice', await g('G.p2.form'), true);
+  await shot('05-venom-oni');
 
-  st = await clearWave('WAVE4', ['COMPLETE'], 240000);
-  check('Boss defeated → COMPLETE', st === 'COMPLETE', `state=${st}`);
+  st = await clearWave('WAVE4', ['WAVE5'], 240000);
+  check('Venom Oni defeated → WAVE5 (final boss)', st === 'WAVE5', `state=${st}`);
+  await sleep(3000);
+
+  // ---------- 11. Wave 5: INFERNO DEMON LORD final boss (fire) ----------
+  s = await snap();
+  check('Water dragon unlocked BEFORE final fight', s.p2.unlocked.includes('water'), s.p2.unlocked.join(','));
+  check('Wave 5 has the demon lord (+ maybe adds)', s.spirits.length >= 1, `${s.spirits.length} entities, elements: ${s.spirits.map(x => x.element).join(',')}`);
+  check('Wave 5 final boss is fire element (Inferno Demon Lord)', s.spirits.some(x => x.element === 'fire'), s.spirits.map(x => x.element).join(','));
+  const lordEntity = s.spirits.find(x => x.element === 'fire');
+  check('Final boss has high HP (~400)', lordEntity && lordEntity.maxHp >= 350, lordEntity ? `maxHp=${lordEntity.maxHp}` : 'no fire boss');
+  const bossBarVisibleW5 = await page.evaluate(() => {
+    const el = document.getElementById('boss-hp-bar');
+    return el && el.style.display === 'block';
+  });
+  check('Boss HP bar visible for wave-5 final boss', bossBarVisibleW5);
+  // Swap to WATER (the unlock that matters — counters fire).
+  for (let i = 0; i < 6; i++) {
+    await page.keyboard.press('Numpad4'); await sleep(1100);
+    if ((await g('G.p2.form')) === 'water') break;
+  }
+  check('P2 can cycle to WATER form (counters fire lord)', (await g('G.p2.form')) === 'water', await g('G.p2.form'), true);
+  await shot('05b-demon-lord');
+
+  st = await clearWave('WAVE5', ['COMPLETE'], 260000);
+  check('Demon Lord defeated → COMPLETE', st === 'COMPLETE', `state=${st}`);
   await sleep(2500);
 
-  // ---------- 11. Quest complete screen ----------
+  // ---------- 12. Quest complete screen ----------
   const qcVisible = await page.evaluate(() => {
     const els = [...document.querySelectorAll('div,h1,h2,h3')];
     return els.some(el => /quest\s*complete/i.test(el.textContent || '') && el.offsetParent !== null && el.getBoundingClientRect().width > 0);
   });
   check('"Quest Complete" panel visible', qcVisible);
+  const lordFell = await page.evaluate(() => {
+    const el = document.getElementById('complete-screen');
+    return !!el && /demon\s*lord/i.test(el.textContent || '');
+  });
+  check('Complete narrative mentions the demon lord\'s fall', lordFell);
   s = await snap();
   check('Water dragon unlocked at quest end', s.p2.unlocked.includes('water'), s.p2.unlocked.join(','));
   await shot('06-quest-complete');
@@ -343,7 +377,7 @@ try {
   await shot('99-error').catch(() => {});
 }
 
-// ---------- 12. Error budget ----------
+// ---------- 15. Error budget ----------
 check('Zero page errors (uncaught exceptions)', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
 check('Zero console errors', consoleErrors.length === 0, consoleErrors.slice(0, 3).join(' | '));
 

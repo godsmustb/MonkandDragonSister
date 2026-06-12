@@ -239,10 +239,11 @@ export function updateObjective() {
   let txt = '';
   if (state === 'MENU')       txt = '';
   else if (state === 'INTRO') txt = 'Awaiting the storm…';
-  else if (state === 'WAVE1') txt = `Wave 1: Spirits ${alive}/${total}`;
-  else if (state === 'WAVE2') txt = `Wave 2: Ice Imps ${alive}/${total}`;
-  else if (state === 'WAVE3') txt = `Wave 3: Water Wraiths ${alive}/${total}`;
-  else if (state === 'WAVE4') txt = 'Wave 4: BOSS';
+  else if (state === 'WAVE1') txt = `Wave 1: Shadowlings ${alive}/${total}`;
+  else if (state === 'WAVE2') txt = `Wave 2: Frost Imps ${alive}/${total}`;
+  else if (state === 'WAVE3') txt = `Wave 3: Tide Wraiths ${alive}/${total}`;
+  else if (state === 'WAVE4') txt = 'Wave 4: VENOM ONI (mini-boss)';
+  else if (state === 'WAVE5') txt = 'Wave 5: INFERNO DEMON LORD';
   else if (state === 'COMPLETE') txt = 'Garden Cleansed!';
   else if (state === 'GAMEOVER') txt = 'Game Over';
 

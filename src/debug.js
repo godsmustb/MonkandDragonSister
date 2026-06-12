@@ -140,6 +140,20 @@ export function setupDebugAPI() {
     },
     unfreezeCam() { if (ctx.game) ctx.game._freezeCam = false; },
 
+    // ── Demon screenshot helper (test/demonshot.mjs) ──────────────────────
+    // Pin the first living demon matching `element` (or boss) to (x,z) and stop its
+    // AI/ranged behaviour so it idles in place for a clean close-up. Returns its pos.
+    pinDemon(element, x, z) {
+      const list = ctx.gameState.spirits.filter(s => s.alive);
+      const s = list.find(d => d.element === element) || list[0];
+      if (!s) return null;
+      s.pos.x = x; s.pos.z = z;
+      s._aiState = 'recover'; s._aiTimer = 9999; // hold idle, no lunge
+      s._pinned = true;
+      if (s.mesh) s.mesh.position.copy(s.pos);
+      return { x: s.pos.x, y: s.pos.y, z: s.pos.z, type: s._type, phase: s._phase || 1 };
+    },
+
     // ── Pause (optional convenience) ─────────────────────────────────────
     pause() {
       if (typeof ctx.gameState._paused !== 'undefined') {

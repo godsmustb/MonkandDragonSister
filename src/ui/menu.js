@@ -11,7 +11,12 @@ let _selectedIndex = 0;
 let _menuVisible   = false;
 let _pauseVisible  = false;
 
-const MENU_ITEMS = ['START GAME', 'CONTROLS'];
+const MENU_ITEMS = ['START GAME', 'CONTROLS', 'QUALITY'];
+
+// Quality label reflects ctx.quality ('high' = bloom+ACES composer, 'low' = direct).
+function _qualityLabel() {
+  return 'QUALITY: ' + ((ctx.quality === 'low') ? 'LOW' : 'HIGH');
+}
 
 // ── Build menu DOM ────────────────────────────────────────────────────────
 export function buildMenu() {
@@ -72,7 +77,7 @@ export function buildMenu() {
     const btn = document.createElement('div');
     btn.className = 'menu-item';
     btn.dataset.index = idx;
-    btn.textContent = label;
+    btn.textContent = (label === 'QUALITY') ? _qualityLabel() : label;
     btn.style.cssText = `
       font-size:clamp(16px,2vw,22px);
       letter-spacing:5px;
@@ -143,6 +148,12 @@ function _activateItem(idx) {
     startGame();
   } else if (idx === 1) {
     showControls();
+  } else if (idx === 2) {
+    // QUALITY — toggle high/low, persist + rebuild composer, refresh label.
+    const next = (ctx.quality === 'low') ? 'high' : 'low';
+    if (typeof window.__applyQuality === 'function') window.__applyQuality(next);
+    const els = _menuEl && _menuEl._itemEls;
+    if (els && els[2]) els[2].textContent = _qualityLabel();
   }
 }
 

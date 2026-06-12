@@ -19,6 +19,8 @@ import { setupDebugAPI } from './debug.js';
 import { buildMenu, startGame, togglePause, isPaused, isMenuVisible } from './ui/menu.js';
 import { initLives, consumeLife, _updateLivesHUD } from './game/lives.js';
 import { updateCamera as updateCameraV2, toggleLockOn, clearLockTargets, camExtra } from './game/camera.js';
+import { buildPostFX, renderPostFX, resizePostFX, postFxEnabled, disposePostFX } from './fx/postfx.js';
+import { setQuality } from './state.js';
 
 // ---- Wire up lazy cross-module references ----
 setDealDamageToPlayer(dealDamageToPlayer);
@@ -34,16 +36,21 @@ try {
   document.getElementById('webgl-error').style.display = 'block';
   throw e;
 }
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // cap 1.5 (Pass 4)
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.setScissorTest(true);
+// ACES Filmic tone mapping on BOTH quality paths (consistent colour/exposure).
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.08;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 ctx.renderer = renderer;
 
 // ---- Scene ----
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x88bbcc, 0.012);
-scene.background = new THREE.Color(0x7ab0c8);
+// Initial fog/background; buildSky() (Pass 4) replaces these with tuned haze.
+scene.fog = new THREE.Fog(0xe9d3b4, 90, 320);
+scene.background = new THREE.Color(0xa9d0e2);
 ctx.scene = scene;
 
 // ---- Cameras ----
@@ -81,6 +88,7 @@ function resize() {
   cameras.p1.updateProjectionMatrix();
   cameras.p2.aspect = (w / 2) / h;
   cameras.p2.updateProjectionMatrix();
+  resizePostFX();
 }
 window.addEventListener('resize', resize);
 
@@ -170,9 +178,23 @@ window.addEventListener('keydown', (e) => {
 
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
+// ---- Quality toggle (called by menu) ----
+// Rebuilds or tears down the composer to match ctx.quality at runtime.
+function applyQuality(q) {
+  setQuality(q);
+  disposePostFX();
+  if (ctx.quality === 'high') buildPostFX(); // auto-falls back to low on failure
+}
+window.__applyQuality = applyQuality; // simple hook for menu + debug
+
 // ---- Render ----
+// HIGH quality → two half-screen composers (bloom + ACES + SMAA).
+// LOW quality (or composer unavailable) → direct split-screen scissor render.
 function renderFrame() {
+  if (postFxEnabled() && renderPostFX()) return;
+
   const w = window.innerWidth, h = window.innerHeight;
+  renderer.setScissorTest(true);
   renderer.setScissor(0, 0, w / 2, h);
   renderer.setViewport(0, 0, w / 2, h);
   renderer.render(scene, cameras.p1);
@@ -196,8 +218,17 @@ function animate() {
   }
 
   // Environmental / cosmetic (always run, even in menu/pause)
-  sunAngle += frameDt * 0.05;
-  sun.position.set(Math.cos(sunAngle) * 50, 50, Math.sin(sunAngle) * 30);
+  // Slow golden-hour drift; keep the sun around ~35° elevation, never overhead.
+  sunAngle += frameDt * 0.012;
+  const sx = Math.cos(sunAngle) * 60;
+  const sz = Math.sin(sunAngle) * 40;
+  sun.position.set(sx, 42, sz);
+  if (sun.target) { sun.target.position.set(0, 0, 0); sun.target.updateMatrixWorld(); }
+  // Sun disc/glow sits far along the light direction so it reads on the horizon.
+  if (ctx.sunGlow) {
+    const d = sun.position.clone().normalize().multiplyScalar(240);
+    ctx.sunGlow.position.copy(d);
+  }
 
   if (ctx.bamboo) {
     ctx.bamboo.forEach((b, i) => {
@@ -214,11 +245,29 @@ function animate() {
     });
   }
 
-  if (ctx.clouds) {
-    ctx.clouds.forEach(c => {
+  if (ctx.cloudLayers) {
+    ctx.cloudLayers.forEach(c => {
       c.position.x += c._speed * frameDt;
-      if (c.position.x > 200) c.position.x = -200;
+      if (c.position.x > 300) c.position.x = -300;
     });
+  }
+
+  // Grass tuft wind sway (cheap group-rotation trick, no per-vertex work).
+  if (ctx.grassTufts) {
+    const t = Date.now() * 0.001;
+    ctx.grassTufts.forEach(g => {
+      g.rotation.z = Math.sin(t * 1.3 + g._phase) * 0.12;
+    });
+  }
+
+  // Koi pond second ripple layer: slow scroll + gentle opacity pulse.
+  if (ctx.pondRipple) {
+    const r = ctx.pondRipple;
+    if (r.material.map) {
+      r.material.map.offset.x = (Date.now() * 0.00003) % 1;
+      r.material.map.offset.y = (Date.now() * 0.00002) % 1;
+    }
+    r.material.opacity = 0.28 + Math.sin(Date.now() * 0.0012) * 0.12;
   }
 
   if (ctx.petals) {
@@ -266,6 +315,10 @@ function animate() {
 function init() {
   buildWorld();
   resize();
+
+  // Build post-processing composers (high quality). On failure auto-falls back
+  // to 'low' (direct render) with a console.warn — never a hard error.
+  buildPostFX();
 
   gameState.p1 = new Player(1, new THREE.Vector3(-3, 0, 5));
   gameState.p2 = new Player(2, new THREE.Vector3(3, 0, 5));

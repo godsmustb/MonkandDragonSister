@@ -10,7 +10,14 @@ import { consumeLife as _consumeLife } from './game/lives.js';
 import { toggleLockOn, camExtra } from './game/camera.js';
 
 export function setupDebugAPI() {
+  // Expose raw ctx for VFX testing / screenshot scripts
+  window.__ctx = ctx;
+
   window.__game = {
+    // Expose startWave for test scripts
+    spawnWave(n) {
+      import('./game/quest.js').then(m => m.startWave(n)).catch(() => {});
+    },
     // ── Core state getters ──────────────────────────────────────────────
     get state()   { return ctx.gameState.state; },
     get wave()    { return ctx.gameState.wave; },

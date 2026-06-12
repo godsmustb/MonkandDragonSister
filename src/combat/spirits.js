@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { ctx } from '../state.js';
 import { ELEMENT_COLORS, ARENA_SIZE, DEMON_TABLE, WAVE_DEMON } from '../config.js';
 import { getElementMult } from '../config.js';
-import { spawnDeathParticles, _fxTimers } from './projectiles.js';
+import { spawnDeathParticles, _fxTimers, spawnDemonDeathDissolve } from './projectiles.js';
 import { initMeleeAI, updateMeleeAI, xzDist } from './ai.js';
 import { DEMON_BUILDERS, DEMON_DEATH_TINT } from './demons.js';
 
@@ -285,6 +285,8 @@ export class Spirit {
     this.alive = false;
     const tint = DEMON_DEATH_TINT[this.element] || ELEMENT_COLORS[this.element];
     spawnDeathParticles(this.pos, tint);
+    // Enhanced per-type death dissolve
+    spawnDemonDeathDissolve(this.pos.clone(), this._type, this.element);
     ctx.scene.remove(this.mesh);
     ctx.scene.remove(this._hpBar);
     ctx.scene.remove(this._light);

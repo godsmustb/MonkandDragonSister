@@ -3,6 +3,7 @@
 // XZ-plane distances only (spirits hover at y≈1, players at y=0)
 import * as THREE from 'three';
 import { ctx } from '../state.js';
+import { spawnTelegraphDecal, updateTelegraphDecal, removeTelegraphDecal } from './projectiles.js';
 
 // Balance constants
 export const MELEE_STRIKE_RANGE  = 3.5;  // enter telegraph when XZ dist < this
@@ -74,6 +75,8 @@ export function updateMeleeAI(spirit, dt, nearest, nearXZDist) {
       if (spirit._body && spirit._body.material && spirit._body.material.emissive !== undefined) {
         spirit._body.material.emissive = new THREE.Color(1.0, 0.4, 0);
       }
+      // Spawn ground telegraph decal
+      spirit._telegraphDecal = spawnTelegraphDecal(spirit);
     }
     return true;
   }
@@ -96,6 +99,12 @@ export function updateMeleeAI(spirit, dt, nearest, nearXZDist) {
       spirit._body.material.emissive = new THREE.Color(pulse, pulse * 0.4, 0);
     }
 
+    // Update telegraph decal progress
+    if (spirit._telegraphDecal) {
+      const progress = 1 - spirit._aiTimer / TELEGRAPH_DURATION;
+      updateTelegraphDecal(spirit._telegraphDecal, spirit, progress);
+    }
+
     if (spirit._aiTimer <= 0) {
       // Enter strike: cache target position for lunge direction
       spirit._aiState = 'strike';
@@ -112,6 +121,11 @@ export function updateMeleeAI(spirit, dt, nearest, nearXZDist) {
       spirit.mesh.scale.setScalar(spirit._restScale != null ? spirit._restScale : 1.0);
       if (spirit._body && spirit._body.material && spirit._body.material.emissive !== undefined) {
         spirit._body.material.emissive = new THREE.Color(0, 0, 0);
+      }
+      // Remove telegraph decal on strike
+      if (spirit._telegraphDecal) {
+        removeTelegraphDecal(spirit._telegraphDecal);
+        spirit._telegraphDecal = null;
       }
     }
     return true;
@@ -157,6 +171,11 @@ export function updateMeleeAI(spirit, dt, nearest, nearXZDist) {
       const len = Math.sqrt(dx * dx + dz * dz) || 1;
       spirit.pos.x += (dx / len) * 1.2 * dt;
       spirit.pos.z += (dz / len) * 1.2 * dt;
+    }
+    // Ensure decal cleaned up
+    if (spirit._telegraphDecal) {
+      removeTelegraphDecal(spirit._telegraphDecal);
+      spirit._telegraphDecal = null;
     }
 
     if (spirit._aiTimer <= 0) {

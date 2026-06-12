@@ -10,6 +10,12 @@ import {
   spawnFireTrail, spawnFrostNova, spawnToxicCloud,
   spawnHealingRain, spawnHealRing,
   spawnTransformParticles, triggerLevelUpFlash,
+  spawnTransformPillar,
+  spawnMonkStaffTrail, updateWeaponTrail,
+  spawnSisterPalmFlash, spawnDragonLungeTrail,
+  spawnHitSparks, spawnPlayerHitShards,
+  buildChiShieldMesh, spawnShieldImpactRipple,
+  spawnMeditationLotus,
 } from './projectiles.js';
 import { updateHUD } from '../ui/hud.js';
 import { showToast } from '../ui/hud.js';
@@ -36,6 +42,8 @@ export function dealDamageToPlayer(player, amount, element) {
     player._stopMeditationVfx && player._stopMeditationVfx();
   }
   ctx.camState['p' + player.id].shake = 0.1;
+  // Red shards flying from player on damage
+  spawnPlayerHitShards(player.pos.clone());
   if (window.__game) window.__game.lastPlayerDamage = { amount: mitigated, mult: 1, attackerElement: element, targetElement: 'neutral' };
   if (player.hp <= 0) {
     player.hp = 0;
@@ -197,11 +205,10 @@ export class Player {
     }
 
     spawnTransformParticles(this.pos, ELEMENT_COLORS[toForm] || 0xffffff);
+    if (toForm !== 'human') {
+      spawnTransformPillar(this, toForm);
+    }
     showToast(`Dragon Sister: ${FORM_DATA[toForm].name} Form!`);
-
-    ctx.impactLight.color.setHex(ELEMENT_COLORS[toForm] || 0xffffff);
-    ctx.impactLight.intensity = 3;
-    _fxTimers.push(setTimeout(() => { ctx.impactLight.intensity = 0; }, 400));
     updateHUD();
   }
 
@@ -242,6 +249,15 @@ export class Player {
     if (this._attackAnimActive) {
       this._attackAnim += dt * 5;
       if (this._attackAnim > 1) { this._attackAnim = 0; this._attackAnimActive = false; }
+    }
+
+    // Tick staff trail if active (monk)
+    if (this._activeStaffTrail) {
+      this._staffTrailTimer = (this._staffTrailTimer || 0) + dt;
+      const staffTip = this._getStaffTipPos();
+      const stopping = !this._attackAnimActive;
+      updateWeaponTrail(this._activeStaffTrail, staffTip, dt, stopping);
+      if (!this._activeStaffTrail.alive) this._activeStaffTrail = null;
     }
     if (this._dodgeTimer > 0) { this._dodgeTimer -= dt; this._iframes = this._dodgeTimer; }
 
@@ -408,12 +424,19 @@ export class Player {
 
     ctx.game._hitstop = isFinisher ? 0.08 : 0.04;
 
+    // Staff trail VFX
+    const trail = spawnMonkStaffTrail(isFinisher);
+    this._activeStaffTrail = trail;
+    this._staffTrailTimer = 0;
+
     let hit = false;
     ctx.gameState.spirits.forEach(s => {
       if (!s.alive) return;
       const d = this.pos.distanceTo(s.pos);
       if (d < range) {
-        s.takeDamage(dmg, 'neutral');
+        const mult = s.takeDamage(dmg, 'neutral');
+        const isDouble = mult >= 2;
+        spawnHitSparks(s.pos.clone(), 'neutral', isDouble);
         hit = true;
         if (isFinisher) knockback(s, this.pos, 4);
       }
@@ -431,9 +454,16 @@ export class Player {
     const baseDmg = Math.round(this.atk * this._relicBonuses.elemDmg);
 
     if (form === 'human') {
+      // Palm strike — cyan crescent flash
+      spawnSisterPalmFlash(this.pos.clone(), this.facing.clone());
+      let hit = false;
       ctx.gameState.spirits.forEach(s => {
         if (!s.alive) return;
-        if (this.pos.distanceTo(s.pos) < 2.5) s.takeDamage(baseDmg, 'neutral');
+        if (this.pos.distanceTo(s.pos) < 2.5) {
+          const mult = s.takeDamage(baseDmg, 'neutral');
+          spawnHitSparks(s.pos.clone(), 'water', mult >= 2);
+          hit = true;
+        }
       });
     } else if (form === 'fire') {
       spawnBreathAttack(this, 'fire', baseDmg * 1.2, 8);
@@ -461,6 +491,15 @@ export class Player {
       const dir = this.facing.clone().normalize();
       const dashDist = 8;
       spawnFireTrail(this.pos.clone(), dir, dashDist);
+      // Dragon lunge trail
+      const lungeTrail = spawnDragonLungeTrail(form);
+      const dm2 = this._dragonMeshes && this._dragonMeshes[form];
+      // Feed a few positions along dash path
+      for (let li = 0; li <= 6; li++) {
+        const tp = this.pos.clone().addScaledVector(dir, li * dashDist / 6);
+        tp.y = 1.2;
+        updateWeaponTrail(lungeTrail, tp, 0.02, li === 6);
+      }
       this.pos.addScaledVector(dir, dashDist);
       this.pos.x = THREE.MathUtils.clamp(this.pos.x, -ARENA_SIZE + 2, ARENA_SIZE - 2);
       this.pos.z = THREE.MathUtils.clamp(this.pos.z, -ARENA_SIZE + 2, ARENA_SIZE - 2);
@@ -499,13 +538,7 @@ export class Player {
     this.shieldActive = true;
     ctx.gameState.p2.shieldActive = true;
 
-    const shieldMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(3, 12, 8),
-      new THREE.MeshBasicMaterial({ color: 0xffdd55, transparent: true, opacity: 0.25, side: THREE.FrontSide })
-    );
-    shieldMesh.position.copy(this.pos);
-    shieldMesh.position.y = 1;
-    ctx.scene.add(shieldMesh);
+    const shieldMesh = buildChiShieldMesh(this.pos);
     this._shieldMesh = shieldMesh;
 
     showToast('Chi Shield activated!');
@@ -588,10 +621,27 @@ export class Player {
     };
     this._medFxEntry = fxEntry;
     _fxEffects.push(fxEntry);
+
+    // Orbiting lotus sprites (3 slowly orbiting)
+    const _self = this;
+    const lotusEntry = spawnMeditationLotus(this.pos, () => _self._meditating ? _self.pos : null);
+    this._medLotusEntry = lotusEntry;
+    _fxEffects.push(lotusEntry);
   }
 
   _stopMeditationVfx() {
     if (this._medAura) { ctx.scene.remove(this._medAura); this._medAura = null; }
     if (this._medFxEntry) { this._medFxEntry.timer = 0; this._medFxEntry = null; }
+    if (this._medLotusEntry) { this._medLotusEntry.timer = 0; this._medLotusEntry = null; }
+  }
+
+  /** Get world-space position of staff tip (used for trail) */
+  _getStaffTipPos() {
+    const cm = this.currentMesh();
+    if (!cm || !cm._rForeArm || !cm._staff) return this.pos.clone().add(new THREE.Vector3(0, 1.5, 0.5));
+    // _staff is parented to _rForeArm; staffHeadY is 0.80 in local space
+    const staffTop = new THREE.Vector3(0, 0.80 - 0.20 + 0.16, 0); // finial position in staff local space
+    return cm._rForeArm.localToWorld(staffTop);
   }
 }
+

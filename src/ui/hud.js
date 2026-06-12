@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { ctx } from '../state.js';
 import { XP_TO_LEVEL, FORM_DATA, getElementMult } from '../config.js';
+import { sfx } from '../audio/audio.js';
 
 // ────────────────────────────────────────────────────────────────────────────
 // ELEMENT → CSS COLOR
@@ -53,6 +54,7 @@ const WAVE_BANNER_DATA = {
 export function showWaveBanner(state) {
   const data = WAVE_BANNER_DATA[state];
   if (!data) return;
+  try { sfx.waveBanner(); } catch {}
   const banner = document.getElementById('wave-banner');
   if (!banner) return;
   const titleEl = document.getElementById('wave-banner-title');

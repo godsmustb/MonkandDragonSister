@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { ctx } from '../state.js';
 import { ELEMENT_COLORS, ARENA_SIZE } from '../config.js';
+import { sfx } from '../audio/audio.js';
 
 // ---- Module-scope registries ----
 export const _projectiles = [];
@@ -204,6 +205,7 @@ function _spawnLightPillar(pos, color, height = 4, duration = 0.5) {
 
 /** Hit sparks: 6-10 small additive cross-stars bursting from hit point */
 export function spawnHitSparks(pos, element, isDouble = false) {
+  try { sfx.hitSpark(element, isDouble); } catch {}
   const scene = ctx.scene;
   const col = ELEMENT_COLORS[element] || 0xffffff;
   const count = isDouble ? 10 : 6;
@@ -593,6 +595,7 @@ export function spawnFireTrail(startPos, dir, length) {
 }
 
 export function spawnFrostNova(pos) {
+  try { sfx.frostNova(); } catch {}
   const scene = ctx.scene;
   // Expanding ice ring
   const m = new THREE.Mesh(GEO.ring24,
@@ -835,6 +838,7 @@ function _telegraphColor(element) {
 //  DEMON DEATH DISSOLVES (per type)
 // =====================================================================
 export function spawnDemonDeathDissolve(pos, demonType, element) {
+  try { sfx.demonDeath(demonType); } catch {}
   const scene = ctx.scene;
   const { DEMON_DEATH_TINT } = { DEMON_DEATH_TINT: { neutral: 0x4a3f5e, ice: 0xa9e4ff, water: 0x4fe3ff, poison: 0x7fe05a, fire: 0xff6a2a } };
   const tint = DEMON_DEATH_TINT[element] || 0xffffff;
@@ -1046,6 +1050,7 @@ export function buildChiShieldMesh(pos) {
 
 /** Flash ripple on shield block */
 export function spawnShieldImpactRipple(pos) {
+  try { sfx.shieldBlock(); } catch {}
   _spawnBurstFlash(pos.clone(), 0xffdd55, 0.8, 0.2);
   _spawnGroundRing(pos, 0xffdd55, 0.25, 1.5);
 }

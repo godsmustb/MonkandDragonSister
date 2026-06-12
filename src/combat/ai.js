@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { ctx } from '../state.js';
 import { spawnTelegraphDecal, updateTelegraphDecal, removeTelegraphDecal } from './projectiles.js';
+import { sfx } from '../audio/audio.js';
 
 // Balance constants
 export const MELEE_STRIKE_RANGE  = 3.5;  // enter telegraph when XZ dist < this
@@ -77,6 +78,7 @@ export function updateMeleeAI(spirit, dt, nearest, nearXZDist) {
       }
       // Spawn ground telegraph decal
       spirit._telegraphDecal = spawnTelegraphDecal(spirit);
+      try { sfx.telegraphGrowl(); } catch {}
     }
     return true;
   }
@@ -110,6 +112,7 @@ export function updateMeleeAI(spirit, dt, nearest, nearXZDist) {
       spirit._aiState = 'strike';
       spirit._aiTimer = STRIKE_DURATION;
       spirit._strikeHit = false;
+      try { sfx.enemyStrike(); } catch {}
       if (nearest) {
         spirit._strikeTarget = nearest;
         const dx = nearest.pos.x - spirit.pos.x;

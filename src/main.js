@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { ctx } from './state.js';
 import { ARENA_SIZE, PREVENT_KEYS } from './config.js';
+import { initAudioOnGesture, toggleMute, sfx } from './audio/audio.js';
 import { buildWorld, resetPetal } from './world/garden.js';
 import { buildLighting } from './world/sky.js';
 import { Player, dealDamageToPlayer } from './combat/abilities.js';
@@ -144,6 +145,14 @@ const EXTRA_PREVENT = new Set(['KeyQ','KeyE','KeyF','Numpad7','Numpad9','Numpad0
 window.addEventListener('keydown', (e) => {
   if (PREVENT_KEYS.has(e.code) || EXTRA_PREVENT.has(e.code)) e.preventDefault();
   keys[e.code] = true;
+
+  // Every keydown is a user gesture — init audio lazily (no-op if already created)
+  try { initAudioOnGesture(); } catch {}
+
+  // M key = mute toggle (works in any state during gameplay)
+  if (e.code === 'KeyM') {
+    try { toggleMute(); } catch {}
+  }
 
   // Menu state — let menu.js handle navigation via its own listener
   if (gameState.state === 'MENU') return;

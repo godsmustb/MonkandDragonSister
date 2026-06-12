@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { ctx } from '../state.js';
 import { LEVEL_TABLE, XP_TO_LEVEL, FORM_DATA, ELEMENT_NAMES, ELEMENT_COLORS, ARENA_SIZE } from '../config.js';
+import { sfx } from '../audio/audio.js';
 import { buildMonk, buildSister, buildDragon } from '../chars/builders.js';
 import { _animateCharacter } from '../chars/anim.js';
 import {
@@ -45,11 +46,13 @@ export function dealDamageToPlayer(player, amount, element) {
   // Red shards flying from player on damage
   spawnPlayerHitShards(player.pos.clone());
   if (window.__game) window.__game.lastPlayerDamage = { amount: mitigated, mult: 1, attackerElement: element, targetElement: 'neutral' };
+  try { sfx.playerHit(); } catch {}
   if (player.hp <= 0) {
     player.hp = 0;
     player.isKO = true;
     player._koTimer = 10; // 10s revive window (changed from 5)
     showToast(`P${player.id} is down! Partner has 10s to revive!`);
+    try { sfx.playerKO(); } catch {}
   }
   updateHUD();
 }
@@ -170,6 +173,7 @@ export class Player {
     this.def = Math.round(stats.def * this._relicBonuses.def);
     showToast(`P${this.id} Level ${this.level}! ATK ${oldAtk}→${this.atk}`);
     triggerLevelUpFlash(this);
+    try { sfx.levelUp(); } catch {}
     updateHUD();
   }
 
@@ -207,6 +211,7 @@ export class Player {
     spawnTransformParticles(this.pos, ELEMENT_COLORS[toForm] || 0xffffff);
     if (toForm !== 'human') {
       spawnTransformPillar(this, toForm);
+      try { sfx.dragonTransform(); } catch {}
     }
     showToast(`Dragon Sister: ${FORM_DATA[toForm].name} Form!`);
     updateHUD();
@@ -271,6 +276,7 @@ export class Player {
         this._koTimer = 0;
         this._iframes = 1.5;
         showToast(`P${this.id} revived by partner!`);
+        try { sfx.playerRevive(); } catch {}
         updateHUD();
       }
       // When timer hits 0, main.js handleKoExpiry() calls consumeLife() — see main.js
@@ -411,6 +417,7 @@ export class Player {
     this._attackAnim = 0;
 
     const isFinisher = this._comboCount === 3;
+    try { sfx.monkSwing(this._comboCount, isFinisher); } catch {}
     const baseDmg = this.atk;
     const dmg = isFinisher ? baseDmg * 2 : baseDmg;
     const range = isFinisher ? 3.5 : 2.5;
@@ -455,6 +462,7 @@ export class Player {
 
     if (form === 'human') {
       // Palm strike — cyan crescent flash
+      try { sfx.sisterPalm(); } catch {}
       spawnSisterPalmFlash(this.pos.clone(), this.facing.clone());
       let hit = false;
       ctx.gameState.spirits.forEach(s => {
@@ -466,12 +474,16 @@ export class Player {
         }
       });
     } else if (form === 'fire') {
+      try { sfx.breathAttack('fire'); } catch {}
       spawnBreathAttack(this, 'fire', baseDmg * 1.2, 8);
     } else if (form === 'ice') {
+      try { sfx.projectileFire('ice'); } catch {}
       spawnProjectile(this, 'ice', baseDmg, 12);
     } else if (form === 'poison') {
+      try { sfx.projectileFire('poison'); } catch {}
       spawnProjectile(this, 'poison', baseDmg * 0.5, 8, true);
     } else if (form === 'water') {
+      try { sfx.projectileFire('water'); } catch {}
       spawnProjectile(this, 'water', baseDmg, 10, false, true);
     }
 
@@ -541,6 +553,7 @@ export class Player {
     const shieldMesh = buildChiShieldMesh(this.pos);
     this._shieldMesh = shieldMesh;
 
+    try { sfx.chiShield(); } catch {}
     showToast('Chi Shield activated!');
 
     _fxTimers.push(setTimeout(() => {
@@ -560,6 +573,7 @@ export class Player {
       other.hp = Math.min(other.hp + healAmt, other.maxHp);
     }
     spawnHealRing(this.pos);
+    try { sfx.healingPulse(); } catch {}
     showToast('Healing Pulse!');
     updateHUD();
   }

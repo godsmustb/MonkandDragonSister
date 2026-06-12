@@ -2,6 +2,7 @@
 // Boot state: 'MENU'. startGame() → 'INTRO'. Esc during play → 'PAUSED'.
 import { ctx } from '../state.js';
 import { startIntro } from '../game/quest.js';
+import { initAudioOnGesture, toggleMute, audioLabel, sfx } from '../audio/audio.js';
 
 // ── State ─────────────────────────────────────────────────────────────────
 let _menuEl   = null;
@@ -11,11 +12,15 @@ let _selectedIndex = 0;
 let _menuVisible   = false;
 let _pauseVisible  = false;
 
-const MENU_ITEMS = ['START GAME', 'CONTROLS', 'QUALITY'];
+const MENU_ITEMS = ['START GAME', 'CONTROLS', 'QUALITY', 'AUDIO'];
 
 // Quality label reflects ctx.quality ('high' = bloom+ACES composer, 'low' = direct).
 function _qualityLabel() {
   return 'QUALITY: ' + ((ctx.quality === 'low') ? 'LOW' : 'HIGH');
+}
+
+function _audioItemLabel() {
+  try { return audioLabel(); } catch { return 'AUDIO: ON'; }
 }
 
 // ── Build menu DOM ────────────────────────────────────────────────────────
@@ -77,7 +82,7 @@ export function buildMenu() {
     const btn = document.createElement('div');
     btn.className = 'menu-item';
     btn.dataset.index = idx;
-    btn.textContent = (label === 'QUALITY') ? _qualityLabel() : label;
+    btn.textContent = (label === 'QUALITY') ? _qualityLabel() : (label === 'AUDIO') ? _audioItemLabel() : label;
     btn.style.cssText = `
       font-size:clamp(16px,2vw,22px);
       letter-spacing:5px;
@@ -123,7 +128,12 @@ export function buildMenu() {
 }
 
 function _selectItem(idx) {
+  const prev = _selectedIndex;
   _selectedIndex = idx;
+  // Play tick only when navigating (not on initial build)
+  if (_menuVisible && prev !== idx) {
+    try { initAudioOnGesture(); sfx.menuTick(); } catch {}
+  }
   const els = _menuEl && _menuEl._itemEls;
   if (!els) return;
   els.forEach((el, i) => {
@@ -142,18 +152,28 @@ function _selectItem(idx) {
 }
 
 function _activateItem(idx) {
+  // Every menu interaction is a user gesture — init audio context
+  try { initAudioOnGesture(); } catch {}
   if (idx === 0) {
     // START GAME
+    try { sfx.menuSelect(); } catch {}
     hideMenu();
     startGame();
   } else if (idx === 1) {
+    try { sfx.menuSelect(); } catch {}
     showControls();
   } else if (idx === 2) {
     // QUALITY — toggle high/low, persist + rebuild composer, refresh label.
+    try { sfx.menuTick(); } catch {}
     const next = (ctx.quality === 'low') ? 'high' : 'low';
     if (typeof window.__applyQuality === 'function') window.__applyQuality(next);
     const els = _menuEl && _menuEl._itemEls;
     if (els && els[2]) els[2].textContent = _qualityLabel();
+  } else if (idx === 3) {
+    // AUDIO — toggle mute
+    try { toggleMute(); sfx.menuTick(); } catch {}
+    const els = _menuEl && _menuEl._itemEls;
+    if (els && els[3]) els[3].textContent = _audioItemLabel();
   }
 }
 

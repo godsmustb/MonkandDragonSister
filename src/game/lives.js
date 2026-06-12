@@ -2,6 +2,7 @@
 import { ctx } from '../state.js';
 import { updateHUD, showToast } from '../ui/hud.js';
 import { clearAllFx } from '../combat/projectiles.js';
+import { sfx } from '../audio/audio.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────
 export const MAX_LIVES       = 3;
@@ -57,6 +58,7 @@ export function triggerGameOver() {
   if (ctx.gameState.state === 'GAMEOVER') return;
   ctx.gameState.state = 'GAMEOVER';
   clearAllFx();
+  try { sfx.gameOver(); } catch {}
 
   // Stop all spirits from acting
   ctx.gameState.spirits.forEach(s => { s.alive = false; });

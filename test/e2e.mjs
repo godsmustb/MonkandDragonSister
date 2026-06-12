@@ -347,6 +347,24 @@ try {
     check('p1 snapshot exposes hasLockTarget property', 'hasLockTarget' in (p1snap || {}), String(p1snap));
   }
 
+  // ---------- NEW: audioReady soft check ----------
+  // The AudioContext is created lazily on first user gesture (keydown).
+  // We've been pressing keys throughout the test (Space, Enter, etc.) so the
+  // context should have been created. Marked soft=true because headless
+  // environments may restrict AudioContext creation even with --enable-unsafe-swiftshader.
+  {
+    const audioReadyVal = await page.evaluate(() => {
+      const G = window.__game;
+      return G ? G.audioReady : null;
+    });
+    check(
+      'audioReady is true after startGame + key presses (AudioContext created on first gesture)',
+      audioReadyVal === true,
+      `audioReady=${audioReadyVal}`,
+      true  // soft — headless may not allow audio context
+    );
+  }
+
   // ---------- NEW: Game Over test via consumeLife() ----------
   {
     // Reset lastPlayerDamage for freshness check

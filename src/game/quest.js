@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { ctx } from '../state.js';
 import { clearAllFx, _fxTimers, _fxEffects, spawnGoldCelebration } from '../combat/projectiles.js';
+import { sfx } from '../audio/audio.js';
 import { spawnSpirits, spawnBoss, spawnDemonLord } from '../combat/spirits.js';
 import { spawnRelicDrop } from './progression.js';
 import { updateHUD, updateObjective, showToast, showWaveBanner, updateBossBar } from '../ui/hud.js';
@@ -131,6 +132,7 @@ export function questComplete() {
   gameState.state = 'COMPLETE';
   document.getElementById('complete-screen').style.display = 'block';
   spawnGoldCelebration();
+  try { sfx.questComplete(); } catch {}
   // Unlock all forms
   gameState.p2.unlockForm('fire');
   gameState.p2.unlockForm('ice');

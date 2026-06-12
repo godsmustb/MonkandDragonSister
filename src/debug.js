@@ -3,6 +3,7 @@
 //   skipIntro(), teleport(), setLevel(), unlockAll()
 // PASS 1 ADDITIONS: lives, startGame(), consumeLife(), forceKO(), lockOn(n),
 //   state now reports 'MENU' and 'GAMEOVER'
+// PASS 7 ADDITIONS: audioReady boolean (context created after first gesture)
 import { ctx } from './state.js';
 import { endIntro } from './game/quest.js';
 import { startGame as menuStartGame } from './ui/menu.js';
@@ -55,6 +56,11 @@ export function setupDebugAPI() {
 
     lastDamage: null,
     lastPlayerDamage: null,
+
+    // Pass 7: true once AudioContext is created (first user gesture).
+    // Headless test environment has WebAudio API but no audio output;
+    // audioReady is set to true by audio.js after context creation.
+    audioReady: false,
 
     get relics() {
       const p1 = ctx.gameState.p1, p2 = ctx.gameState.p2;

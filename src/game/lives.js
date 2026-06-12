@@ -126,29 +126,82 @@ function _returnToMenu() {
 }
 
 // ── Lives HUD (lotus icons, top-center) ───────────────────────────────────
+// Genshin-style: canvas-drawn lotus chips in a translucent panel.
 let _livesEl = null;
 
 function _ensureLivesEl() {
   if (_livesEl && _livesEl.parentNode) return;
-  _livesEl = document.createElement('div');
-  _livesEl.id = 'lives-hud';
-  _livesEl.style.cssText = `
-    position:fixed;top:6px;left:50%;transform:translateX(-50%);
-    z-index:30;display:flex;gap:6px;align-items:center;
-    pointer-events:none;
-  `;
-  document.getElementById('game-container').appendChild(_livesEl);
+  _livesEl = document.getElementById('lives-hud');
+  if (!_livesEl) {
+    // Fallback: create if not in DOM
+    _livesEl = document.createElement('div');
+    _livesEl.id = 'lives-hud';
+    _livesEl.style.cssText = `
+      position:fixed;top:7px;left:50%;transform:translateX(-50%);
+      z-index:30;display:flex;gap:5px;align-items:center;
+      pointer-events:none;
+    `;
+    const gc = document.getElementById('game-container');
+    if (gc) gc.appendChild(_livesEl);
+  }
 }
+
+function _drawLotusIcon(canvas, active) {
+  const s = canvas.width;
+  const c = canvas.getContext('2d');
+  c.clearRect(0,0,s,s);
+  // Background pill
+  c.fillStyle = active ? 'rgba(200,160,0,0.18)' : 'rgba(40,30,10,0.55)';
+  c.beginPath(); c.arc(s/2,s/2,s/2,0,Math.PI*2); c.fill();
+  // Border
+  c.strokeStyle = active ? '#c8a000' : 'rgba(100,80,20,0.35)';
+  c.lineWidth = 1.5;
+  c.beginPath(); c.arc(s/2,s/2,s/2-1,0,Math.PI*2); c.stroke();
+  // Lotus petals (4-petal)
+  const col = active ? '#f0d882' : 'rgba(120,100,40,0.5)';
+  c.fillStyle = col;
+  if (active) { c.shadowColor = '#e8c86a'; c.shadowBlur = 4; }
+  for (let a=0;a<4;a++) {
+    c.save(); c.translate(s/2,s/2); c.rotate(a*Math.PI/2);
+    c.beginPath(); c.ellipse(0,-s*0.26,s*0.09,s*0.18,0,0,Math.PI*2); c.fill();
+    c.restore();
+  }
+  c.shadowBlur=0;
+  // Center dot
+  c.fillStyle = active ? '#fff8d0' : 'rgba(120,100,40,0.4)';
+  c.beginPath(); c.arc(s/2,s/2,s*0.10,0,Math.PI*2); c.fill();
+}
+
+// Cache the canvas elements to avoid rebuilding every frame
+let _livesCacheCount = -1;
 
 export function _updateLivesHUD() {
   _ensureLivesEl();
   const lives = (ctx.gameState && ctx.gameState.lives != null) ? ctx.gameState.lives : MAX_LIVES;
-  _livesEl.innerHTML = '';
-  for (let i = 0; i < MAX_LIVES; i++) {
-    const icon = document.createElement('span');
-    icon.style.cssText = `font-size:18px;opacity:${i < lives ? '1' : '0.2'};`;
-    icon.textContent = '✿'; // lotus
-    _livesEl.appendChild(icon);
+
+  // Build once with MAX_LIVES children, then toggle active/inactive
+  if (_livesEl.children.length !== MAX_LIVES) {
+    _livesEl.innerHTML = '';
+    _livesCacheCount = -1; // force redraw
+    for (let i = 0; i < MAX_LIVES; i++) {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'width:22px;height:22px;transition:opacity 0.3s;';
+      const cv = document.createElement('canvas');
+      cv.width = 22; cv.height = 22;
+      cv.style.cssText = 'width:22px;height:22px;display:block;';
+      wrap.appendChild(cv);
+      _livesEl.appendChild(wrap);
+    }
+  }
+
+  if (lives !== _livesCacheCount) {
+    _livesCacheCount = lives;
+    Array.from(_livesEl.children).forEach((wrap, i) => {
+      const cv = wrap.querySelector('canvas');
+      const active = i < lives;
+      if (cv) _drawLotusIcon(cv, active);
+      wrap.style.opacity = active ? '1' : '0.3';
+    });
   }
 }
 

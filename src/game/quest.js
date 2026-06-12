@@ -4,7 +4,7 @@ import { ctx } from '../state.js';
 import { clearAllFx, _fxTimers, _fxEffects, spawnGoldCelebration } from '../combat/projectiles.js';
 import { spawnSpirits, spawnBoss, spawnDemonLord } from '../combat/spirits.js';
 import { spawnRelicDrop } from './progression.js';
-import { updateHUD, updateObjective, showToast } from '../ui/hud.js';
+import { updateHUD, updateObjective, showToast, showWaveBanner, updateBossBar } from '../ui/hud.js';
 // clearLockTargets imported lazily below to avoid circular dep at module load time
 
 export const gameState = {
@@ -55,18 +55,23 @@ export function startWave(n) {
 
   if (n === 1) {
     spawnSpirits('neutral', 3, 'shadowling');
+    showWaveBanner('WAVE1');
     showToast('Wave 1: Shadowlings approach! Use Space/I to attack.');
   } else if (n === 2) {
     spawnSpirits('ice', 4, 'frostimp');
+    showWaveBanner('WAVE2');
     showToast('Wave 2: Frost Imps! Fire counters Ice! They lob icicles — dodge! ▲');
   } else if (n === 3) {
     spawnSpirits('water', 4, 'tidewraith');
+    showWaveBanner('WAVE3');
     showToast('Wave 3: Tide Wraiths! Poison counters Water! Shield deflects bolts!');
   } else if (n === 4) {
     spawnBoss();
+    showWaveBanner('WAVE4');
     showToast('WAVE 4 — MINI-BOSS: VENOM ONI! Ice counters Poison! ▲');
   } else if (n === 5) {
     spawnDemonLord();
+    showWaveBanner('WAVE5');
     showToast('WAVE 5 — FINAL BOSS: INFERNO DEMON LORD! Only WATER punishes him! ▲');
   }
 

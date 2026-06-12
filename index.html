@@ -5,70 +5,548 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>The Monk & The Dragon Sister</title>
 <style>
+/* ── Reset & base ─────────────────────────────────────────────────── */
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:#000;overflow:hidden;font-family:Georgia,serif;}
 #game-container{position:relative;width:100vw;height:100vh;overflow:hidden;}
-canvas{display:block;width:100vw!important;height:100vh!important;}
-#divider{position:absolute;top:0;left:50%;width:3px;height:100%;background:linear-gradient(to bottom,#c8a000,#ffdd55,#c8a000);transform:translateX(-50%);z-index:10;pointer-events:none;}
+#gameCanvas{display:block;width:100vw!important;height:100vh!important;}
+
+/* ── Divider ────────────────────────────────────────────────────────── */
+#divider{
+  position:absolute;top:0;left:50%;width:3px;height:100%;
+  background:linear-gradient(to bottom,transparent 0%,#c8a000 15%,#ffdd55 50%,#c8a000 85%,transparent 100%);
+  transform:translateX(-50%);z-index:10;pointer-events:none;
+}
+
+/* ── Viewport halves ─────────────────────────────────────────────────── */
 #hud-p1,#hud-p2{position:absolute;top:0;height:100%;pointer-events:none;z-index:20;}
 #hud-p1{left:0;width:50%;}
 #hud-p2{left:50%;width:50%;}
-.hud-bottom{position:absolute;bottom:10px;left:10px;right:10px;}
-.hp-bar-wrap{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
-.level-badge{background:#c8a000;color:#000;font-size:11px;font-weight:bold;padding:2px 5px;border-radius:3px;min-width:24px;text-align:center;}
-.hp-bar-bg{flex:1;height:10px;background:rgba(0,0,0,0.75);border:1px solid #c8a000;border-radius:5px;overflow:hidden;}
-.hp-bar-fill{height:100%;background:linear-gradient(to right,#cc2222,#ff4444);border-radius:5px;transition:width 0.1s;}
-.xp-bar-bg{height:4px;background:rgba(0,0,0,0.5);border:1px solid rgba(100,100,255,0.4);border-radius:2px;overflow:hidden;margin-bottom:6px;}
-.xp-bar-fill{height:100%;background:linear-gradient(to right,#4444cc,#8888ff);border-radius:2px;transition:width 0.2s;}
-.ability-row{display:flex;gap:5px;flex-wrap:wrap;}
-.ability-icon{position:relative;width:44px;height:44px;border:1px solid rgba(255,200,0,0.7);border-radius:4px;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:8px;color:#ffdd55;}
-.ability-icon .cd-overlay{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.7);transition:height 0.1s;}
-.ability-icon .key-chip{font-size:7px;color:#aaa;margin-top:1px;}
-.form-strip{display:flex;gap:4px;margin-bottom:4px;}
-.form-btn{width:28px;height:28px;border-radius:4px;border:1px solid rgba(255,200,0,0.4);background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;}
-.form-btn.active{border-color:#ffdd55;color:#ffdd55;background:rgba(255,200,0,0.2);}
-.form-btn.locked{opacity:0.3;filter:grayscale(1);}
-.relic-row{display:flex;gap:4px;}
-.relic-icon{width:20px;height:20px;border-radius:3px;border:1px solid rgba(255,200,0,0.4);background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:10px;}
-.objective-bar{position:absolute;top:8px;left:50%;transform:translateX(-50%);color:#ffdd55;font-size:11px;text-align:center;text-shadow:0 0 8px rgba(200,160,0,0.8);white-space:nowrap;}
-#objective-p1{position:absolute;top:8px;left:10px;color:#ffdd55;font-size:11px;text-shadow:0 0 8px rgba(200,160,0,0.8);}
-#objective-p2{position:absolute;top:8px;left:10px;color:#ffdd55;font-size:11px;text-shadow:0 0 8px rgba(200,160,0,0.8);}
-.compass{position:absolute;top:28px;left:50%;transform:translateX(-50%);color:rgba(255,200,0,0.6);font-size:10px;}
-.advantage-chip{font-size:10px;padding:2px 6px;border-radius:3px;display:inline-block;margin-top:2px;}
-.advantage-chip.strong{background:rgba(0,200,0,0.3);color:#00ff88;border:1px solid #00ff88;}
-.advantage-chip.weak{background:rgba(200,0,0,0.3);color:#ff4444;border:1px solid #ff4444;}
-.advantage-chip.neutral{background:rgba(100,100,100,0.3);color:#aaa;border:1px solid #666;}
-#toast-container{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:50;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:8px;}
-.toast{background:rgba(0,0,0,0.85);border:1px solid #c8a000;color:#ffdd55;padding:8px 20px;border-radius:6px;font-size:14px;text-align:center;animation:toastIn 0.3s ease-out,toastOut 0.4s ease-in 1.8s forwards;white-space:nowrap;}
-@keyframes toastIn{from{opacity:0;transform:scale(0.7)translateY(-20px);}to{opacity:1;transform:scale(1)translateY(0);}}
-@keyframes toastOut{to{opacity:0;transform:scale(0.8)translateY(-20px);}}
-#damage-container{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:30;overflow:hidden;}
-.dmg-num{position:absolute;font-size:18px;font-weight:bold;text-shadow:0 0 6px currentColor;animation:dmgFloat 1.2s ease-out forwards;pointer-events:none;}
-@keyframes dmgFloat{0%{opacity:1;transform:translateY(0)scale(1);}70%{opacity:1;}100%{opacity:0;transform:translateY(-60px)scale(0.7);}}
-.dmg-num.effective{font-size:24px;animation:dmgFloat 1.5s ease-out forwards;}
-#intro-screen{position:absolute;top:0;left:0;width:100%;height:100%;background:#000;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+
+/* ── Vignettes ──────────────────────────────────────────────────────── */
+.vignette{
+  position:absolute;top:0;left:0;width:50%;height:100%;
+  background:radial-gradient(ellipse at center,transparent 58%,rgba(0,0,0,0.55) 100%);
+  pointer-events:none;z-index:15;
+}
+.vignette-r{
+  position:absolute;top:0;left:50%;width:50%;height:100%;
+  background:radial-gradient(ellipse at center,transparent 58%,rgba(0,0,0,0.55) 100%);
+  pointer-events:none;z-index:15;
+}
+
+/* ── Shared panel look ──────────────────────────────────────────────── */
+.hud-panel{
+  background:rgba(10,8,6,0.55);
+  border:1px solid rgba(200,160,0,0.30);
+  border-radius:8px;
+  padding:6px 8px;
+  backdrop-filter:blur(4px);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   TOP BAR — Objective (top-left each half)
+   ════════════════════════════════════════════════════════════════════ */
+.objective-bar{
+  position:absolute;
+  top:8px;left:8px;
+  display:flex;align-items:center;gap:6px;
+  background:rgba(10,8,6,0.55);
+  border:1px solid rgba(200,160,0,0.28);
+  border-radius:20px;
+  padding:3px 10px 3px 7px;
+  backdrop-filter:blur(4px);
+  pointer-events:none;
+}
+.objective-bar .obj-icon{
+  width:14px!important;height:14px!important;
+  min-width:14px;min-height:14px;
+  flex-shrink:0;display:block;
+}
+.objective-bar .obj-text{
+  font-family:'Segoe UI',system-ui,sans-serif;
+  font-size:11px;color:#e8c86a;
+  white-space:nowrap;letter-spacing:0.5px;
+}
+.objective-bar .obj-text b{
+  font-family:Georgia,serif;font-weight:normal;
+}
+/* Kill tick animation */
+@keyframes killTick{
+  0%{transform:scale(1.4);color:#fff;}
+  60%{transform:scale(1);}
+  100%{color:#e8c86a;}
+}
+.obj-tick{ animation:killTick 0.35s ease-out; }
+
+/* ════════════════════════════════════════════════════════════════════
+   TOP CENTER — Lives (shared) + Boss bar
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Lives HUD — styled from lives.js via JS injection */
+#lives-hud{
+  position:fixed;top:7px;left:50%;transform:translateX(-50%);
+  z-index:30;display:flex;gap:5px;align-items:center;
+  pointer-events:none;
+}
+#lives-hud canvas{
+  width:22px!important;height:22px!important;
+  display:block;
+}
+/* Each lotus icon chip is created by lives.js */
+
+/* Boss HP bar */
+#boss-hp-bar{
+  position:absolute;
+  /* sits inside #hud-p1 or the full overlay — we keep it in #hud-p1 */
+  top:34px;left:50%;transform:translateX(-50%);
+  width:min(320px,42vw);
+  z-index:25;display:none;
+  pointer-events:none;
+}
+#boss-hp-bar .boss-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:3px;
+}
+#boss-hp-bar .boss-name{
+  font-family:Georgia,serif;
+  font-size:11px;color:#ff8844;letter-spacing:1px;
+  text-shadow:0 0 8px rgba(255,80,0,0.7);
+}
+#boss-hp-bar .boss-phase{
+  font-family:'Segoe UI',system-ui,sans-serif;
+  font-size:9px;color:#aa4422;letter-spacing:0.5px;
+}
+#boss-hp-bar .boss-bar-bg{
+  height:7px;
+  background:rgba(0,0,0,0.7);
+  border:1px solid rgba(220,60,0,0.55);
+  border-radius:4px;
+  overflow:visible;
+  position:relative;
+}
+#boss-hp-bar .boss-bar-fill{
+  height:100%;
+  background:linear-gradient(to right,#8b0000,#cc2200,#ff5522);
+  border-radius:3px;
+  transition:width 0.25s ease-out;
+  position:relative;
+}
+/* Phase-2 shift — add class 'phase2' to bar-bg */
+#boss-hp-bar .boss-bar-bg.phase2 .boss-bar-fill{
+  background:linear-gradient(to right,#550055,#aa00aa,#ff44ff);
+}
+/* Segmented marks at 25%, 50%, 75% */
+#boss-hp-bar .boss-bar-bg::before,
+#boss-hp-bar .boss-bar-bg::after{
+  content:'';position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,0.18);z-index:1;
+}
+#boss-hp-bar .boss-bar-bg::before{left:25%;}
+#boss-hp-bar .boss-bar-bg::after{left:75%;}
+
+/* ════════════════════════════════════════════════════════════════════
+   PLAYER PLATE — bottom-left of each half
+   ════════════════════════════════════════════════════════════════════ */
+.hud-bottom{
+  position:absolute;
+  bottom:10px;left:10px;
+  width:min(230px,38%);
+  display:flex;flex-direction:column;gap:5px;
+  pointer-events:none;
+}
+
+/* Portrait chip */
+.player-portrait{
+  display:flex;align-items:center;gap:8px;
+}
+.portrait-ring{
+  position:relative;flex-shrink:0;
+  width:48px;height:48px;
+}
+.portrait-ring canvas{
+  width:48px!important;height:48px!important;
+  border-radius:50%;
+  display:block;
+}
+/* Level badge ring around portrait — drawn as border */
+.portrait-ring .lvl-ring{
+  position:absolute;inset:-3px;
+  border-radius:50%;
+  border:2px solid #c8a000;
+  box-shadow:0 0 6px rgba(200,160,0,0.5),inset 0 0 4px rgba(200,160,0,0.2);
+  pointer-events:none;
+}
+.portrait-ring .lvl-badge{
+  position:absolute;bottom:-7px;left:50%;transform:translateX(-50%);
+  background:#1a1200;border:1px solid #c8a000;
+  color:#ffdd55;
+  font-family:'Segoe UI',system-ui,sans-serif;
+  font-size:9px;font-weight:700;
+  padding:1px 5px;border-radius:8px;
+  white-space:nowrap;z-index:2;
+}
+
+/* HP + XP column */
+.plate-stats{
+  flex:1;min-width:0;
+  display:flex;flex-direction:column;gap:4px;
+}
+.hp-track{position:relative;height:12px;}
+/* Ghost (trailing) bar — drawn behind the fill */
+.hp-ghost{
+  position:absolute;top:0;left:0;height:100%;
+  background:rgba(140,20,20,0.55);
+  border-radius:6px;
+  transition:width 1.5s ease-out; /* slow drain = trailing ghost */
+}
+.hp-bar-bg{
+  position:relative;
+  height:12px;
+  background:rgba(10,8,6,0.75);
+  border:1px solid rgba(200,160,0,0.35);
+  border-radius:6px;
+  overflow:hidden;
+}
+/* hp-p1 / hp-p2 live inside .hp-bar-bg */
+.hp-bar-fill{
+  position:absolute;top:0;left:0;height:100%;
+  background:linear-gradient(to right,#8b1010,#cc2222,#ff6644);
+  border-radius:5px;
+  transition:width 0.12s ease-out;
+}
+/* White flash on the fill when healing */
+@keyframes healFlash{0%{filter:brightness(3);}100%{filter:brightness(1);}}
+.hp-bar-fill.healed{animation:healFlash 0.4s ease-out;}
+
+.hp-text{
+  font-family:'Segoe UI',system-ui,sans-serif;
+  font-size:9px;color:rgba(220,200,180,0.75);
+  white-space:nowrap;text-align:right;
+}
+
+.xp-bar-bg{
+  height:3px;
+  background:rgba(0,0,0,0.5);
+  border-radius:2px;
+  overflow:hidden;
+  border:none;
+}
+.xp-bar-fill{
+  height:100%;
+  background:linear-gradient(to right,#3355cc,#8899ff);
+  border-radius:2px;
+  transition:width 0.25s ease-out;
+}
+
+/* Relic row */
+.relic-row{
+  display:flex;gap:4px;flex-wrap:wrap;min-height:0;
+}
+.relic-icon{
+  width:20px;height:20px;border-radius:4px;
+  border:1px solid rgba(200,160,0,0.45);
+  background:rgba(10,8,6,0.7);
+  display:flex;align-items:center;justify-content:center;
+  font-size:10px;
+}
+
+/* Advantage chip — slim pill */
+.advantage-pill{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:2px 7px;border-radius:12px;
+  font-family:'Segoe UI',system-ui,sans-serif;
+  font-size:10px;font-weight:600;
+  letter-spacing:0.3px;
+  border:1px solid currentColor;
+}
+.advantage-pill.strong{color:#44ff99;background:rgba(0,160,80,0.2);}
+.advantage-pill.weak  {color:#ff6666;background:rgba(180,0,0,0.2);}
+.advantage-pill.neutral{color:#aaaaaa;background:rgba(80,80,80,0.2);}
+
+/* ════════════════════════════════════════════════════════════════════
+   ABILITY CLUSTER — bottom-right of each half
+   ════════════════════════════════════════════════════════════════════ */
+.ability-cluster{
+  position:absolute;
+  bottom:10px;right:10px;
+  display:flex;flex-direction:column;align-items:flex-end;
+  gap:4px;
+  pointer-events:none;
+}
+/* P2 form selector diamonds — above cluster */
+.form-strip{
+  display:flex;gap:3px;align-items:center;
+  justify-content:flex-end;
+  margin-bottom:2px;
+}
+.form-diamond{
+  width:10px;height:10px;
+  border:1px solid rgba(200,160,0,0.35);
+  border-radius:2px;
+  transform:rotate(45deg);
+  background:rgba(10,8,6,0.7);
+  transition:background 0.2s,border-color 0.2s,box-shadow 0.2s;
+}
+.form-diamond.active{
+  border-color:#ffdd55;
+  background:#c8a000;
+  box-shadow:0 0 6px rgba(255,220,50,0.8);
+}
+.form-diamond.locked{
+  opacity:0.25;filter:grayscale(1);
+}
+/* 4-icon row */
+.ability-row{
+  display:flex;gap:5px;
+  align-items:flex-end;
+}
+.ability-icon{
+  position:relative;
+  width:46px;height:46px;
+  border:1px solid rgba(200,160,0,0.55);
+  border-radius:50%;
+  background:rgba(10,8,6,0.72);
+  overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+  flex-direction:column;
+  box-shadow:0 2px 8px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,220,100,0.08);
+}
+/* Canvas glyph inside each icon */
+.ability-icon canvas{
+  width:28px!important;height:28px!important;
+  display:block;flex-shrink:0;
+}
+/* Conic-gradient cooldown sweep — drawn as ::after overlay */
+.ability-icon .cd-conic{
+  position:absolute;inset:0;
+  border-radius:50%;
+  background:conic-gradient(rgba(0,0,0,0) 0deg, rgba(0,0,0,0) 0deg, rgba(0,0,0,0.68) 0deg 360deg);
+  pointer-events:none;
+  transition:none;
+}
+.ability-icon .key-chip{
+  font-family:'Segoe UI',system-ui,sans-serif;
+  font-size:7px;color:rgba(180,160,120,0.85);
+  line-height:1;margin-top:1px;
+  position:absolute;bottom:4px;left:0;right:0;text-align:center;
+}
+/* Pop animation on activation */
+@keyframes abilityPop{
+  0%{box-shadow:0 0 0 0 rgba(255,220,80,0.9),0 2px 8px rgba(0,0,0,0.6);}
+  40%{box-shadow:0 0 0 6px rgba(255,220,80,0),0 2px 8px rgba(0,0,0,0.6);}
+  100%{box-shadow:0 2px 8px rgba(0,0,0,0.6);}
+}
+.ability-icon.activated{
+  animation:abilityPop 0.35s ease-out;
+}
+/* Locked/grey state */
+.ability-icon.locked{
+  opacity:0.35;filter:grayscale(0.8);
+  border-color:rgba(100,90,70,0.4);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   FEEDBACK — Damage numbers, heal, toasts, wave banners, KO overlay
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Damage numbers */
+#damage-container{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  pointer-events:none;z-index:30;overflow:hidden;
+}
+.dmg-num{
+  position:absolute;
+  font-family:Georgia,serif;
+  font-size:18px;font-weight:bold;
+  -webkit-text-stroke:1px rgba(0,0,0,0.8);
+  text-shadow:0 1px 4px rgba(0,0,0,0.9),0 0 8px currentColor;
+  animation:dmgFloat 1.2s ease-out forwards;
+  pointer-events:none;
+  white-space:nowrap;
+}
+@keyframes dmgFloat{
+  0%  {opacity:1;transform:translateY(0) scale(1);}
+  70% {opacity:0.9;}
+  100%{opacity:0;transform:translateY(-64px) scale(0.65);}
+}
+.dmg-num.effective{
+  font-size:26px;
+  animation:dmgFloatCrit 1.5s ease-out forwards;
+}
+@keyframes dmgFloatCrit{
+  0%  {opacity:1;transform:translateY(0) scale(1.3);}
+  15% {transform:translateY(-8px) scale(1.0);}
+  80% {opacity:1;}
+  100%{opacity:0;transform:translateY(-72px) scale(0.7);}
+}
+/* Starburst for crits */
+.dmg-num.effective::before{
+  content:'';
+  position:absolute;inset:-8px;z-index:-1;
+  background:radial-gradient(ellipse,currentColor 0%,transparent 68%);
+  opacity:0.22;
+  border-radius:50%;
+}
+.dmg-num.heal{
+  font-size:16px;
+  animation:healFloat 1.1s ease-out forwards;
+}
+@keyframes healFloat{
+  0%  {opacity:1;transform:translateY(0) scale(1);}
+  100%{opacity:0;transform:translateY(-56px) scale(0.7);}
+}
+
+/* Toast / unlock banner — slides in from top of relevant half */
+#toast-container{
+  position:absolute;top:60px;left:50%;
+  transform:translateX(-50%);
+  z-index:50;pointer-events:none;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  width:min(340px,80%);
+}
+.toast{
+  background:rgba(10,8,6,0.88);
+  border:1px solid rgba(200,160,0,0.65);
+  color:#f0d882;
+  padding:7px 18px;border-radius:20px;
+  font-family:Georgia,serif;font-size:12px;
+  text-align:center;letter-spacing:0.4px;
+  box-shadow:0 4px 20px rgba(0,0,0,0.6),0 0 12px rgba(200,160,0,0.15);
+  animation:toastSlide 0.3s ease-out, toastFade 0.4s ease-in 1.85s forwards;
+  white-space:nowrap;
+}
+@keyframes toastSlide{
+  from{opacity:0;transform:translateY(-12px) scale(0.92);}
+  to  {opacity:1;transform:translateY(0)     scale(1);}
+}
+@keyframes toastFade{to{opacity:0;transform:translateY(-8px) scale(0.95);}}
+/* Unlock banner variant */
+.toast.unlock{
+  border-color:rgba(200,160,0,0.9);
+  background:rgba(20,14,2,0.93);
+  font-size:13px;padding:9px 22px;
+  box-shadow:0 4px 24px rgba(0,0,0,0.7),0 0 20px rgba(200,160,0,0.25);
+}
+
+/* Wave start banner — full-width letterbox flash */
+#wave-banner{
+  position:fixed;top:50%;left:0;right:0;
+  transform:translateY(-50%);
+  z-index:60;pointer-events:none;
+  display:none;
+  flex-direction:column;align-items:center;
+}
+.wave-banner-letter{
+  position:absolute;left:0;right:0;
+  height:32px;background:rgba(0,0,0,0.82);
+}
+.wave-banner-letter.top{top:-32px;}
+.wave-banner-letter.bot{bottom:-32px;}
+.wave-banner-title{
+  font-family:Georgia,serif;
+  font-size:clamp(18px,3vw,28px);
+  color:#f0d882;letter-spacing:6px;
+  text-shadow:0 0 24px rgba(200,160,0,0.8);
+  z-index:1;
+}
+.wave-banner-sub{
+  font-family:'Segoe UI',system-ui,sans-serif;
+  font-size:12px;color:#aaa;letter-spacing:3px;margin-top:4px;z-index:1;
+}
+@keyframes bannerIn{
+  0%  {opacity:0;letter-spacing:12px;}
+  40% {opacity:1;}
+  100%{letter-spacing:6px;}
+}
+@keyframes bannerOut{to{opacity:0;}}
+.wave-banner-title.animate-in{animation:bannerIn 0.5s ease-out forwards;}
+.wave-banner-title.animate-out{animation:bannerOut 0.4s ease-in forwards;}
+
+/* KO overlay on that half */
+.ko-overlay{
+  position:absolute;inset:0;
+  background:rgba(0,0,0,0.60);
+  display:none;
+  flex-direction:column;align-items:center;justify-content:center;
+  pointer-events:none;z-index:35;
+}
+.ko-overlay.visible{display:flex;}
+.ko-title{
+  font-family:Georgia,serif;
+  font-size:clamp(20px,3vw,28px);
+  color:#cc2222;letter-spacing:5px;
+  text-shadow:0 0 20px rgba(200,0,0,0.8);margin-bottom:8px;
+}
+.ko-sub{
+  font-family:'Segoe UI',system-ui,sans-serif;
+  font-size:11px;color:#aaa;letter-spacing:2px;
+}
+/* Revive countdown ring — SVG circle */
+.revive-ring-wrap{
+  position:absolute;
+  bottom:68px;left:10px; /* above player plate */
+  width:40px;height:40px;
+  display:none;
+}
+.revive-ring-wrap.visible{display:block;}
+.revive-ring-bg{stroke:rgba(200,160,0,0.2);}
+.revive-ring-fill{
+  stroke:#ffdd55;
+  stroke-dasharray:100;
+  stroke-dashoffset:100;
+  transition:stroke-dashoffset 0.5s linear;
+  transform-origin:center;transform:rotate(-90deg);
+}
+
+/* "?" controls chip */
+.controls-chip{
+  position:absolute;bottom:10px;
+  width:24px;height:24px;
+  border-radius:50%;
+  background:rgba(10,8,6,0.6);
+  border:1px solid rgba(200,160,0,0.3);
+  color:rgba(200,160,0,0.6);
+  font-family:'Segoe UI',system-ui,sans-serif;
+  font-size:11px;font-weight:bold;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;pointer-events:all;z-index:22;
+  transition:background 0.2s,border-color 0.2s;
+}
+.controls-chip:hover{
+  background:rgba(30,22,6,0.9);
+  border-color:rgba(200,160,0,0.7);
+  color:#ffdd55;
+}
+#controls-chip-p1{right:10px;}
+#controls-chip-p2{left:10px;}
+
+/* ════════════════════════════════════════════════════════════════════
+   INTRO / COMPLETE / WEBGL screens (unchanged)
+   ════════════════════════════════════════════════════════════════════ */
 .letterbox-top,.letterbox-bottom{position:absolute;left:0;right:0;height:12%;background:#000;z-index:101;}
-.letterbox-top{top:0;}
-.letterbox-bottom{bottom:0;}
+.letterbox-top{top:0;}.letterbox-bottom{bottom:0;}
+#intro-screen{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  background:#000;z-index:100;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+}
 .title-card{text-align:center;color:#c8a000;z-index:102;}
 .title-card .quest-label{font-size:14px;letter-spacing:4px;color:#888;margin-bottom:8px;}
 .title-card h1{font-size:36px;color:#c8a000;text-shadow:0 0 30px rgba(200,160,0,0.8);margin-bottom:16px;}
 .title-card .lore{font-size:13px;color:#ccc;max-width:500px;line-height:1.7;font-style:italic;margin-bottom:20px;}
 .title-card .skip-hint{font-size:11px;color:#666;}
-#complete-screen{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(20,15,5,0.95);border:2px solid #c8a000;border-radius:12px;padding:40px;z-index:100;max-width:500px;text-align:center;display:none;}
+#complete-screen{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:rgba(20,15,5,0.95);border:2px solid #c8a000;border-radius:12px;
+  padding:40px;z-index:100;max-width:500px;text-align:center;display:none;
+}
 #complete-screen h2{color:#c8a000;font-size:28px;margin-bottom:16px;}
 #complete-screen p{color:#ddd;font-size:13px;line-height:1.8;margin-bottom:12px;}
 #complete-screen .coming-soon{color:#888;font-size:12px;font-style:italic;}
-#boss-hp-bar{position:absolute;top:2px;left:10%;right:10%;z-index:25;display:none;}
-#boss-hp-bar .boss-name{color:#ff4444;font-size:11px;text-align:center;text-shadow:0 0 8px #ff0000;margin-bottom:2px;}
-#boss-hp-bar .boss-bar-bg{height:8px;background:rgba(0,0,0,0.7);border:1px solid #ff4444;border-radius:4px;overflow:hidden;}
-#boss-hp-bar .boss-bar-fill{height:100%;background:linear-gradient(to right,#660000,#cc0000,#ff4444);border-radius:4px;transition:width 0.2s;}
-#webgl-error{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#111;color:#ff4444;padding:30px;border-radius:8px;text-align:center;z-index:200;}
-.vignette{position:absolute;top:0;left:0;width:50%;height:100%;background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,0.5) 100%);pointer-events:none;z-index:15;}
-.vignette-r{position:absolute;top:0;left:50%;width:50%;height:100%;background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,0.5) 100%);pointer-events:none;z-index:15;}
-#controls-p1{position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,0.6);border:1px solid rgba(255,200,0,0.3);color:#aaa;font-size:9px;padding:6px 8px;border-radius:4px;line-height:1.6;}
-#controls-p2{position:absolute;bottom:10px;left:10px;background:rgba(0,0,0,0.6);border:1px solid rgba(255,200,0,0.3);color:#aaa;font-size:9px;padding:6px 8px;border-radius:4px;line-height:1.6;}
-.hud-panel{background:rgba(0,0,0,0.45);border:1px solid rgba(200,160,0,0.25);border-radius:8px;padding:6px 8px;backdrop-filter:blur(2px);}
+#webgl-error{
+  display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:#111;color:#ff4444;padding:30px;border-radius:8px;text-align:center;z-index:200;
+}
 </style>
 </head>
 <body>
@@ -78,50 +556,152 @@ canvas{display:block;width:100vw!important;height:100vh!important;}
   <div class="vignette"></div>
   <div class="vignette-r"></div>
 
-  <!-- P1 HUD -->
+  <!-- ══ P1 HUD ════════════════════════════════════════════════════ -->
   <div id="hud-p1">
-    <div id="objective-p1" style="top:8px;left:10px;position:absolute;"></div>
-    <div class="hud-bottom hud-panel" style="position:absolute;bottom:10px;left:10px;right:10px;">
-      <div class="relic-row" id="relics-p1" style="margin-bottom:4px;"></div>
-      <div class="hp-bar-wrap">
-        <div class="level-badge" id="level-p1">1</div>
-        <div class="hp-bar-bg"><div class="hp-bar-fill" id="hp-p1" style="width:100%;"></div></div>
-        <span id="hp-text-p1" style="color:#aaa;font-size:9px;white-space:nowrap;">100/100</span>
+
+    <!-- Top-left: Objective -->
+    <div class="objective-bar" id="objective-p1">
+      <canvas class="obj-icon" id="obj-icon-p1" width="14" height="14"></canvas>
+      <span class="obj-text" id="obj-text-p1">Awaiting…</span>
+    </div>
+
+    <!-- Boss HP — only visible from hud-p1, centered across divider -->
+    <div id="boss-hp-bar">
+      <div class="boss-header">
+        <span class="boss-name" id="boss-name">VENOM ONI — Mini-boss</span>
+        <span class="boss-phase" id="boss-phase">PHASE I</span>
       </div>
-      <div class="xp-bar-bg"><div class="xp-bar-fill" id="xp-p1" style="width:0%;"></div></div>
+      <div class="boss-bar-bg" id="boss-bar-bg">
+        <div class="boss-bar-fill" id="boss-hp-fill" style="width:100%;"></div>
+      </div>
+    </div>
+
+    <!-- Bottom-left: Player Plate (P1) -->
+    <div class="hud-bottom hud-panel" id="plate-p1">
+      <!-- Portrait chip -->
+      <div class="player-portrait">
+        <div class="portrait-ring" id="portrait-ring-p1">
+          <canvas id="portrait-p1" width="48" height="48"></canvas>
+          <div class="lvl-ring"></div>
+          <div class="lvl-badge" id="level-p1">L1</div>
+        </div>
+        <div class="plate-stats">
+          <!-- HP track: ghost + fill in one bar -->
+          <div style="position:relative;">
+            <div class="hp-bar-bg">
+              <div class="hp-ghost" id="hp-ghost-p1" style="width:100%;"></div>
+              <div class="hp-bar-fill" id="hp-p1" style="width:100%;"></div>
+            </div>
+            <div class="hp-text" id="hp-text-p1">100/100</div>
+          </div>
+          <div class="xp-bar-bg"><div class="xp-bar-fill" id="xp-p1" style="width:0%;"></div></div>
+          <!-- Advantage chip (P1: show nearest enemy vs current attack) -->
+          <div id="advantage-p1"></div>
+        </div>
+      </div>
+      <!-- Relic row -->
+      <div class="relic-row" id="relics-p1"></div>
+    </div>
+
+    <!-- KO overlay P1 -->
+    <div class="ko-overlay" id="ko-p1">
+      <div class="ko-title">DOWN</div>
+      <div class="ko-sub">Partner — Revive!</div>
+    </div>
+
+    <!-- Revive ring above plate P1 -->
+    <div class="revive-ring-wrap" id="revive-ring-p1">
+      <svg width="40" height="40" viewBox="0 0 40 40">
+        <circle class="revive-ring-bg" cx="20" cy="20" r="16" fill="none" stroke-width="3"/>
+        <circle class="revive-ring-fill" id="revive-fill-p1" cx="20" cy="20" r="16" fill="none" stroke-width="3"
+          style="stroke-dasharray:100.5;stroke-dashoffset:100.5;"/>
+      </svg>
+    </div>
+
+    <!-- Bottom-right: Ability cluster P1 -->
+    <div class="ability-cluster" id="abilities-cluster-p1">
       <div class="ability-row" id="abilities-p1"></div>
     </div>
-    <div id="controls-p1">WASD: Move | Space/I: Attack<br>J: Shield | K: Dodge | L: Heal</div>
+
+    <!-- Toast (unlocks, etc.) — P1 half -->
+    <div id="toast-container"></div>
+
+    <!-- Controls "?" chip P1 -->
+    <div class="controls-chip" id="controls-chip-p1" title="Controls">?</div>
   </div>
 
-  <!-- P2 HUD -->
+  <!-- ══ P2 HUD ════════════════════════════════════════════════════ -->
   <div id="hud-p2">
-    <div id="objective-p2" style="top:8px;left:10px;position:absolute;"></div>
-    <div class="hud-bottom hud-panel" style="position:absolute;bottom:10px;left:10px;right:10px;">
-      <div class="form-strip" id="form-strip-p2" style="margin-bottom:4px;"></div>
-      <div class="relic-row" id="relics-p2" style="margin-bottom:4px;"></div>
-      <div class="hp-bar-wrap">
-        <div class="level-badge" id="level-p2">1</div>
-        <div class="hp-bar-bg"><div class="hp-bar-fill" id="hp-p2" style="width:100%;"></div></div>
-        <span id="hp-text-p2" style="color:#aaa;font-size:9px;white-space:nowrap;">100/100</span>
+
+    <!-- Top-left: Objective P2 -->
+    <div class="objective-bar" id="objective-p2">
+      <canvas class="obj-icon" id="obj-icon-p2" width="14" height="14"></canvas>
+      <span class="obj-text" id="obj-text-p2">Awaiting…</span>
+    </div>
+
+    <!-- Bottom-left: Player Plate (P2) -->
+    <div class="hud-bottom hud-panel" id="plate-p2">
+      <!-- Portrait chip -->
+      <div class="player-portrait">
+        <div class="portrait-ring" id="portrait-ring-p2">
+          <canvas id="portrait-p2" width="48" height="48"></canvas>
+          <div class="lvl-ring" id="lvl-ring-p2"></div>
+          <div class="lvl-badge" id="level-p2">L1</div>
+        </div>
+        <div class="plate-stats">
+          <div style="position:relative;">
+            <div class="hp-bar-bg">
+              <div class="hp-ghost" id="hp-ghost-p2" style="width:100%;"></div>
+              <div class="hp-bar-fill" id="hp-p2" style="width:100%;"></div>
+            </div>
+            <div class="hp-text" id="hp-text-p2">100/100</div>
+          </div>
+          <div class="xp-bar-bg"><div class="xp-bar-fill" id="xp-p2" style="width:0%;"></div></div>
+          <div id="advantage-p2"></div>
+        </div>
       </div>
-      <div class="xp-bar-bg"><div class="xp-bar-fill" id="xp-p2" style="width:0%;"></div></div>
-      <div id="advantage-p2" style="margin-bottom:4px;"></div>
+      <!-- Relic row -->
+      <div class="relic-row" id="relics-p2"></div>
+    </div>
+
+    <!-- KO overlay P2 -->
+    <div class="ko-overlay" id="ko-p2">
+      <div class="ko-title">DOWN</div>
+      <div class="ko-sub">Partner — Revive!</div>
+    </div>
+
+    <!-- Revive ring P2 -->
+    <div class="revive-ring-wrap" id="revive-ring-p2">
+      <svg width="40" height="40" viewBox="0 0 40 40">
+        <circle class="revive-ring-bg" cx="20" cy="20" r="16" fill="none" stroke-width="3"/>
+        <circle class="revive-ring-fill" id="revive-fill-p2" cx="20" cy="20" r="16" fill="none" stroke-width="3"
+          style="stroke-dasharray:100.5;stroke-dashoffset:100.5;"/>
+      </svg>
+    </div>
+
+    <!-- Bottom-right: Ability cluster P2 -->
+    <div class="ability-cluster" id="abilities-cluster-p2">
+      <!-- Form selector diamonds (above the icons) -->
+      <div class="form-strip" id="form-strip-p2"></div>
       <div class="ability-row" id="abilities-p2"></div>
     </div>
-    <div id="controls-p2">Arrows: Move | Enter/Num8: Attack<br>Num4: Transform | Num5: Dodge | Num6: Special</div>
+
+    <!-- Controls "?" chip P2 -->
+    <div class="controls-chip" id="controls-chip-p2" title="Controls">?</div>
   </div>
 
-  <!-- Boss HP -->
-  <div id="boss-hp-bar">
-    <div class="boss-name" id="boss-name">POISON ONI</div>
-    <div class="boss-bar-bg"><div class="boss-bar-fill" id="boss-hp-fill" style="width:100%;"></div></div>
-  </div>
-
-  <div id="toast-container"></div>
+  <!-- Damage numbers layer (full viewport) -->
   <div id="damage-container"></div>
 
-  <!-- Intro Screen (hidden at boot; shown after menu Start) -->
+  <!-- Wave banner (full viewport overlay) -->
+  <div id="wave-banner">
+    <div class="wave-banner-letter top"></div>
+    <div class="wave-banner-title" id="wave-banner-title">WAVE I</div>
+    <div class="wave-banner-sub"   id="wave-banner-sub">Shadowlings approach</div>
+    <div class="wave-banner-letter bot"></div>
+  </div>
+
+  <!-- Intro Screen -->
   <div id="intro-screen" style="display:none;">
     <div class="letterbox-top"></div>
     <div class="letterbox-bottom"></div>
@@ -136,7 +716,7 @@ canvas{display:block;width:100vw!important;height:100vh!important;}
 
   <!-- Complete Screen -->
   <div id="complete-screen">
-    <h2>✦ QUEST COMPLETE ✦</h2>
+    <h2>&#10022; QUEST COMPLETE &#10022;</h2>
     <p style="color:#c8a000;font-style:italic;">"The Initial Trauma"</p>
     <p>Years of training under falling blossoms. The monk's staff had tasted shadow-blood, the sister's dragon roar had shaken heaven itself. From grief came resolve. From trauma, legend.</p>
     <p>Shadowling, Frost Imp, Tide Wraith, Venom Oni — each fell in turn. And at the last, the <strong>Inferno Demon Lord</strong> spread his burning wings over the garden. Only when the sea answered fire did his magma heart cool to ash. The demon lord has fallen.</p>

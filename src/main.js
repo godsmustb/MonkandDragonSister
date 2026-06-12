@@ -14,7 +14,7 @@ import {
 } from './combat/spirits.js';
 import { gameState, startIntro, endIntro, checkWaveComplete } from './game/quest.js';
 import { updateRelicDrops } from './game/progression.js';
-import { updateHUD, updateObjective, showDamageNumber, setFxTimersRef } from './ui/hud.js';
+import { updateHUD, updateObjective, showDamageNumber, setFxTimersRef, updateBossBar } from './ui/hud.js';
 import { setupDebugAPI } from './debug.js';
 import { buildMenu, startGame, togglePause, isPaused, isMenuVisible } from './ui/menu.js';
 import { initLives, consumeLife, _updateLivesHUD } from './game/lives.js';
@@ -306,6 +306,14 @@ function animate() {
     updateHUD();
     updateObjective();
     _updateLivesHUD();
+    // Boss bar: show during wave 4 and 5
+    const _ws = gameState.state;
+    if (_ws === 'WAVE4' || _ws === 'WAVE5') {
+      const boss = gameState.spirits.find(s => s.alive && (s._type === 'venomoni' || s._type === 'infernolord'));
+      updateBossBar(boss, !!boss);
+    } else {
+      updateBossBar(null, false);
+    }
   }
 
   renderFrame();

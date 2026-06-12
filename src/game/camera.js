@@ -29,12 +29,20 @@ export const camExtra = _camExtra; // exported for debug API
 const ORBIT_SPEED    = 1.8;   // rad/s while key held
 const ORBIT_DECAY    = 3.0;   // seconds before yawOffset decays to 0
 const AUTO_YAW_RATE  = 2.5;   // rad/s max yaw follow rate
-const LOCK_BREAK_DIST = 15;   // units: auto-retarget if target > this
+const LOCK_BREAK_DIST = 18;   // units: break lock if target XZ dist exceeds this
+const LOCK_AIM_BLEND = 0.60;  // fraction: blend auto-aim facing toward target (60%)
 
-// Scratch
+// Scratch vectors — module-scope to avoid per-frame allocation.
+// Note: two players call updateCamera() sequentially each frame; these are
+// safe as scratch because no reference to them is retained between calls.
 const _v1 = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 const _v4 = new THREE.Vector3();
+// _targetPos and _targetLook were previously allocated as `new THREE.Vector3()`
+// inside updateCamera(). Hoisted here — safe because each call overwrites them
+// fully before use and no reference escapes the function.
+const _targetPos  = new THREE.Vector3();
+const _targetLook = new THREE.Vector3();
 
 // ── Lock-on indicator mesh ─────────────────────────────────────────────────
 function _makeLockMesh() {
@@ -91,19 +99,26 @@ export function updateCamera(camId, player) {
   const keys = ctx.keys;
 
   // ── Check lock target still valid ──
-  if (cx.lockTarget && (!cx.lockTarget.alive)) {
-    cx.lockTarget = null;
-    _removeLockMesh(cx);
-    // Auto-retarget nearest within 15 units
-    let nearest = null, nearDist = Infinity;
-    ctx.gameState.spirits.forEach(s => {
-      if (!s.alive) return;
-      const d = player.pos.distanceTo(s.pos);
-      if (d < nearDist && d < LOCK_BREAK_DIST) { nearDist = d; nearest = s; }
-    });
-    if (nearest) {
-      cx.lockTarget = nearest;
-      _ensureLockMesh(cx);
+  if (cx.lockTarget) {
+    // Break if dead OR XZ distance exceeds threshold
+    const xzDist = Math.sqrt(
+      (cx.lockTarget.pos.x - player.pos.x) ** 2 +
+      (cx.lockTarget.pos.z - player.pos.z) ** 2
+    );
+    if (!cx.lockTarget.alive || xzDist > LOCK_BREAK_DIST) {
+      cx.lockTarget = null;
+      _removeLockMesh(cx);
+      // Auto-retarget nearest within LOCK_BREAK_DIST units
+      let nearest = null, nearDist = Infinity;
+      ctx.gameState.spirits.forEach(s => {
+        if (!s.alive) return;
+        const d = player.pos.distanceTo(s.pos);
+        if (d < nearDist && d < LOCK_BREAK_DIST) { nearDist = d; nearest = s; }
+      });
+      if (nearest) {
+        cx.lockTarget = nearest;
+        _ensureLockMesh(cx);
+      }
     }
   }
 
@@ -158,22 +173,23 @@ export function updateCamera(camId, player) {
   // Camera behind player: offset in -forward direction
   const dist = 10, height = 6;
   _v2.set(dist * sinA, height, dist * cosA);
-  const targetPos = new THREE.Vector3().copy(player.pos).add(_v2);
-  const targetLook = new THREE.Vector3().copy(player.pos).add(new THREE.Vector3(0, 1.2, 0));
+  // Reuse module-scope scratch vectors (hoisted from per-call allocation — FIX 8)
+  _targetPos.copy(player.pos).add(_v2);
+  _targetLook.copy(player.pos); _targetLook.y += 1.2;
 
   // Ground-clip prevention
-  if (targetPos.y < 1.2) targetPos.y = 1.2;
+  if (_targetPos.y < 1.2) _targetPos.y = 1.2;
 
   // Camera shake
   if (cs.shake > 0) {
-    targetPos.x += (Math.random() - 0.5) * cs.shake * 2;
-    targetPos.y += (Math.random() - 0.5) * cs.shake * 2;
+    _targetPos.x += (Math.random() - 0.5) * cs.shake * 2;
+    _targetPos.y += (Math.random() - 0.5) * cs.shake * 2;
     cs.shake *= 0.8;
     if (cs.shake < 0.005) cs.shake = 0;
   }
 
-  cs.pos.lerp(targetPos, 0.08);
-  cs.look.lerp(targetLook, 0.12);
+  cs.pos.lerp(_targetPos, 0.08);
+  cs.look.lerp(_targetLook, 0.12);
   cam.position.copy(cs.pos);
   cam.lookAt(cs.look);
 
@@ -184,12 +200,15 @@ export function updateCamera(camId, player) {
     cx.lockMesh.rotation.y += 2.0 * frameDt;
   }
 
-  // ── Auto-aim facing toward lock target ──
+  // ── Auto-aim facing toward lock target (blended, not hard-snap) ──
+  // Lerp the player's facing yaw at LOCK_AIM_BLEND (60%) per frame toward the
+  // target direction, preserving the player's movement intent for the remaining 40%.
   if (cx.lockTarget && cx.lockTarget.alive) {
     _v4.subVectors(cx.lockTarget.pos, player.pos);
     _v4.y = 0;
     if (_v4.lengthSq() > 0.01) {
-      player.facing.copy(_v4).normalize();
+      _v4.normalize();
+      player.facing.lerp(_v4, LOCK_AIM_BLEND).normalize();
     }
   }
 }

@@ -104,28 +104,17 @@ function updateGame(dt) {
   // KO / lives handling — timer expiry path
   // Partner-revive (within 10s) is handled inside Player.update in abilities.js.
   // Here we handle the "timer expired with no revive" case.
-  const bothKO = allPlayers.every(q => q && q.isKO);
-  if (bothKO && allPlayers[0]._koTimer <= 0) {
-    // Both KO simultaneously → 1 life consumed, both respawn
-    allPlayers.forEach(p => {
-      p.isKO    = false;
-      p._koTimer = 0;
-      p.hp       = Math.round(p.maxHp * 0.6);
-      p._iframes = 2.0;
-    });
-    allPlayers[0].pos.set(-2, 0, 5);
-    allPlayers[1].pos.set( 2, 0, 5);
-    allPlayers.forEach(p => { const cm = p.currentMesh && p.currentMesh(); if (cm) cm.position.copy(p.pos); });
-    consumeLife(null); // null = no individual to respawn (already done above)
-  } else {
-    allPlayers.forEach(p => {
-      if (!p || !p.isKO) return;
-      if (p._koTimer <= 0) {
-        // Solo KO timer expired → consume life, respawn via lives.js
-        consumeLife(p);
-      }
-    });
-  }
+  //
+  // FIX 4: Each player's KO timer is handled independently so both get their
+  // full 10-second revive window regardless of what the other player is doing.
+  // The old special both-KO instant branch is removed — each timer fires separately.
+  allPlayers.forEach(p => {
+    if (!p || !p.isKO) return;
+    if (p._koTimer <= 0) {
+      // Solo KO timer expired → consume life, respawn via lives.js
+      consumeLife(p);
+    }
+  });
 
   if (gameState.state !== 'INTRO') {
     gameState.spirits.forEach(s => { if (s.alive) s.update(dt, allPlayers); });
@@ -170,17 +159,22 @@ window.addEventListener('keydown', (e) => {
   const p1 = gameState.p1, p2 = gameState.p2;
   if (!p1 || !p2) return;
 
-  if (e.code === 'Space' || e.code === 'KeyI') p1.attack();
-  if (e.code === 'KeyJ') p1.chiShield();
-  if (e.code === 'KeyK') p1.dodge();
-  if (e.code === 'KeyL') p1.healingPulse();
-  // Camera V2: P1 lock-on
+  // KO gate: skip action calls for a downed player (movement is already gated in update())
+  if (!p1.isKO) {
+    if (e.code === 'Space' || e.code === 'KeyI') p1.attack();
+    if (e.code === 'KeyJ') p1.chiShield();
+    if (e.code === 'KeyK') p1.dodge();
+    if (e.code === 'KeyL') p1.healingPulse();
+  }
+  // Camera V2: P1 lock-on (allowed even while KO so player can track the fight)
   if (e.code === 'KeyF') toggleLockOn('p1');
 
-  if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Numpad8') p2.attack();
-  if (e.code === 'Numpad4') p2.cycleForm();
-  if (e.code === 'Numpad5') p2.dodge();
-  if (e.code === 'Numpad6') p2.special();
+  if (!p2.isKO) {
+    if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Numpad8') p2.attack();
+    if (e.code === 'Numpad4') p2.cycleForm();
+    if (e.code === 'Numpad5') p2.dodge();
+    if (e.code === 'Numpad6') p2.special();
+  }
   // Camera V2: P2 lock-on
   if (e.code === 'Numpad0') toggleLockOn('p2');
 });

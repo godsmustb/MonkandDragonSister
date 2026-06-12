@@ -315,10 +315,10 @@ class BossBase extends Spirit {
     document.getElementById('boss-hp-bar').style.display = 'block';
   }
 
-  _updateBossBar() {
-    const pct = Math.max(0, this.hp / this.maxHp) * 100;
-    document.getElementById('boss-hp-fill').style.width = pct + '%';
-  }
+  // Boss bar is now owned exclusively by hud.js updateBossBar().
+  // This method is intentionally a no-op to avoid dual-writer drift.
+  // (FIX 11: removed redundant direct DOM write to #boss-hp-fill)
+  _updateBossBar() {}
 
   _updatePools(dt, players, dmg, element, radius) {
     for (let i = this._pools.length - 1; i >= 0; i--) {

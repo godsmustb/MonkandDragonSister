@@ -218,6 +218,7 @@ export class Player {
   }
 
   cycleForm() {
+    if (this.isKO) return; // defense-in-depth KO gate
     if (this.id !== 2 || this._transformCd > 0) return;
     this._transformCd = 1.0;
     const forms = this.unlockedForms;
@@ -403,6 +404,7 @@ export class Player {
   }
 
   attack() {
+    if (this.isKO) return; // defense-in-depth KO gate
     if (this._attackCd > 0) return;
     if (this.id === 1) this._monkAttack();
     else this._sisterAttack();
@@ -494,6 +496,7 @@ export class Player {
   }
 
   special() {
+    if (this.isKO) return; // defense-in-depth KO gate
     if (this._specialCd > 0 || this.id !== 2) return;
     const form = this.form;
     if (form === 'human') return;
@@ -544,6 +547,7 @@ export class Player {
   }
 
   chiShield() {
+    if (this.isKO) return; // defense-in-depth KO gate
     if (this.id !== 1 || this._shieldCd > 0) return;
     this._shieldCd = 8;
     this._shieldTimer = 2.5;
@@ -564,6 +568,7 @@ export class Player {
   }
 
   healingPulse() {
+    if (this.isKO) return; // defense-in-depth KO gate
     if (this.id !== 1 || this._healCd > 0) return;
     this._healCd = 10;
     const healAmt = Math.round(this.maxHp * 0.25);
@@ -579,6 +584,7 @@ export class Player {
   }
 
   dodge() {
+    if (this.isKO) return; // defense-in-depth KO gate
     if (this._dodgeCd > 0) return;
     this._dodgeCd = 2;
     this._dodgeTimer = 0.3;

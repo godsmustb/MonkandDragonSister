@@ -33,43 +33,67 @@ function addOutline(mesh, scaleFactor = 1.04) {
 
 // ---- Canvas texture generators ----
 
-// PAINTED GROUND (Pass 4) — one big painterly canvas mapped across the whole
-// arena. Mottled jade grass with warm painterly patches, plus a raked-sand
-// centre circle with proper concentric-ring grain. Tileable repeat is OFF so
-// the centre circle stays a single feature; texture is 1024² for crispness.
+// PAINTED GROUND (Pass 8 art polish) — one big painterly canvas mapped across
+// the arena. Enhanced from Pass 4: deeper tonal contrast between jade zones and
+// warm patches, scattered moss speckles + dry-brush streaks, deeper raked-ring
+// groove shadows, and a radial vignette darkening toward the arena edge.
 function makePaintedGroundTexture() {
   const SZ = 1024;
   const c = document.createElement('canvas');
   c.width = c.height = SZ;
   const g = c.getContext('2d');
 
-  // Base jade wash.
-  g.fillStyle = '#5fa86b';
+  // Base jade wash — slightly deeper than before for more contrast headroom.
+  g.fillStyle = '#4d9459';
   g.fillRect(0, 0, SZ, SZ);
 
-  // Mottled grass: soft overlapping blobs in jade light/shadow + warm patches.
-  const grassCols = ['#6cb877', '#549a60', '#74bd7e', '#4c8f58', '#67b072'];
-  const warmCols  = ['#a7b86a', '#b9a85e', '#8fae5c']; // sun-bleached / warm
-  for (let i = 0; i < 2600; i++) {
+  // Mottled grass: wider value range for more contrast between light/shadow zones.
+  const grassCols = ['#72c47f', '#3e8050', '#82ce8c', '#366844', '#5ea86a', '#2d6040'];
+  const warmCols  = ['#b2c26a', '#c8b25e', '#98b85c', '#d4b870']; // sun-bleached / warm
+  for (let i = 0; i < 3200; i++) {
     const warm = Math.random() < 0.22;
     const pal = warm ? warmCols : grassCols;
     g.fillStyle = pal[(Math.random() * pal.length) | 0];
-    g.globalAlpha = 0.10 + Math.random() * 0.22;
+    g.globalAlpha = 0.12 + Math.random() * 0.28; // higher max alpha = more contrast
     const x = Math.random() * SZ, y = Math.random() * SZ;
-    const r = 6 + Math.random() * 40;
+    const r = 6 + Math.random() * 44;
     g.beginPath();
-    g.ellipse(x, y, r, r * (0.5 + Math.random() * 0.6), Math.random() * Math.PI, 0, Math.PI * 2);
+    g.ellipse(x, y, r, r * (0.4 + Math.random() * 0.7), Math.random() * Math.PI, 0, Math.PI * 2);
     g.fill();
   }
   g.globalAlpha = 1;
 
+  // Darker moss speckles scattered across the field.
+  for (let i = 0; i < 600; i++) {
+    g.fillStyle = `rgba(${28 + (Math.random() * 20 | 0)},${70 + (Math.random() * 30 | 0)},${36 + (Math.random() * 20 | 0)},${(0.25 + Math.random() * 0.35).toFixed(2)})`;
+    const x = Math.random() * SZ, y = Math.random() * SZ;
+    const r = 2 + Math.random() * 7;
+    g.beginPath(); g.ellipse(x, y, r, r * (0.5 + Math.random() * 0.5), Math.random() * Math.PI, 0, Math.PI * 2); g.fill();
+  }
+
+  // Light dry-brush streaks radiating outward from the centre.
+  const cx = SZ / 2, cy = SZ / 2;
+  for (let i = 0; i < 80; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const startR = SZ * 0.22 + Math.random() * SZ * 0.15;
+    const len = SZ * 0.04 + Math.random() * SZ * 0.10;
+    const x0 = cx + Math.cos(ang) * startR;
+    const y0 = cy + Math.sin(ang) * startR;
+    g.strokeStyle = `rgba(200,230,180,${(0.07 + Math.random() * 0.13).toFixed(2)})`;
+    g.lineWidth = 0.8 + Math.random() * 1.6;
+    g.beginPath();
+    g.moveTo(x0, y0);
+    g.lineTo(x0 + Math.cos(ang) * len, y0 + Math.sin(ang) * len);
+    g.stroke();
+  }
+
   // Painterly directional brush flecks for grain.
-  g.strokeStyle = 'rgba(60,120,80,0.18)';
+  g.strokeStyle = 'rgba(40,100,60,0.20)';
   g.lineWidth = 1.4;
-  for (let i = 0; i < 1400; i++) {
+  for (let i = 0; i < 1600; i++) {
     const x = Math.random() * SZ, y = Math.random() * SZ;
     const a = Math.random() * Math.PI;
-    const len = 4 + Math.random() * 12;
+    const len = 4 + Math.random() * 14;
     g.beginPath();
     g.moveTo(x, y);
     g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
@@ -77,9 +101,6 @@ function makePaintedGroundTexture() {
   }
 
   // ── Raked-sand centre circle (combat circle, radius ~5 world → centre of tex).
-  // Map world radius 5 of arena ARENA_SIZE onto the texture: sand disc covers
-  // the central fraction. We draw a sand disc + concentric raked rings.
-  const cx = SZ / 2, cy = SZ / 2;
   const sandR = SZ * 0.16; // ~radius 5 in a ~30u arena mapped to half-tex
   // sand fill with soft painterly edge
   const sandGrad = g.createRadialGradient(cx, cy, sandR * 0.2, cx, cy, sandR);
@@ -99,16 +120,24 @@ function makePaintedGroundTexture() {
     const y = cy + (Math.random() - 0.5) * sandR * 2;
     g.beginPath(); g.arc(x, y, 1 + Math.random() * 2.5, 0, Math.PI * 2); g.fill();
   }
-  // concentric raked rings — double stroke (groove shadow + highlight) for grain
+  // concentric raked rings — deeper groove shadow + crisper highlight (Pass 8)
   for (let rr = sandR * 0.12; rr < sandR * 0.95; rr += SZ * 0.012) {
-    g.strokeStyle = 'rgba(176,150,96,0.55)';
-    g.lineWidth = 2.2;
+    g.strokeStyle = 'rgba(140,112,64,0.70)'; // deeper groove shadow
+    g.lineWidth = 2.4;
     g.beginPath(); g.arc(cx, cy, rr, 0, Math.PI * 2); g.stroke();
-    g.strokeStyle = 'rgba(255,246,214,0.45)';
-    g.lineWidth = 1.0;
-    g.beginPath(); g.arc(cx, cy, rr + 2.2, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = 'rgba(255,248,218,0.55)';
+    g.lineWidth = 1.1;
+    g.beginPath(); g.arc(cx, cy, rr + 2.4, 0, Math.PI * 2); g.stroke();
   }
   g.restore();
+
+  // Radial vignette: darken toward the arena edge (painted into the canvas).
+  const vignette = g.createRadialGradient(cx, cy, SZ * 0.28, cx, cy, SZ * 0.58);
+  vignette.addColorStop(0,   'rgba(0,0,0,0)');
+  vignette.addColorStop(0.6, 'rgba(0,0,0,0)');
+  vignette.addColorStop(1.0, 'rgba(0,0,0,0.42)');
+  g.fillStyle = vignette;
+  g.fillRect(0, 0, SZ, SZ);
 
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
@@ -326,9 +355,14 @@ export function buildBamboo() {
   });
 }
 
-// Varied cherry-blossom pinks (Pass 4): each tree picks a canopy hue so the
-// playfield reads with colour variation rather than one flat pink.
+// Cherry tree canopy — Pass 8 2-tone approach:
+// Lower blobs use a deep magenta-shadow hue; upper blobs use a light pink highlight
+// with a few white-pink highlight dabs so canopy reads lush instead of flat purple.
 const CHERRY_PINKS = [0xffaacc, 0xffc2da, 0xff95bf, 0xffd6e6, 0xf7a8cf];
+// Shadow (lower blob) palette — deeper, more saturated
+const CHERRY_SHADOW = [0xd4649a, 0xc45c90, 0xcc6097, 0xbe5888];
+// Highlight dab colors — near-white pinks
+const CHERRY_HIGHLIGHT = [0xffe6f2, 0xfffafc, 0xfff0f6, 0xfce0ee];
 
 function buildCherryTree(x, z, scale = 1, pink) {
   const scene = ctx.scene;
@@ -339,15 +373,36 @@ function buildCherryTree(x, z, scale = 1, pink) {
   trunk.castShadow = true;
   addOutline(trunk);
   g.add(trunk);
-  const blobs = 5 + Math.floor(Math.random() * 2);
+  const blobs = 5 + Math.floor(Math.random() * 3); // 5-7 blobs
   for (let i = 0; i < blobs; i++) {
-    // Slight per-blob hue jitter for a painterly canopy.
-    const c = new THREE.Color(col).offsetHSL(0, (Math.random() - 0.5) * 0.04, (Math.random() - 0.5) * 0.06);
+    // Y-fraction: 0 = lowest, 1 = highest blob in this tree's crown
+    const yFrac = i / (blobs - 1);
+    let blobColor;
+    if (yFrac < 0.35) {
+      // Lower blobs — deep magenta shadow
+      blobColor = CHERRY_SHADOW[(Math.random() * CHERRY_SHADOW.length) | 0];
+    } else if (yFrac > 0.72 && Math.random() < 0.5) {
+      // Upper blobs — white-pink highlight dabs
+      blobColor = CHERRY_HIGHLIGHT[(Math.random() * CHERRY_HIGHLIGHT.length) | 0];
+    } else {
+      // Mid blobs — base pink with gentle hue jitter
+      blobColor = new THREE.Color(col).offsetHSL(
+        (Math.random() - 0.5) * 0.03,
+        (Math.random() - 0.5) * 0.06,
+        (Math.random() - 0.5) * 0.08
+      ).getHex();
+    }
     const blob = new THREE.Mesh(
-      new THREE.SphereGeometry((1.2 + Math.random() * 0.5) * scale, 6, 4),
-      toonMat(c.getHex())
+      new THREE.SphereGeometry((1.1 + Math.random() * 0.6) * scale, 7, 5),
+      toonMat(blobColor)
     );
-    blob.position.set((Math.random() - 0.5) * 2 * scale, (3 + Math.random() * 1.5) * scale, (Math.random() - 0.5) * 2 * scale);
+    // Spread lower blobs wider; upper blobs cluster tighter near the crown top.
+    const spread = (1.8 - yFrac * 0.6) * scale;
+    blob.position.set(
+      (Math.random() - 0.5) * spread * 2,
+      (3 + yFrac * 2.0 + Math.random() * 0.8) * scale,
+      (Math.random() - 0.5) * spread * 2
+    );
     blob.castShadow = true;
     addOutline(blob, 1.06);
     g.add(blob);
@@ -437,37 +492,69 @@ export function buildFlowers() {
   mid.forEach(([x, z, col]) => buildFlowerPatch(scene, flowerGeo, col, x, z, 6 + ((Math.random() * 5) | 0), 1.6));
 }
 
-// ── Instanced grass tufts (Pass 4) ─────────────────────────────────────────
-// ~150 cross-quad grass tufts with cheap per-group wind sway. We use small
-// Groups (so main.js can rotate each for wind) but share one geometry+material.
-// 150 tufts is light; grouped for the sway trick described in main.js.
+// ── Instanced grass tufts (Pass 8 perf) ────────────────────────────────────
+// Two InstancedMesh objects (one per blade orientation in a crossed-quad tuft)
+// replace the previous 150 Group×2 approach (~300 draw calls → 2 draw calls).
+// Wind sway is intentionally removed (static instances, identical to flowers).
+// ctx.grassTufts is set to null so main.js skips the old sway loop gracefully.
 export function buildGrassField() {
   const scene = ctx.scene;
-  ctx.grassTufts = [];
-  const bladeGeo = new THREE.PlaneGeometry(0.18, 0.55);
-  bladeGeo.translate(0, 0.275, 0); // pivot at base
+  // Signal to main.js animate loop that the old group-sway is no longer needed.
+  ctx.grassTufts = null;
+
+  const COUNT = 150;
+
+  // Blade geometry: a single vertical plane, pivot at the base.
+  const bladeGeoA = new THREE.PlaneGeometry(0.18, 0.55);
+  bladeGeoA.translate(0, 0.275, 0);
+  // Second blade rotated 90° for the crossed-quad look (done via instance matrix).
+  const bladeGeoB = new THREE.PlaneGeometry(0.18, 0.55);
+  bladeGeoB.translate(0, 0.275, 0);
+
   const grassMat = new THREE.MeshToonMaterial({
     color: 0x5fa86b, gradientMap: _getGradTex(), side: THREE.DoubleSide,
   });
-  const COUNT = 150;
+
+  const instA = new THREE.InstancedMesh(bladeGeoA, grassMat, COUNT);
+  const instB = new THREE.InstancedMesh(bladeGeoB, grassMat, COUNT);
+  instA.frustumCulled = false;
+  instB.frustumCulled = false;
+
+  const _m  = new THREE.Matrix4();
+  const _p  = new THREE.Vector3();
+  const _q  = new THREE.Quaternion();
+  const _e  = new THREE.Euler();
+  const _s  = new THREE.Vector3();
+
   for (let i = 0; i < COUNT; i++) {
     // Ring distribution: keep the central combat circle (r<6) clear.
     const a = Math.random() * Math.PI * 2;
     const r = 6.5 + Math.random() * (ARENA_SIZE - 9);
-    const x = Math.cos(a) * r, z = Math.sin(a) * r;
-    const g = new THREE.Group();
-    // crossed quads = readable tuft from any angle
-    for (let b = 0; b < 2; b++) {
-      const blade = new THREE.Mesh(bladeGeo, grassMat);
-      blade.rotation.y = b * Math.PI / 2 + Math.random() * 0.4;
-      blade.scale.setScalar(0.7 + Math.random() * 0.7);
-      g.add(blade);
-    }
-    g.position.set(x, 0, z);
-    g._phase = Math.random() * Math.PI * 2;
-    scene.add(g);
-    ctx.grassTufts.push(g);
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r;
+    const sc = 0.7 + Math.random() * 0.7;
+    const yawBase = Math.random() * Math.PI;
+
+    _p.set(x, 0, z);
+    _s.set(sc, sc, sc);
+
+    // Blade A — base yaw
+    _e.set(0, yawBase, 0);
+    _q.setFromEuler(_e);
+    _m.compose(_p, _q, _s);
+    instA.setMatrixAt(i, _m);
+
+    // Blade B — perpendicular (+ π/2) for the crossed look
+    _e.set(0, yawBase + Math.PI * 0.5, 0);
+    _q.setFromEuler(_e);
+    _m.compose(_p, _q, _s);
+    instB.setMatrixAt(i, _m);
   }
+
+  instA.instanceMatrix.needsUpdate = true;
+  instB.instanceMatrix.needsUpdate = true;
+  scene.add(instA);
+  scene.add(instB);
 }
 
 export function buildPagoda() {
@@ -495,20 +582,8 @@ export function buildPagoda() {
 export function buildCenterGarden() {
   const scene = ctx.scene;
 
-  // Cherry blossom tree near center
-  {
-    const g = new THREE.Group();
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 3, 6), toonMat(0x5c3a1e));
-    trunk.position.y = 1.5; trunk.castShadow = true; addOutline(trunk); g.add(trunk);
-    for (let i = 0; i < 5; i++) {
-      const blob = new THREE.Mesh(
-        new THREE.SphereGeometry(1.2 + Math.random() * 0.5, 6, 4), toonMat(0xffaacc));
-      blob.position.set((Math.random() - 0.5) * 2, 3 + Math.random() * 1.5, (Math.random() - 0.5) * 2);
-      addOutline(blob, 1.06); g.add(blob);
-    }
-    g.position.set(8, 0, -9);
-    scene.add(g);
-  }
+  // Cherry blossom tree near center — use shared buildCherryTree for 2-tone canopy
+  buildCherryTree(8, -9, 1.0, CHERRY_PINKS[2]);
 
   // Glowing stone lanterns near center
   const centerLanternPos = [[6, 0, -4], [-6, 0, -4]];

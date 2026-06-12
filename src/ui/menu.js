@@ -294,7 +294,10 @@ export function hideControls() {
 }
 
 // ── Pause overlay ─────────────────────────────────────────────────────────
-let _isPaused = false;
+// Single source of truth: ctx.gameState._paused
+// The old module-level _isPaused is removed; all reads go through ctx.gameState._paused.
+// __game.pause() / __game.resume() in debug.js also write ctx.gameState._paused directly,
+// so they freeze/unfreeze the sim consistently without needing to show the overlay UI.
 
 export function togglePause() {
   if (ctx.gameState.state === 'MENU' ||
@@ -302,7 +305,7 @@ export function togglePause() {
       ctx.gameState.state === 'GAMEOVER' ||
       ctx.gameState.state === 'COMPLETE') return;
 
-  if (_isPaused) {
+  if (ctx.gameState._paused) {
     resumeGame();
   } else {
     pauseGame();
@@ -310,20 +313,23 @@ export function togglePause() {
 }
 
 export function pauseGame() {
-  if (_isPaused) return;
-  _isPaused = true;
+  if (ctx.gameState._paused) return;
   ctx.gameState._paused = true;
   _showPauseOverlay();
 }
 
 export function resumeGame() {
-  if (!_isPaused) return;
-  _isPaused = false;
+  if (!ctx.gameState._paused) return;
   ctx.gameState._paused = false;
   _hidePauseOverlay();
 }
 
-export function isPaused() { return _isPaused; }
+// isPaused(): single source of truth — reads ctx.gameState._paused.
+export function isPaused() { return !!(ctx.gameState && ctx.gameState._paused); }
+
+function _pauseQualityLabel() {
+  return 'QUALITY: ' + ((ctx.quality === 'low') ? 'LOW' : 'HIGH');
+}
 
 function _showPauseOverlay() {
   if (_pauseEl && _pauseEl.parentNode) { _pauseEl.style.display = 'flex'; return; }
@@ -340,16 +346,34 @@ function _showPauseOverlay() {
   h.textContent = 'PAUSED';
   h.style.cssText = 'color:#c8a000;font-size:40px;letter-spacing:8px;margin-bottom:30px;';
 
-  const resume = _makePauseBtn('RESUME', () => resumeGame());
-  const quit   = _makePauseBtn('QUIT TO MENU', () => { location.reload(); });
+  const resume  = _makePauseBtn('RESUME', () => resumeGame());
+
+  // Quality toggle — reuses applyQuality from main.js + refreshes label.
+  const qualBtn = _makePauseBtn(_pauseQualityLabel(), () => {
+    const next = (ctx.quality === 'low') ? 'high' : 'low';
+    if (typeof window.__applyQuality === 'function') window.__applyQuality(next);
+    qualBtn.textContent = _pauseQualityLabel();
+  });
+  qualBtn.title = 'Press Q while paused to toggle quality';
+
+  const quit    = _makePauseBtn('QUIT TO MENU', () => { location.reload(); });
 
   _pauseEl.appendChild(h);
   _pauseEl.appendChild(resume);
+  _pauseEl.appendChild(qualBtn);
   _pauseEl.appendChild(quit);
   document.body.appendChild(_pauseEl);
 
+  _pauseEl._qualBtn = qualBtn; // store reference for Q key handler
+
   _pauseEl._keyHandler = (e) => {
-    if (e.code === 'Escape') resumeGame();
+    if (e.code === 'Escape') { resumeGame(); return; }
+    // Q key while paused = toggle quality (keyboard-accessible)
+    if (e.code === 'KeyQ' && ctx.gameState && ctx.gameState._paused) {
+      const next = (ctx.quality === 'low') ? 'high' : 'low';
+      if (typeof window.__applyQuality === 'function') window.__applyQuality(next);
+      if (_pauseEl._qualBtn) _pauseEl._qualBtn.textContent = _pauseQualityLabel();
+    }
   };
   document.addEventListener('keydown', _pauseEl._keyHandler);
 }

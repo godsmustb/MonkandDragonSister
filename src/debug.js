@@ -168,15 +168,14 @@ export function setupDebugAPI() {
     },
 
     // ── Pause (optional convenience) ─────────────────────────────────────
+    // __game.pause() freezes simulation via the single source of truth
+    // (ctx.gameState._paused) but intentionally does NOT show the pause overlay UI.
+    // Use Esc in-game for the full pause-menu experience.
     pause() {
-      if (typeof ctx.gameState._paused !== 'undefined') {
-        ctx.gameState._paused = true;
-      }
+      if (ctx.gameState) ctx.gameState._paused = true;
     },
     resume() {
-      if (typeof ctx.gameState._paused !== 'undefined') {
-        ctx.gameState._paused = false;
-      }
+      if (ctx.gameState) ctx.gameState._paused = false;
     },
   };
 }

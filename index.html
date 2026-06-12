@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Monk & The Dragon Sister</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#000;overflow:hidden;font-family:Georgia,serif;}
+#game-container{position:relative;width:100vw;height:100vh;overflow:hidden;}
+canvas{display:block;width:100vw!important;height:100vh!important;}
+#divider{position:absolute;top:0;left:50%;width:3px;height:100%;background:linear-gradient(to bottom,#c8a000,#ffdd55,#c8a000);transform:translateX(-50%);z-index:10;pointer-events:none;}
+#hud-p1,#hud-p2{position:absolute;top:0;height:100%;pointer-events:none;z-index:20;}
+#hud-p1{left:0;width:50%;}
+#hud-p2{left:50%;width:50%;}
+.hud-bottom{position:absolute;bottom:10px;left:10px;right:10px;}
+.hp-bar-wrap{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
+.level-badge{background:#c8a000;color:#000;font-size:11px;font-weight:bold;padding:2px 5px;border-radius:3px;min-width:24px;text-align:center;}
+.hp-bar-bg{flex:1;height:10px;background:rgba(0,0,0,0.75);border:1px solid #c8a000;border-radius:5px;overflow:hidden;}
+.hp-bar-fill{height:100%;background:linear-gradient(to right,#cc2222,#ff4444);border-radius:5px;transition:width 0.1s;}
+.xp-bar-bg{height:4px;background:rgba(0,0,0,0.5);border:1px solid rgba(100,100,255,0.4);border-radius:2px;overflow:hidden;margin-bottom:6px;}
+.xp-bar-fill{height:100%;background:linear-gradient(to right,#4444cc,#8888ff);border-radius:2px;transition:width 0.2s;}
+.ability-row{display:flex;gap:5px;flex-wrap:wrap;}
+.ability-icon{position:relative;width:44px;height:44px;border:1px solid rgba(255,200,0,0.7);border-radius:4px;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:8px;color:#ffdd55;}
+.ability-icon .cd-overlay{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.7);transition:height 0.1s;}
+.ability-icon .key-chip{font-size:7px;color:#aaa;margin-top:1px;}
+.form-strip{display:flex;gap:4px;margin-bottom:4px;}
+.form-btn{width:28px;height:28px;border-radius:4px;border:1px solid rgba(255,200,0,0.4);background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;}
+.form-btn.active{border-color:#ffdd55;color:#ffdd55;background:rgba(255,200,0,0.2);}
+.form-btn.locked{opacity:0.3;filter:grayscale(1);}
+.relic-row{display:flex;gap:4px;}
+.relic-icon{width:20px;height:20px;border-radius:3px;border:1px solid rgba(255,200,0,0.4);background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:10px;}
+.objective-bar{position:absolute;top:8px;left:50%;transform:translateX(-50%);color:#ffdd55;font-size:11px;text-align:center;text-shadow:0 0 8px rgba(200,160,0,0.8);white-space:nowrap;}
+#objective-p1{position:absolute;top:8px;left:10px;color:#ffdd55;font-size:11px;text-shadow:0 0 8px rgba(200,160,0,0.8);}
+#objective-p2{position:absolute;top:8px;left:10px;color:#ffdd55;font-size:11px;text-shadow:0 0 8px rgba(200,160,0,0.8);}
+.compass{position:absolute;top:28px;left:50%;transform:translateX(-50%);color:rgba(255,200,0,0.6);font-size:10px;}
+.advantage-chip{font-size:10px;padding:2px 6px;border-radius:3px;display:inline-block;margin-top:2px;}
+.advantage-chip.strong{background:rgba(0,200,0,0.3);color:#00ff88;border:1px solid #00ff88;}
+.advantage-chip.weak{background:rgba(200,0,0,0.3);color:#ff4444;border:1px solid #ff4444;}
+.advantage-chip.neutral{background:rgba(100,100,100,0.3);color:#aaa;border:1px solid #666;}
+#toast-container{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:50;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:8px;}
+.toast{background:rgba(0,0,0,0.85);border:1px solid #c8a000;color:#ffdd55;padding:8px 20px;border-radius:6px;font-size:14px;text-align:center;animation:toastIn 0.3s ease-out,toastOut 0.4s ease-in 1.8s forwards;white-space:nowrap;}
+@keyframes toastIn{from{opacity:0;transform:scale(0.7)translateY(-20px);}to{opacity:1;transform:scale(1)translateY(0);}}
+@keyframes toastOut{to{opacity:0;transform:scale(0.8)translateY(-20px);}}
+#damage-container{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:30;overflow:hidden;}
+.dmg-num{position:absolute;font-size:18px;font-weight:bold;text-shadow:0 0 6px currentColor;animation:dmgFloat 1.2s ease-out forwards;pointer-events:none;}
+@keyframes dmgFloat{0%{opacity:1;transform:translateY(0)scale(1);}70%{opacity:1;}100%{opacity:0;transform:translateY(-60px)scale(0.7);}}
+.dmg-num.effective{font-size:24px;animation:dmgFloat 1.5s ease-out forwards;}
+#intro-screen{position:absolute;top:0;left:0;width:100%;height:100%;background:#000;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.letterbox-top,.letterbox-bottom{position:absolute;left:0;right:0;height:12%;background:#000;z-index:101;}
+.letterbox-top{top:0;}
+.letterbox-bottom{bottom:0;}
+.title-card{text-align:center;color:#c8a000;z-index:102;}
+.title-card .quest-label{font-size:14px;letter-spacing:4px;color:#888;margin-bottom:8px;}
+.title-card h1{font-size:36px;color:#c8a000;text-shadow:0 0 30px rgba(200,160,0,0.8);margin-bottom:16px;}
+.title-card .lore{font-size:13px;color:#ccc;max-width:500px;line-height:1.7;font-style:italic;margin-bottom:20px;}
+.title-card .skip-hint{font-size:11px;color:#666;}
+#complete-screen{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(20,15,5,0.95);border:2px solid #c8a000;border-radius:12px;padding:40px;z-index:100;max-width:500px;text-align:center;display:none;}
+#complete-screen h2{color:#c8a000;font-size:28px;margin-bottom:16px;}
+#complete-screen p{color:#ddd;font-size:13px;line-height:1.8;margin-bottom:12px;}
+#complete-screen .coming-soon{color:#888;font-size:12px;font-style:italic;}
+#boss-hp-bar{position:absolute;top:2px;left:10%;right:10%;z-index:25;display:none;}
+#boss-hp-bar .boss-name{color:#ff4444;font-size:11px;text-align:center;text-shadow:0 0 8px #ff0000;margin-bottom:2px;}
+#boss-hp-bar .boss-bar-bg{height:8px;background:rgba(0,0,0,0.7);border:1px solid #ff4444;border-radius:4px;overflow:hidden;}
+#boss-hp-bar .boss-bar-fill{height:100%;background:linear-gradient(to right,#660000,#cc0000,#ff4444);border-radius:4px;transition:width 0.2s;}
+#webgl-error{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#111;color:#ff4444;padding:30px;border-radius:8px;text-align:center;z-index:200;}
+.vignette{position:absolute;top:0;left:0;width:50%;height:100%;background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,0.5) 100%);pointer-events:none;z-index:15;}
+.vignette-r{position:absolute;top:0;left:50%;width:50%;height:100%;background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,0.5) 100%);pointer-events:none;z-index:15;}
+#controls-p1{position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,0.6);border:1px solid rgba(255,200,0,0.3);color:#aaa;font-size:9px;padding:6px 8px;border-radius:4px;line-height:1.6;}
+#controls-p2{position:absolute;bottom:10px;left:10px;background:rgba(0,0,0,0.6);border:1px solid rgba(255,200,0,0.3);color:#aaa;font-size:9px;padding:6px 8px;border-radius:4px;line-height:1.6;}
+.hud-panel{background:rgba(0,0,0,0.45);border:1px solid rgba(200,160,0,0.25);border-radius:8px;padding:6px 8px;backdrop-filter:blur(2px);}
+</style>
+</head>
+<body>
+<div id="game-container">
+  <canvas id="gameCanvas"></canvas>
+  <div id="divider"></div>
+  <div class="vignette"></div>
+  <div class="vignette-r"></div>
+
+  <!-- P1 HUD -->
+  <div id="hud-p1">
+    <div id="objective-p1" style="top:8px;left:10px;position:absolute;"></div>
+    <div class="hud-bottom hud-panel" style="position:absolute;bottom:10px;left:10px;right:10px;">
+      <div class="relic-row" id="relics-p1" style="margin-bottom:4px;"></div>
+      <div class="hp-bar-wrap">
+        <div class="level-badge" id="level-p1">1</div>
+        <div class="hp-bar-bg"><div class="hp-bar-fill" id="hp-p1" style="width:100%;"></div></div>
+        <span id="hp-text-p1" style="color:#aaa;font-size:9px;white-space:nowrap;">100/100</span>
+      </div>
+      <div class="xp-bar-bg"><div class="xp-bar-fill" id="xp-p1" style="width:0%;"></div></div>
+      <div class="ability-row" id="abilities-p1"></div>
+    </div>
+    <div id="controls-p1">WASD: Move | Space/I: Attack<br>J: Shield | K: Dodge | L: Heal</div>
+  </div>
+
+  <!-- P2 HUD -->
+  <div id="hud-p2">
+    <div id="objective-p2" style="top:8px;left:10px;position:absolute;"></div>
+    <div class="hud-bottom hud-panel" style="position:absolute;bottom:10px;left:10px;right:10px;">
+      <div class="form-strip" id="form-strip-p2" style="margin-bottom:4px;"></div>
+      <div class="relic-row" id="relics-p2" style="margin-bottom:4px;"></div>
+      <div class="hp-bar-wrap">
+        <div class="level-badge" id="level-p2">1</div>
+        <div class="hp-bar-bg"><div class="hp-bar-fill" id="hp-p2" style="width:100%;"></div></div>
+        <span id="hp-text-p2" style="color:#aaa;font-size:9px;white-space:nowrap;">100/100</span>
+      </div>
+      <div class="xp-bar-bg"><div class="xp-bar-fill" id="xp-p2" style="width:0%;"></div></div>
+      <div id="advantage-p2" style="margin-bottom:4px;"></div>
+      <div class="ability-row" id="abilities-p2"></div>
+    </div>
+    <div id="controls-p2">Arrows: Move | Enter/Num8: Attack<br>Num4: Transform | Num5: Dodge | Num6: Special</div>
+  </div>
+
+  <!-- Boss HP -->
+  <div id="boss-hp-bar">
+    <div class="boss-name" id="boss-name">POISON ONI</div>
+    <div class="boss-bar-bg"><div class="boss-bar-fill" id="boss-hp-fill" style="width:100%;"></div></div>
+  </div>
+
+  <div id="toast-container"></div>
+  <div id="damage-container"></div>
+
+  <!-- Intro Screen -->
+  <div id="intro-screen">
+    <div class="letterbox-top"></div>
+    <div class="letterbox-bottom"></div>
+    <div class="title-card">
+      <div class="quest-label">QUEST I</div>
+      <h1>The Monk &amp; The Dragon Sister</h1>
+      <p style="font-size:16px;color:#c8a000;margin-bottom:12px;font-style:italic;">The Initial Trauma</p>
+      <p class="lore">"A peaceful Buddhist monk and his dragon sister face initial trauma as dark spirits invade their sanctuary. In the quiet of the Zen garden, their bond shall be tested — and their power unleashed."</p>
+      <p class="skip-hint">Press any key to begin…</p>
+    </div>
+  </div>
+
+  <!-- Complete Screen -->
+  <div id="complete-screen">
+    <h2>✦ QUEST COMPLETE ✦</h2>
+    <p style="color:#c8a000;font-style:italic;">"The Initial Trauma"</p>
+    <p>Years of training under falling blossoms. The monk's staff had tasted shadow-blood, the sister's dragon roar had shaken heaven itself. From grief came resolve. From trauma, legend.</p>
+    <p>The garden is cleansed. All four dragon forms now flow freely — fire and ice, poison and rain. The path to mastery stretches ever onward.</p>
+    <p class="coming-soon">Quest 2: Coming Soon…</p>
+    <p style="color:#888;font-size:11px;margin-top:16px;">The garden is now your sandbox. All forms unlocked.</p>
+  </div>
+
+  <div id="webgl-error"><h2>WebGL Not Available</h2><p>Please use a modern browser with hardware acceleration enabled.</p></div>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

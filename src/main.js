@@ -243,8 +243,10 @@ function animate() {
     }
   }
 
-  if (gameState.p1) updateCameraV2('p1', gameState.p1);
-  if (gameState.p2) updateCameraV2('p2', gameState.p2);
+  if (!game._freezeCam) {
+    if (gameState.p1) updateCameraV2('p1', gameState.p1);
+    if (gameState.p2) updateCameraV2('p2', gameState.p2);
+  }
 
   const midCam = cameras.p1;
   gameState.spirits.forEach(s => { if (s.alive) s.updateHpBar(midCam); });

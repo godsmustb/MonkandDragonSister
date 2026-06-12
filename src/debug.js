@@ -127,6 +127,19 @@ export function setupDebugAPI() {
       toggleLockOn(playerNum === 1 ? 'p1' : 'p2');
     },
 
+    // ── Camera probe hook (test/charshot.mjs visual verification) ─────────
+    // Park P1 (left) or P2 (right) camera at an explicit eye/look for close-ups.
+    // Returns nothing; the next render uses it (follow-cam will resume after).
+    setCam(which, eye, look) {
+      ctx.game._freezeCam = true; // stop follow-cam from overwriting
+      const cam = ctx.cameras[which];
+      if (!cam) return;
+      cam.position.set(eye[0], eye[1], eye[2]);
+      cam.lookAt(look[0], look[1], look[2]);
+      cam.updateMatrixWorld(true);
+    },
+    unfreezeCam() { if (ctx.game) ctx.game._freezeCam = false; },
+
     // ── Pause (optional convenience) ─────────────────────────────────────
     pause() {
       if (typeof ctx.gameState._paused !== 'undefined') {

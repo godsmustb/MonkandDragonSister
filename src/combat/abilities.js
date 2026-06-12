@@ -49,6 +49,14 @@ export function dealDamageToPlayer(player, amount, element) {
 // Scratch vectors reused in Player update
 const _v3 = new THREE.Vector3();
 const _v4 = new THREE.Vector3();
+// Scratch objects reused by _updateDragonSpine
+const _v = new THREE.Vector3();
+const _vHead = new THREE.Vector3();
+const _vLook = new THREE.Vector3();
+const _vZero = new THREE.Vector3(0, 0, 0);
+const _vUp = new THREE.Vector3(0, 1, 0);
+const _lookM = new THREE.Matrix4();
+const _lookQ = new THREE.Quaternion();
 
 export class Player {
   constructor(id, startPos) {
@@ -332,14 +340,44 @@ export class Player {
     const dm = this._dragonMeshes[this.form];
     if (!dm || !dm._segments) return;
     const segs = dm._segments;
-    const headPos = dm.position.clone();
-    headPos.y = 0.8;
-    for (let i = 0; i < segs.length; i++) {
-      const targetPos = i === 0 ? headPos :
-        segs[i - 1].position.clone().add(new THREE.Vector3(0, -0.15, -0.35 * (i + 1) * 0.3));
-      segs[i].position.lerp(targetPos, 0.25);
-      segs[i].position.y = 0.5 + Math.sin(this._animPhase + i * 0.6) * 0.2;
+    const n = segs.length;
+    const phase = this._animPhase;
+
+    // Segments are children of dm, which is yawed to face travel (local +Z = forward).
+    // So we build the spine entirely in dm-LOCAL space: head at origin (y=0.8),
+    // body trails back along local -Z with sinusoidal undulation (doc §6).
+    if (dm._head) dm._head.position.set(0, 0.8, 0);
+
+    const SPACING = 0.34;        // ~6u body for N_SEG=18
+    const vAmp = 0.15, hAmp = 0.08; // vertical / serpentine amplitude
+    for (let i = 0; i < n; i++) {
+      const segPhase = phase * 0.9 - i * 0.55;
+      const target = _v.set(
+        Math.sin(segPhase) * hAmp,                                 // x: serpentine
+        0.8 + Math.sin(segPhase) * vAmp + Math.sin(phase * 0.6) * 0.05, // y: undulate + hover
+        -SPACING * (i + 1),                                        // z: trail backward
+      );
+      segs[i].position.lerp(target, 0.35);
+      // Orient toward the previous (head-ward) node for smooth bends.
+      const prev = i === 0 ? _vHead.set(0, 0.8, 0) : segs[i - 1].position;
+      const look = _vLook.subVectors(prev, segs[i].position);
+      if (look.lengthSq() > 1e-5) {
+        _lookM.lookAt(_vZero, look.normalize(), _vUp);
+        _lookQ.setFromRotationMatrix(_lookM);
+        segs[i].quaternion.slerp(_lookQ, 0.4);
+      }
     }
+
+    // Accents: belly glow pulse, whisker + tail-fin follow-through.
+    const pulse = 1.0 + Math.sin(phase * 0.6) * 0.15;
+    if (dm._belly) for (const b of dm._belly) b.material.emissiveIntensity = 2.0 * pulse;
+    if (dm._whiskers) {
+      for (const w of dm._whiskers) {
+        w.mesh.rotation.z = Math.sin(phase * 1.5 + w.phase) * 0.12 * w.side;
+        w.mesh.rotation.x = Math.sin(phase * 1.2 + w.phase) * 0.08;
+      }
+    }
+    if (dm._tailFin) dm._tailFin.rotation.y = Math.sin(phase * 1.6) * 0.3;
   }
 
   attack() {

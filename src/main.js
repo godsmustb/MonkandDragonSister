@@ -16,6 +16,9 @@ import { gameState, startIntro, endIntro, checkWaveComplete } from './game/quest
 import { updateRelicDrops } from './game/progression.js';
 import { updateHUD, updateObjective, showDamageNumber, setFxTimersRef } from './ui/hud.js';
 import { setupDebugAPI } from './debug.js';
+import { buildMenu, startGame, togglePause, isPaused, isMenuVisible } from './ui/menu.js';
+import { initLives, consumeLife, _updateLivesHUD } from './game/lives.js';
+import { updateCamera as updateCameraV2, toggleLockOn, clearLockTargets, camExtra } from './game/camera.js';
 
 // ---- Wire up lazy cross-module references ----
 setDealDamageToPlayer(dealDamageToPlayer);
@@ -67,7 +70,7 @@ ctx.keys = keys;
 ctx.gameState = gameState;
 
 // ---- Game loop object ----
-const game = { _hitstop: 0, clock: new THREE.Clock() };
+const game = { _hitstop: 0, clock: new THREE.Clock(), _lastDt: 0.016 };
 ctx.game = game;
 
 // ---- Resize ----
@@ -81,41 +84,39 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 
-// ---- Scratch vectors for camera update ----
-const _v1 = new THREE.Vector3();
-const _v2 = new THREE.Vector3();
-const _v3 = new THREE.Vector3();
-const _v4 = new THREE.Vector3();
-
-function updateCamera(camId, player) {
-  const cs = camState[camId];
-  const cam = cameras[camId];
-  const angle = Math.atan2(player.facing.x, player.facing.z);
-  const cosA = Math.cos(angle), sinA = Math.sin(angle);
-  _v1.set(10 * sinA, 6, 10 * cosA);
-  _v2.copy(player.pos).add(_v1);
-  _v3.set(0, 1.2, 0);
-  _v4.copy(player.pos).add(_v3);
-  const targetPos = _v2;
-  const targetLook = _v4;
-
-  if (cs.shake > 0) {
-    targetPos.x += (Math.random() - 0.5) * cs.shake * 2;
-    targetPos.y += (Math.random() - 0.5) * cs.shake * 2;
-    cs.shake *= 0.8;
-    if (cs.shake < 0.005) cs.shake = 0;
-  }
-
-  cs.pos.lerp(targetPos, 0.08);
-  cs.look.lerp(targetLook, 0.12);
-  cam.position.copy(cs.pos);
-  cam.lookAt(cs.look);
-}
-
 // ---- Simulation step ----
 function updateGame(dt) {
+  if (ctx.gameState._paused) return;
+  if (ctx.gameState.state === 'MENU' || ctx.gameState.state === 'GAMEOVER') return;
+
   const allPlayers = [gameState.p1, gameState.p2];
   allPlayers.forEach(p => p && p.update(dt, keys, allPlayers));
+
+  // KO / lives handling — timer expiry path
+  // Partner-revive (within 10s) is handled inside Player.update in abilities.js.
+  // Here we handle the "timer expired with no revive" case.
+  const bothKO = allPlayers.every(q => q && q.isKO);
+  if (bothKO && allPlayers[0]._koTimer <= 0) {
+    // Both KO simultaneously → 1 life consumed, both respawn
+    allPlayers.forEach(p => {
+      p.isKO    = false;
+      p._koTimer = 0;
+      p.hp       = Math.round(p.maxHp * 0.6);
+      p._iframes = 2.0;
+    });
+    allPlayers[0].pos.set(-2, 0, 5);
+    allPlayers[1].pos.set( 2, 0, 5);
+    allPlayers.forEach(p => { const cm = p.currentMesh && p.currentMesh(); if (cm) cm.position.copy(p.pos); });
+    consumeLife(null); // null = no individual to respawn (already done above)
+  } else {
+    allPlayers.forEach(p => {
+      if (!p || !p.isKO) return;
+      if (p._koTimer <= 0) {
+        // Solo KO timer expired → consume life, respawn via lives.js
+        consumeLife(p);
+      }
+    });
+  }
 
   if (gameState.state !== 'INTRO') {
     gameState.spirits.forEach(s => { if (s.alive) s.update(dt, allPlayers); });
@@ -129,22 +130,42 @@ function updateGame(dt) {
 }
 
 // ---- Input ----
+// Extra keys for camera V2 + pause
+const EXTRA_PREVENT = new Set(['KeyQ','KeyE','KeyF','Numpad7','Numpad9','Numpad0','Escape']);
+
 window.addEventListener('keydown', (e) => {
-  if (PREVENT_KEYS.has(e.code)) e.preventDefault();
+  if (PREVENT_KEYS.has(e.code) || EXTRA_PREVENT.has(e.code)) e.preventDefault();
   keys[e.code] = true;
+
+  // Menu state — let menu.js handle navigation via its own listener
+  if (gameState.state === 'MENU') return;
+
+  // Pause toggle (Escape key during game)
+  if (e.code === 'Escape') {
+    togglePause();
+    return;
+  }
+
+  if (isPaused()) return;
 
   if (gameState.state === 'INTRO') { endIntro(); return; }
 
   const p1 = gameState.p1, p2 = gameState.p2;
+  if (!p1 || !p2) return;
+
   if (e.code === 'Space' || e.code === 'KeyI') p1.attack();
   if (e.code === 'KeyJ') p1.chiShield();
   if (e.code === 'KeyK') p1.dodge();
   if (e.code === 'KeyL') p1.healingPulse();
+  // Camera V2: P1 lock-on
+  if (e.code === 'KeyF') toggleLockOn('p1');
 
   if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Numpad8') p2.attack();
   if (e.code === 'Numpad4') p2.cycleForm();
   if (e.code === 'Numpad5') p2.dodge();
   if (e.code === 'Numpad6') p2.special();
+  // Camera V2: P2 lock-on
+  if (e.code === 'Numpad0') toggleLockOn('p2');
 });
 
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
@@ -166,6 +187,7 @@ function animate() {
   requestAnimationFrame(animate);
 
   const frameDt = Math.min(game.clock.getDelta(), 0.2);
+  game._lastDt = frameDt;
 
   if (game._hitstop > 0) {
     game._hitstop -= frameDt;
@@ -173,7 +195,7 @@ function animate() {
     game._hitstop = 0;
   }
 
-  // Environmental / cosmetic
+  // Environmental / cosmetic (always run, even in menu/pause)
   sunAngle += frameDt * 0.05;
   sun.position.set(Math.cos(sunAngle) * 50, 50, Math.sin(sunAngle) * 30);
 
@@ -209,17 +231,20 @@ function animate() {
     });
   }
 
-  // Fixed-timestep substepping
-  const FIXED_STEP = 1 / 60;
-  let remaining = frameDt;
-  while (remaining > 0) {
-    const step = Math.min(remaining, FIXED_STEP);
-    updateGame(step);
-    remaining -= step;
+  // Skip simulation if in menu or gameover
+  if (gameState.state !== 'MENU' && gameState.state !== 'GAMEOVER' && !isPaused()) {
+    // Fixed-timestep substepping
+    const FIXED_STEP = 1 / 60;
+    let remaining = frameDt;
+    while (remaining > 0) {
+      const step = Math.min(remaining, FIXED_STEP);
+      updateGame(step);
+      remaining -= step;
+    }
   }
 
-  if (gameState.p1) updateCamera('p1', gameState.p1);
-  if (gameState.p2) updateCamera('p2', gameState.p2);
+  if (gameState.p1) updateCameraV2('p1', gameState.p1);
+  if (gameState.p2) updateCameraV2('p2', gameState.p2);
 
   const midCam = cameras.p1;
   gameState.spirits.forEach(s => { if (s.alive) s.updateHpBar(midCam); });
@@ -229,6 +254,7 @@ function animate() {
     game._hudTimer = 0;
     updateHUD();
     updateObjective();
+    _updateLivesHUD();
   }
 
   renderFrame();
@@ -245,8 +271,14 @@ function init() {
   camState.p1.pos.set(-3, 6, 15);
   camState.p2.pos.set(3, 6, 15);
 
+  // Set initial state to MENU (boot landing)
+  gameState.state = 'MENU';
+
+  // Init lives
+  initLives();
+
   updateHUD();
-  startIntro();
+  buildMenu();      // shows menu, wires its own event listeners
   setupDebugAPI();
   animate();
 }

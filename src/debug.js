@@ -1,51 +1,141 @@
 // src/debug.js — window.__game debug API
 // PRESERVED CONTRACT: state, wave, spirits, p1, p2, lastDamage, lastPlayerDamage, relics,
 //   skipIntro(), teleport(), setLevel(), unlockAll()
+// PASS 1 ADDITIONS: lives, startGame(), consumeLife(), forceKO(), lockOn(n),
+//   state now reports 'MENU' and 'GAMEOVER'
 import { ctx } from './state.js';
 import { endIntro } from './game/quest.js';
+import { startGame as menuStartGame } from './ui/menu.js';
+import { consumeLife as _consumeLife } from './game/lives.js';
+import { toggleLockOn, camExtra } from './game/camera.js';
 
 export function setupDebugAPI() {
   window.__game = {
+    // ── Core state getters ──────────────────────────────────────────────
     get state()   { return ctx.gameState.state; },
     get wave()    { return ctx.gameState.wave; },
+    get lives()   { return ctx.gameState.lives != null ? ctx.gameState.lives : 3; },
+
     get spirits() {
       return ctx.gameState.spirits.filter(s => s.alive).map(s => ({
         pos: { x: s.pos.x, y: s.pos.y, z: s.pos.z },
         hp: s.hp, maxHp: s.maxHp, element: s.element, alive: s.alive,
       }));
     },
+
     get p1() {
       const p = ctx.gameState.p1;
-      return p ? { pos: { x: p.pos.x, y: p.pos.y, z: p.pos.z }, hp: p.hp, maxHp: p.maxHp, level: p.level, xp: p.xp } : null;
+      if (!p) return null;
+      return {
+        pos: { x: p.pos.x, y: p.pos.y, z: p.pos.z },
+        hp: p.hp, maxHp: p.maxHp, level: p.level, xp: p.xp,
+        isKO: p.isKO,
+        hasLockTarget: !!(camExtra.p1 && camExtra.p1.lockTarget && camExtra.p1.lockTarget.alive),
+      };
     },
+
     get p2() {
       const p = ctx.gameState.p2;
-      return p ? { pos: { x: p.pos.x, y: p.pos.y, z: p.pos.z }, hp: p.hp, maxHp: p.maxHp, level: p.level, xp: p.xp, form: p.form, unlocked: p.unlockedForms.slice() } : null;
+      if (!p) return null;
+      return {
+        pos: { x: p.pos.x, y: p.pos.y, z: p.pos.z },
+        hp: p.hp, maxHp: p.maxHp, level: p.level, xp: p.xp,
+        form: p.form, unlocked: p.unlockedForms.slice(),
+        isKO: p.isKO,
+        hasLockTarget: !!(camExtra.p2 && camExtra.p2.lockTarget && camExtra.p2.lockTarget.alive),
+      };
     },
+
     lastDamage: null,
     lastPlayerDamage: null,
+
     get relics() {
       const p1 = ctx.gameState.p1, p2 = ctx.gameState.p2;
       return [...new Set([...(p1 ? p1.relics : []), ...(p2 ? p2.relics : [])])];
     },
-    skipIntro() {
-      if (ctx.gameState.state === 'INTRO') {
-        document.getElementById('intro-screen').style.display = 'none';
-        // Import startWave lazily — we have a reference via endIntro already
+
+    // ── Navigation ──────────────────────────────────────────────────────
+    /** Transition from MENU → INTRO (mirrors clicking "Start Game") */
+    startGame() {
+      if (ctx.gameState.state === 'MENU') {
+        menuStartGame();
+      } else if (ctx.gameState.state === 'INTRO') {
         endIntro();
       }
     },
+
+    /** Skip intro directly to WAVE1 */
+    skipIntro() {
+      if (ctx.gameState.state === 'MENU') {
+        menuStartGame();
+        // menuStartGame calls startIntro(); wait a tick then endIntro
+        setTimeout(() => {
+          if (ctx.gameState.state === 'INTRO') endIntro();
+        }, 50);
+      } else if (ctx.gameState.state === 'INTRO') {
+        const introEl = document.getElementById('intro-screen');
+        if (introEl) introEl.style.display = 'none';
+        endIntro();
+      }
+    },
+
+    // ── Cheats ──────────────────────────────────────────────────────────
     teleport(playerNum, x, z) {
       const p = playerNum === 1 ? ctx.gameState.p1 : ctx.gameState.p2;
       if (p) { p.pos.set(x, 0, z); const cm = p.currentMesh(); if (cm) cm.position.copy(p.pos); }
     },
+
     setLevel(playerNum, level) {
       const p = playerNum === 1 ? ctx.gameState.p1 : ctx.gameState.p2;
       if (p) p.setLevel(level);
     },
+
     unlockAll() {
       if (ctx.gameState.p2) {
         ['fire', 'ice', 'poison', 'water'].forEach(f => ctx.gameState.p2.unlockForm(f));
+      }
+    },
+
+    // ── Lives helpers ────────────────────────────────────────────────────
+    /**
+     * Consume one team life (runs the real code path, for E2E testing).
+     * Repeating 3 times should trigger GAMEOVER.
+     */
+    consumeLife() {
+      const p1 = ctx.gameState.p1;
+      _consumeLife(p1);
+    },
+
+    /**
+     * Force KO a player (for E2E: immediately set isKO=true, _koTimer=0).
+     * Combined with consumeLife() this lets E2E avoid real-time wait.
+     */
+    forceKO(playerNum) {
+      const p = playerNum === 1 ? ctx.gameState.p1 : ctx.gameState.p2;
+      if (!p) return;
+      p.hp = 0;
+      p.isKO = true;
+      p._koTimer = 0; // immediately expired
+    },
+
+    // ── Camera / lock-on ────────────────────────────────────────────────
+    /**
+     * Toggle lock-on for a player (1 or 2).
+     * Useful for E2E assertions on hasLockTarget.
+     */
+    lockOn(playerNum) {
+      toggleLockOn(playerNum === 1 ? 'p1' : 'p2');
+    },
+
+    // ── Pause (optional convenience) ─────────────────────────────────────
+    pause() {
+      if (typeof ctx.gameState._paused !== 'undefined') {
+        ctx.gameState._paused = true;
+      }
+    },
+    resume() {
+      if (typeof ctx.gameState._paused !== 'undefined') {
+        ctx.gameState._paused = false;
       }
     },
   };

@@ -5,24 +5,28 @@ import { clearAllFx, _fxTimers, _fxEffects, spawnGoldCelebration } from '../comb
 import { spawnSpirits, spawnBoss } from '../combat/spirits.js';
 import { spawnRelicDrop } from './progression.js';
 import { updateHUD, updateObjective, showToast } from '../ui/hud.js';
+// clearLockTargets imported lazily below to avoid circular dep at module load time
 
 export const gameState = {
-  state: 'INTRO',
+  state: 'MENU',
   wave: 0,
   spirits: [],
   p1: null,
   p2: null,
+  lives: 3,
   _introTimer: 6,
   _waveClearing: false,
   _clearTimer: 0,
   _completed: false,
   _waveClearGranted: false,
+  _paused: false,
 };
 
 export function startIntro() {
   gameState.state = 'INTRO';
   gameState.wave = 0;
-  document.getElementById('intro-screen').style.display = 'flex';
+  const introEl = document.getElementById('intro-screen');
+  if (introEl) introEl.style.display = 'flex';
 }
 
 export function endIntro() {
@@ -43,6 +47,12 @@ export function startWave(n) {
   gameState.spirits.forEach(s => s.cleanup && s.cleanup());
   gameState.spirits = [];
 
+  // Clear camera lock-on targets (lazy import avoids circular dep at startup)
+  try {
+    import('../game/camera.js').then(m => m.clearLockTargets()).catch(() => {});
+  } catch (_) {}
+
+
   if (n === 1) {
     spawnSpirits('neutral', 3);
     showToast('Wave 1: Shadows approach! Use Space/I to attack.');
@@ -62,7 +72,8 @@ export function startWave(n) {
 }
 
 export function checkWaveComplete() {
-  if (gameState.state === 'INTRO' || gameState.state === 'COMPLETE') return;
+  if (gameState.state === 'INTRO' || gameState.state === 'COMPLETE' ||
+      gameState.state === 'MENU'  || gameState.state === 'GAMEOVER') return;
   const alive = gameState.spirits.filter(s => s.alive);
   if (alive.length > 0 || gameState._waveClearing) return;
   if (gameState.spirits.length === 0) return;

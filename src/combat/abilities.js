@@ -40,8 +40,8 @@ export function dealDamageToPlayer(player, amount, element) {
   if (player.hp <= 0) {
     player.hp = 0;
     player.isKO = true;
-    player._koTimer = 5;
-    showToast(`P${player.id} is down! Partner nearby to revive.`);
+    player._koTimer = 10; // 10s revive window (changed from 5)
+    showToast(`P${player.id} is down! Partner has 10s to revive!`);
   }
   updateHUD();
 }
@@ -240,21 +240,17 @@ export class Player {
     if (this.isKO) {
       this._koTimer -= dt;
       const other = allPlayers.find(p => p.id !== this.id);
-      if (other && other.pos.distanceTo(this.pos) < 2.5) {
+      // Partner revive: stand within 2.5 units within 10s
+      if (other && !other.isKO && other.pos.distanceTo(this.pos) < 2.5 && this._koTimer > 0) {
         this.hp = Math.round(this.maxHp * 0.3);
         this.isKO = false;
-        showToast(`P${this.id} revived!`);
+        this._koTimer = 0;
+        this._iframes = 1.5;
+        showToast(`P${this.id} revived by partner!`);
         updateHUD();
-      } else if (this._koTimer <= 0) {
-        const allKO = allPlayers.every(p => p.isKO);
-        if (allKO) {
-          allPlayers.forEach(p => { p.hp = Math.round(p.maxHp * 0.5); p.isKO = false; p.pos.set(0, 0, 5); });
-          showToast('Revived at shrine!');
-          updateHUD();
-        } else {
-          this._koTimer = 5;
-        }
       }
+      // When timer hits 0, main.js handleKoExpiry() calls consumeLife() — see main.js
+      // We do NOT reset the timer here; main.js intercepts _koTimer <= 0 and isKO
       return;
     }
 
@@ -327,14 +323,9 @@ export class Player {
       }
     }
 
-    // Contact damage
-    ctx.gameState.spirits.forEach(s => {
-      if (!s.alive) return;
-      if (this._iframes > 0) return;
-      if (this.pos.distanceTo(s.pos) < 1.6) {
-        dealDamageToPlayer(this, s.atk * dt * 2, s.element);
-      }
-    });
+    // Contact damage is now handled by the melee AI state machine in src/combat/ai.js
+    // (telegraph → strike → recover). The old distance-based continuous damage
+    // block is intentionally removed to fix the "enemies never hurt players" bug.
   }
 
   _updateDragonSpine(dt) {

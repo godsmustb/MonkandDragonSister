@@ -237,12 +237,14 @@ export function updateObjective() {
   const alive = ctx.gameState ? ctx.gameState.spirits.filter(s => s.alive).length : 0;
   const total = ctx.gameState ? ctx.gameState.spirits.length : 0;
   let txt = '';
-  if (state === 'INTRO')     txt = 'Awaiting the storm…';
+  if (state === 'MENU')       txt = '';
+  else if (state === 'INTRO') txt = 'Awaiting the storm…';
   else if (state === 'WAVE1') txt = `Wave 1: Spirits ${alive}/${total}`;
   else if (state === 'WAVE2') txt = `Wave 2: Ice Imps ${alive}/${total}`;
   else if (state === 'WAVE3') txt = `Wave 3: Water Wraiths ${alive}/${total}`;
   else if (state === 'WAVE4') txt = 'Wave 4: BOSS';
   else if (state === 'COMPLETE') txt = 'Garden Cleansed!';
+  else if (state === 'GAMEOVER') txt = 'Game Over';
 
   const o1 = document.getElementById('objective-p1');
   const o2 = document.getElementById('objective-p2');

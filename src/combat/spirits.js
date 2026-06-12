@@ -4,6 +4,7 @@ import { ctx } from '../state.js';
 import { ELEMENT_COLORS, ARENA_SIZE } from '../config.js';
 import { getElementMult } from '../config.js';
 import { spawnDeathParticles, _fxTimers } from './projectiles.js';
+import { initMeleeAI, updateMeleeAI, xzDist, PURSUE_STOP_DIST } from './ai.js';
 
 // Forward-declare: set by abilities.js after it imports us
 // We store it here so Spirit can call it without a circular dep.
@@ -71,6 +72,12 @@ export class Spirit {
     this._light = new THREE.PointLight(ELEMENT_COLORS[element], 0.6, 6);
     this._light.position.copy(pos);
     ctx.scene.add(this._light);
+
+    // Melee AI state machine
+    initMeleeAI(this);
+    // dealDamageToPlayer will be set via the module-level variable when spirits.js fires
+    // We store a thunk so ai.js doesn't import abilities.js (avoids circular dep)
+    this._dealDmgFn = null; // wired up lazily in update()
   }
 
   _buildMesh() {
@@ -128,6 +135,9 @@ export class Spirit {
   update(dt, players) {
     if (!this.alive) return;
 
+    // Wire up dealDamageToPlayer lazily (set by abilities.js after import)
+    if (!this._dealDmgFn && dealDamageToPlayer) this._dealDmgFn = dealDamageToPlayer;
+
     if (this._frozenTimer > 0) {
       this._frozenTimer -= dt;
       if (this._frozenTimer <= 0) {
@@ -147,28 +157,23 @@ export class Spirit {
     this.mesh.position.copy(this.pos);
     this._light.position.copy(this.pos);
 
-    let nearest = null, nearDist = Infinity;
+    // Find nearest living player (XZ distance)
+    let nearest = null, nearXZDist = Infinity;
     players.forEach(p => {
-      if (p.hp <= 0) return;
-      const d = p.pos.distanceTo(this.pos);
-      if (d < nearDist) { nearDist = d; nearest = p; }
+      if (p.hp <= 0 || p.isKO) return;
+      const d = xzDist(this, p);
+      if (d < nearXZDist) { nearXZDist = d; nearest = p; }
     });
 
-    if (nearest && nearDist > 2.5) {
-      _v1.subVectors(nearest.pos, this.pos).normalize();
-      _v1.y = 0;
-      this._vel.lerp(_v1.multiplyScalar(this.speed), 0.08);
-      _v2.copy(this._vel).multiplyScalar(dt);
-      _v2.y = 0;
-      this.pos.add(_v2);
-      this.mesh.rotation.y = Math.atan2(this._vel.x, this._vel.z);
-    }
+    // Melee state machine (handles all movement + damage for melee spirits)
+    updateMeleeAI(this, dt, nearest, nearXZDist);
 
     this.pos.x = THREE.MathUtils.clamp(this.pos.x, -ARENA_SIZE + 2, ARENA_SIZE - 2);
     this.pos.z = THREE.MathUtils.clamp(this.pos.z, -ARENA_SIZE + 2, ARENA_SIZE - 2);
 
+    // Ranged attack (wave 3+ projectiles) — separate from melee
     this._attackTimer -= dt;
-    if (this._attackTimer <= 0 && nearest && nearDist < 20) {
+    if (this._attackTimer <= 0 && nearest && nearXZDist < 20) {
       this._attackTimer = this._attackCd;
       this._doAttack(nearest);
     }

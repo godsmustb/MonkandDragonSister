@@ -962,6 +962,37 @@ export function spawnDemonLord() {
   ctx.gameState.spirits.push(lord);
 }
 
+// ── Level 3 scaled boss spawners (campaign D index pre-applied) ──
+/**
+ * Spawn a "Plague Oni" (BossSpirit) scaled to dIndex D (Level 3 usage: D≈14).
+ * More adds than Level 2, faster add timer, shorter enrage window.
+ */
+export function spawnBossScaledL3(D) {
+  const boss = new BossSpirit(new THREE.Vector3(0, 0, -15));
+  document.getElementById('boss-name').textContent = 'PLAGUE ONI';
+  boss.maxHp = Math.max(1, Math.round(scaleHp(boss.maxHp, D)));
+  boss.hp    = boss.maxHp;
+  boss.atk   = Math.max(1, Math.round(scaleAtk(boss.atk, D)));
+  // L3 Plague Oni: faster, shorter enrage window, more aggressive
+  boss._baseSpeed *= 1.2;
+  boss.speed = boss._baseSpeed;
+  boss.spawnAddTimer = 4;   // adds arrive sooner than L2 (was 6)
+  boss._enrageAt = 60;      // enrages at 60s (L2 default is 90s)
+  boss._enrageAtkMult = 1.5; // +50% ATK on enrage (L2 is +30%)
+  boss._enrageCdMult = 0.55; // much faster attack cadence
+  boss.attackCooldown = 2.6; // already tighter base cd
+  ctx.gameState.spirits.push(boss);
+}
+
+/**
+ * Spawn the "Abyssal Demon Lord" scaled to dIndex D (Level 3 usage: D≈15).
+ * HP clearly above Level 2 (~1700+). Poison/ice element rotation. Faster hazards.
+ */
+export function spawnDemonLordScaledL3(D) {
+  const lord = new DemonLordL3(new THREE.Vector3(0, 0, -16), D);
+  ctx.gameState.spirits.push(lord);
+}
+
 // ── Level 2 scaled boss spawners (campaign D index pre-applied) ──
 /**
  * Spawn a Venom Oni scaled to dIndex D (Level 2 usage: D=9).
@@ -998,6 +1029,206 @@ export function spawnBossScaled(D) {
 export function spawnDemonLordScaled(D) {
   const lord = new DemonLordL2(new THREE.Vector3(0, 0, -16), D);
   ctx.gameState.spirits.push(lord);
+}
+
+// ── Level 3 Final Boss: Abyssal Demon Lord ──────────────────────────────────
+// Extends DemonLord with:
+//  • Starts as POISON element (Ice dragon is optimal from the start)
+//  • Phase 2 at 60% HP (earlier than L1 70% / L2 65%); Phase 3 at 25% HP
+//  • Phase 3 shifts to WATER element → Poison dragon is the final counter
+//  • Persistent poison ground pools (arena hazards that force repositioning)
+//  • Full arena-saturating element burst (more circles than L2)
+//  • Tighter ember + wave cadence than L2; shorter enrage window (75s vs 90s)
+//  • Scaled HP/ATK via campaign D index (~D=15 → maxHp 1700+)
+class DemonLordL3 extends DemonLord {
+  constructor(pos, D) {
+    super(pos);
+    document.getElementById('boss-name').textContent = 'ABYSSAL DEMON LORD';
+    this.maxHp = Math.max(1, Math.round(scaleHp(this.maxHp, D)));
+    this.hp    = this.maxHp;
+    this.atk   = Math.max(1, Math.round(scaleAtk(this.atk, D)));
+    // Start as POISON — Ice dragon is immediately the counter
+    this.element = 'poison';
+    if (this._light) this._light.color.setHex(0xaa44ff);
+    // Ambient poison hazard (ground-pool drip like Venom Oni but spread wide)
+    this._abyssPoolTimer = 5;
+    // Tighter cadences for harder feel
+    this._enrageAt = 75;          // enrages at 75s (L2 is 90s)
+    this._enrageAtkMult = 1.6;   // +60% ATK (L2 is +50%)
+    this.attackCooldown = 2.8;   // faster than L2's 3.0
+    this._emberTimer = 2.5;      // more frequent embers (L2 is 3)
+    this._flameWaveTimer = 4;    // more frequent waves (L2 is 5)
+  }
+
+  update(dt, players) {
+    super.update(dt, players);
+    if (!this.alive) return;
+    // Periodic ambient poison pools that force repositioning
+    this._abyssPoolTimer -= dt;
+    if (this._abyssPoolTimer <= 0) {
+      this._abyssPoolTimer = this.phase >= 2 ? 3.5 : 5;
+      this._spawnAbyssPool();
+    }
+    this._updatePools(dt, players, 10, 'poison', 2.8);
+  }
+
+  _spawnAbyssPool() {
+    // Drop a poison pool at a random arena position (not just near boss)
+    const angle = Math.random() * Math.PI * 2;
+    const dist  = 6 + Math.random() * 18;
+    const poolPos = new THREE.Vector3(
+      this.pos.x + Math.cos(angle) * dist,
+      0.05,
+      this.pos.z + Math.sin(angle) * dist
+    );
+    poolPos.x = THREE.MathUtils.clamp(poolPos.x, -22, 22);
+    poolPos.z = THREE.MathUtils.clamp(poolPos.z, -22, 22);
+    const mesh = new THREE.Mesh(
+      new THREE.CircleGeometry(2.6, 16),
+      new THREE.MeshBasicMaterial({ color: 0xaa44ff, transparent: true, opacity: 0.48 })
+    );
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.copy(poolPos);
+    ctx.scene.add(mesh);
+    // Life: 12s in P1, 9s in P2+ (more churn = less safe ground)
+    const life = this.phase >= 2 ? 9 : 12;
+    this._pools.push({ pos: poolPos, mesh, life, tickTimer: 1, _grow: 0 });
+  }
+
+  // Override phase thresholds: P2 at 60%, P3 at 25%
+  _checkPhase(players) {
+    if (this.phase === 1 && this.hp <= this.maxHp * 0.60) this._enterPhase2L3();
+    else if (this.phase === 2 && this.hp <= this.maxHp * 0.25) this._enterPhase3L3();
+  }
+
+  _enterPhase2L3() {
+    this.phase = 2;
+    this._baseSpeed *= 1.30; this.speed = this._baseSpeed;
+    this.attackCooldown = 2.1;
+    this.spawnAddTimer = 3;
+    this.mesh.scale.multiplyScalar(1.07);
+    if (ctx.impactLight) {
+      ctx.impactLight.color.setHex(0xaa44ff); ctx.impactLight.intensity = 3;
+      _fxTimers.push(setTimeout(() => { if (ctx.impactLight) ctx.impactLight.intensity = 0; }, 1200));
+    }
+    ctx.camState.p1.shake = 0.45; ctx.camState.p2.shake = 0.45;
+    // Spawn 4 mixed poison/water adds to flood the arena
+    const addTypes = ['shadowling', 'tidewraith', 'shadowling', 'tidewraith'];
+    addTypes.forEach((t, i) => {
+      const angle = (i / addTypes.length) * Math.PI * 2;
+      const addPos = new THREE.Vector3(Math.cos(angle) * 13, 1, Math.sin(angle) * 13);
+      const add = new Spirit(null, addPos, 3, t);
+      ctx.gameState.spirits.push(add);
+    });
+    import('../ui/hud.js').then(m => {
+      m.showBanner('ABYSSAL LORD: VENOM TIDE', 'Poison floods the arena — Ice counters! Adds incoming!', '#aa44ff');
+    }).catch(() => {});
+  }
+
+  _enterPhase3L3() {
+    this.phase = 3;
+    // Shift element to WATER — Poison dragon is now the best counter
+    this.element = 'water';
+    if (this._light) this._light.color.setHex(0x4499ff);
+    this._baseSpeed *= 1.18; this.speed = this._baseSpeed;
+    this.attackCooldown = 1.7;
+    // Override aoe colour helper: _spawnGroundAoe uses this.element now
+    if (ctx.impactLight) {
+      ctx.impactLight.color.setHex(0x4499ff); ctx.impactLight.intensity = 4;
+      _fxTimers.push(setTimeout(() => { if (ctx.impactLight) ctx.impactLight.intensity = 0; }, 1400));
+    }
+    ctx.camState.p1.shake = 0.55; ctx.camState.p2.shake = 0.55;
+    import('../ui/hud.js').then(m => {
+      m.showBanner('ABYSSAL LORD: TIDAL RECKONING', 'Element shifts to WATER — swap to POISON dragon!', '#4499ff');
+    }).catch(() => {});
+  }
+
+  // L3 has an even richer attack bag — every phase adds more options
+  _attackBag() {
+    const bag = [
+      { name: 'melee_slam',    weight: 2 },
+      { name: 'fire_barrage',  weight: 3 }, // emits in current element (poison/water)
+      { name: 'ground_aoe',   weight: 2 },
+    ];
+    if (this.phase >= 2) {
+      bag.push({ name: 'ground_aoe',    weight: 3 });
+      bag.push({ name: 'gap_closer_l3', weight: 2 });
+    }
+    if (this.phase >= 3) {
+      bag.push({ name: 'ground_aoe',    weight: 3 });
+      bag.push({ name: 'element_burst', weight: 3 });
+    }
+    return bag;
+  }
+
+  _doAttack(name, players) {
+    if (name === 'gap_closer_l3') {
+      this._gapCloserL3(players);
+    } else {
+      super._doAttack(name, players);
+    }
+  }
+
+  // Aggressive lunge + instant pool-drop at landing position
+  _gapCloserL3(players) {
+    let target = null, best = Infinity;
+    players.forEach(p => {
+      if (p.inactive || p.isKO) return;
+      const dx = p.pos.x - this.pos.x, dz = p.pos.z - this.pos.z;
+      const d = Math.sqrt(dx*dx + dz*dz);
+      if (d < best) { best = d; target = p; }
+    });
+    if (!target) return;
+    const dx = target.pos.x - this.pos.x, dz = target.pos.z - this.pos.z;
+    const len = Math.sqrt(dx*dx + dz*dz) || 1;
+    const dash = Math.min(len - 2, 12);
+    if (dash > 0) {
+      this.pos.x += (dx / len) * dash;
+      this.pos.z += (dz / len) * dash;
+      this.pos.x = THREE.MathUtils.clamp(this.pos.x, -22, 22);
+      this.pos.z = THREE.MathUtils.clamp(this.pos.z, -22, 22);
+      // Drop a pool at the landing spot for positional pressure
+      this._spawnAbyssPool();
+      spawnDeathParticles(new THREE.Vector3(this.pos.x, 0.3, this.pos.z), 0xaa44ff);
+      ctx.camState.p1.shake = 0.30; ctx.camState.p2.shake = 0.30;
+    }
+  }
+
+  // Override _spawnGroundAoe colour: L3 uses poison/water colours
+  _spawnGroundAoe(pos, radius, element, dmg, delay = 1.1) {
+    const col = element === 'water' ? 0x4499ff : (element === 'poison' ? 0xaa44ff : 0xff5522);
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(radius * 0.85, radius, 24),
+      new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.6,
+        side: THREE.DoubleSide, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(pos.x, 0.06, pos.z);
+    ctx.scene.add(ring);
+    const inner = new THREE.Mesh(
+      new THREE.CircleGeometry(radius, 24),
+      new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.0,
+        side: THREE.DoubleSide, depthWrite: false }));
+    inner.rotation.x = -Math.PI / 2;
+    inner.position.set(pos.x, 0.05, pos.z);
+    ctx.scene.add(inner);
+    this.aoeWarnings.push({ ring, inner, pos: pos.clone(), r: radius, element, dmg, delay, exploded: false, life: delay + 0.6 });
+  }
+
+  // P3 element burst: 8 circles + twin waves (vs L2's 6 circles + 1 wave)
+  _elementBurst(players) {
+    const el = this.element;
+    for (let i = 0; i < 8; i++) {
+      const ang = (i / 8) * Math.PI * 2;
+      const r = 5 + Math.random() * 6;
+      this._spawnGroundAoe(
+        new THREE.Vector3(this.pos.x + Math.cos(ang) * r, 0, this.pos.z + Math.sin(ang) * r),
+        2.6, el, Math.round(this.atk * 1.1), 1.0);
+    }
+    // Two expanding hazard waves
+    this._flameWave();
+    this._flameWave();
+    ctx.camState.p1.shake = 0.4; ctx.camState.p2.shake = 0.4;
+  }
 }
 
 // ── Level 2 Final Boss: Glacial Inferno Lord ─────────────────────────────────

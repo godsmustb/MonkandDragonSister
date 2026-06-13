@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import { ctx } from '../state.js';
 import { clearAllFx, _fxTimers, _fxEffects, spawnGoldCelebration } from '../combat/projectiles.js';
 import { sfx } from '../audio/audio.js';
-import { spawnSpirits, spawnBoss, spawnDemonLord, spawnBossScaled, spawnDemonLordScaled } from '../combat/spirits.js';
+import { spawnSpirits, spawnBoss, spawnDemonLord, spawnBossScaled, spawnDemonLordScaled,
+  spawnBossScaledL3, spawnDemonLordScaledL3 } from '../combat/spirits.js';
 import { spawnRelicDrop } from './progression.js';
 import { updateHUD, updateObjective, showToast, showWaveBanner, updateBossBar } from '../ui/hud.js';
 import {
@@ -44,7 +45,7 @@ export const gameState = {
 // Players keep their forms/XP from a prior level run.
 export function startLevel(n) {
   // Validate
-  if (n !== 1 && n !== 2) return;
+  if (n !== 1 && n !== 2 && n !== 3) return;
 
   // Hide complete screen (may be showing from previous level)
   const completeEl = document.getElementById('complete-screen');
@@ -77,7 +78,14 @@ export function startLevel(n) {
     }
   });
 
-  if (n === 2) {
+  if (n === 3) {
+    // Level 3 starts with an ominous intro banner then wave 1
+    showToast('QUEST III — THE VENOM ABYSS. Poison fills the wastes — only ice endures!', 3400);
+    import('../ui/hud.js').then(m => {
+      m.showBanner('QUEST III', 'THE VENOM ABYSS — Poison Wastes Await', '#aa44ff');
+    }).catch(() => {});
+    _fxTimers.push(setTimeout(() => startWave(1), 2000));
+  } else if (n === 2) {
     // Level 2 starts with intro-like banner then wave 1
     showToast('QUEST II — THE GLACIAL PEAKS. Face the frost warlords!', 3200);
     import('../ui/hud.js').then(m => {
@@ -146,7 +154,46 @@ export function startWave(n) {
   } catch (_) {}
 
 
-  if (gameState.level === 2) {
+  if (gameState.level === 3) {
+    // ── LEVEL 3: The Venom Abyss — poison-dominant, Ice dragon is the key ──
+    // dIndex(land=3, wave=n) → D values: W1=11, W2=12, W3=13, W4=14, W5=15
+    const D3 = dIndex(3, n);
+    if (n === 1) {
+      // W1: 6 poison-flavoured demons (shadowlings + tide wraiths as poison stand-ins)
+      spawnSpirits('poison', 4, 'shadowling');
+      spawnSpirits('water',  2, 'tidewraith');
+      _applyL3Scaling(D3);
+      showWaveBanner('L3WAVE1');
+      showToast('Venom Abyss — Wave 1: Poison scouts surge! ICE dragon counters poison!');
+    } else if (n === 2) {
+      // W2: 7 mixed — poison-heavy + water pressure
+      spawnSpirits('poison', 4, 'shadowling');
+      spawnSpirits('water',  3, 'tidewraith');
+      _applyL3Scaling(D3);
+      showWaveBanner('L3WAVE2');
+      showToast('Wave 2: Poison horde + Tide Wraiths — keep ICE for poison, POISON for water!');
+    } else if (n === 3) {
+      // W3: 7 tide wraiths + poison mix — elemental pressure ramps up
+      spawnSpirits('water',  4, 'tidewraith');
+      spawnSpirits('poison', 3, 'shadowling');
+      _applyL3Scaling(D3);
+      showWaveBanner('L3WAVE3');
+      showToast('Wave 3: Tide Wraiths + Poison swarm! Swap forms — Poison vs Water, Ice vs Poison!');
+    } else if (n === 4) {
+      // W4: Plague Oni (L3 scaled Venom Oni) + 4 poison/water adds
+      spawnBossScaledL3(D3);
+      spawnSpirits('poison', 2, 'shadowling');
+      spawnSpirits('water',  2, 'tidewraith');
+      _applyL3ScalingAdds(D3);
+      showWaveBanner('L3WAVE4');
+      showToast('WAVE 4 — PLAGUE ONI! ICE counters Poison! Watch the adds + ground pools! ▲');
+    } else if (n === 5) {
+      // W5: Abyssal Demon Lord — starts POISON, P3 shifts to WATER
+      spawnDemonLordScaledL3(D3);
+      showWaveBanner('L3WAVE5');
+      showToast('WAVE 5 — ABYSSAL DEMON LORD! ICE DRAGON on poison — shifts to WATER at 25%! ▲');
+    }
+  } else if (gameState.level === 2) {
     // ── LEVEL 2: The Glacial Peaks — ice-dominant, Fire dragon is the key ──
     // dIndex(land=2, wave=n) → D values: W1=6, W2=7, W3=8, W4=9, W5=10
     const D2 = dIndex(2, n);
@@ -231,6 +278,25 @@ function _applyL2ScalingAdds(D) {
   });
 }
 
+// Apply Level-3 campaign scaling to ALL spirits just spawned (including boss).
+function _applyL3Scaling(D) {
+  gameState.spirits.forEach(s => {
+    s.maxHp = Math.max(1, Math.round(scaleHp(s.maxHp, D)));
+    s.hp    = s.maxHp;
+    s.atk   = Math.max(1, Math.round(scaleAtk(s.atk, D)));
+  });
+}
+
+// Apply Level-3 campaign scaling to NON-BOSS spirits only (adds spawned alongside a boss).
+function _applyL3ScalingAdds(D) {
+  gameState.spirits.forEach(s => {
+    if (s._isBoss) return; // boss is pre-scaled in spawnBossScaledL3 / spawnDemonLordScaledL3
+    s.maxHp = Math.max(1, Math.round(scaleHp(s.maxHp, D)));
+    s.hp    = s.maxHp;
+    s.atk   = Math.max(1, Math.round(scaleAtk(s.atk, D)));
+  });
+}
+
 export function checkWaveComplete() {
   if (gameState.state === 'INTRO' || gameState.state === 'COMPLETE' ||
       gameState.state === 'MENU'  || gameState.state === 'GAMEOVER') return;
@@ -255,14 +321,38 @@ export function checkWaveComplete() {
   // Level 2 grants slightly more XP to push players to L7-8 by the end.
   const waveXP   = [0, 130, 160, 180, 220, 300];
   const waveXPL2 = [0, 160, 190, 210, 260, 380]; // Level 2 — harder waves, bigger payouts
-  const xpTable  = gameState.level === 2 ? waveXPL2 : waveXP;
+  const waveXPL3 = [0, 200, 230, 260, 320, 460]; // Level 3 — hardest waves, biggest payouts → push to L9-10
+  const xpTable  = gameState.level === 3 ? waveXPL3 : (gameState.level === 2 ? waveXPL2 : waveXP);
   const xpAmt    = xpTable[Math.min(wave, xpTable.length - 1)];
 
   gameState.p1.gainXP(xpAmt);
   gameState.p2.gainXP(xpAmt);
 
   const outerTid = setTimeout(() => {
-    if (gameState.level === 2) {
+    if (gameState.level === 3) {
+      // ── Level 3 wave transitions ──
+      // Players have all four dragon forms. Drop relics as harder-earned rewards.
+      if (wave === 1) {
+        showToast('Wave 1 cleared! The abyss deepens…');
+        import('../ui/hud.js').then(m => m.showBanner('WAVE I CLEAR', 'The poison wastes spread…', '#aa44ff')).catch(() => {});
+        _fxTimers.push(setTimeout(() => startWave(2), 3000));
+      } else if (wave === 2) {
+        spawnRelicDrop('Prayer Beads', new THREE.Vector3(0, 0, 0));
+        showToast('Wave 2 cleared! Prayer Beads found in the wastes. The rot thickens…');
+        _fxTimers.push(setTimeout(() => startWave(3), 3000));
+      } else if (wave === 3) {
+        spawnRelicDrop('Dragon Pearl', new THREE.Vector3(2, 0, 0));
+        showToast('Wave 3 cleared! Dragon Pearl recovered. The Plague Oni stirs…');
+        _fxTimers.push(setTimeout(() => startWave(4), 3500));
+      } else if (wave === 4) {
+        spawnRelicDrop('Saffron Robe', new THREE.Vector3(0, 0, -15));
+        showToast('Plague Oni slain! Saffron Robe recovered. The Abyssal Demon Lord descends!');
+        _fxTimers.push(setTimeout(() => startWave(5), 3500));
+      } else if (wave === 5) {
+        showToast('The Abyssal Demon Lord has fallen. The Venom Abyss is cleansed!');
+        questCompleteL3();
+      }
+    } else if (gameState.level === 2) {
       // ── Level 2 wave transitions ──
       // Players already have all four dragon forms from Level 1.
       // Drop better relics as rewards for harder waves.
@@ -365,13 +455,46 @@ export function questCompleteL2() {
   gameState.p2.unlockForm('water');
   updateHUD();
 
-  // Show the Level 2 complete screen (hide Next Level / L1 text, show L2 section)
+  // Show the Level 2 complete screen — NEXT LEVEL button now visible (Level 3 exists)
   const btnNext = document.getElementById('btn-next-level');
-  if (btnNext) btnNext.style.display = 'none';  // no Level 3 yet
+  if (btnNext) btnNext.style.display = '';  // show → takes player to Level 3
   const l2CompleteSection = document.getElementById('complete-l2-section');
   if (l2CompleteSection) l2CompleteSection.style.display = '';
   const l1Section = document.getElementById('complete-l1-section');
   if (l1Section) l1Section.style.display = 'none';
+  const l3Section = document.getElementById('complete-l3-section');
+  if (l3Section) l3Section.style.display = 'none';
+
+  // Wire complete-screen buttons
+  _wireCompleteButtons();
+}
+
+// ── Level 3 complete ──────────────────────────────────────────────────────────
+export function questCompleteL3() {
+  if (gameState._completed) return;
+  gameState._completed = true;
+  clearAllFx();
+  gameState.state = 'COMPLETE';
+  gameState.level = 3;
+  document.getElementById('complete-screen').style.display = 'block';
+  spawnGoldCelebration();
+  try { sfx.questComplete(); } catch {}
+  // Ensure all forms stay unlocked
+  gameState.p2.unlockForm('fire');
+  gameState.p2.unlockForm('ice');
+  gameState.p2.unlockForm('poison');
+  gameState.p2.unlockForm('water');
+  updateHUD();
+
+  // Show Level 3 complete screen — no further campaign level yet → hide NEXT LEVEL
+  const btnNext = document.getElementById('btn-next-level');
+  if (btnNext) btnNext.style.display = 'none';
+  const l1Section = document.getElementById('complete-l1-section');
+  if (l1Section) l1Section.style.display = 'none';
+  const l2Section = document.getElementById('complete-l2-section');
+  if (l2Section) l2Section.style.display = 'none';
+  const l3Section = document.getElementById('complete-l3-section');
+  if (l3Section) l3Section.style.display = '';
 
   // Wire complete-screen buttons
   _wireCompleteButtons();
@@ -402,10 +525,17 @@ function _wireCompleteButtons() {
       import('../ui/menu.js').then(m => m.showCampaignPreview(true)).catch(() => {});
     });
   }
-  // Level 2 transition button
-  if (btnNextLevel && !btnNextLevel._wired) {
+  // Next Level button — goes to (currentLevel + 1). Wired fresh each complete screen
+  // because the target level can change (L1→L2, L2→L3).
+  if (btnNextLevel) {
+    // Remove old wiring so we can re-wire for the correct target level each time.
+    if (btnNextLevel._wired) {
+      btnNextLevel.removeEventListener('click', btnNextLevel._nextLevelHandler);
+    }
+    const targetLevel = (gameState.level || 1) + 1;
+    btnNextLevel._nextLevelHandler = () => startLevel(targetLevel);
+    btnNextLevel.addEventListener('click', btnNextLevel._nextLevelHandler);
     btnNextLevel._wired = true;
-    btnNextLevel.addEventListener('click', () => startLevel(2));
   }
 }
 

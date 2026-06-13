@@ -69,6 +69,12 @@ const WAVE_BANNER_DATA = {
   L2WAVE3: { title: 'WAVE III', sub: 'Ice & Water combined force' },
   L2WAVE4: { title: 'WAVE IV',  sub: 'Frost Warlord — Scaled Mini-boss' },
   L2WAVE5: { title: 'WAVE V',   sub: 'Glacial Inferno Lord — Final Boss' },
+  // Level 3 wave banners
+  L3WAVE1: { title: 'WAVE I',   sub: 'Poison Scouts — Venom Abyss' },
+  L3WAVE2: { title: 'WAVE II',  sub: 'Poison & Water mixed assault' },
+  L3WAVE3: { title: 'WAVE III', sub: 'Tide Wraiths + Poison swarm' },
+  L3WAVE4: { title: 'WAVE IV',  sub: 'Plague Oni — Scaled Mini-boss' },
+  L3WAVE5: { title: 'WAVE V',   sub: 'Abyssal Demon Lord — Final Boss' },
 };
 
 export function showWaveBanner(state) {
@@ -918,10 +924,19 @@ export function updateObjective() {
   let txt = '';
   if (!state || state === 'MENU')       txt = '';
   else if (state === 'INTRO')           txt = 'Awaiting the storm…';
+  else if (state === 'COMPLETE' && level === 3) txt = 'Venom Abyss Cleansed!';
   else if (state === 'COMPLETE' && level === 2) txt = 'Glacial Peaks Freed!';
   else if (state === 'COMPLETE')        txt = 'Garden Cleansed!';
   else if (state === 'GAMEOVER')        txt = 'Game Over';
-  else if (level === 2) {
+  else if (level === 3) {
+    // Level 3 objective text
+    if (state === 'WAVE1')      txt = `Abyss W1 — Poison Scouts  ${alive}/${total}`;
+    else if (state === 'WAVE2') txt = `Abyss W2 — Poison & Water  ${alive}/${total}`;
+    else if (state === 'WAVE3') txt = `Abyss W3 — Tide Wraiths + Poison  ${alive}/${total}`;
+    else if (state === 'WAVE4') txt = 'Abyss W4 — Plague Oni (mini-boss)';
+    else if (state === 'WAVE5') txt = 'Abyss W5 — Abyssal Demon Lord';
+    else                        txt = state;
+  } else if (level === 2) {
     // Level 2 objective text
     if (state === 'WAVE1')      txt = `Glacial W1 — Frost Imps  ${alive}/${total}`;
     else if (state === 'WAVE2') txt = `Glacial W2 — Mixed Assault  ${alive}/${total}`;
@@ -991,18 +1006,23 @@ export function updateBossBar(boss, show) {
   if (nameEl && boss._type) {
     const gs = ctx.gameState;
     const isL2 = gs && gs.level === 2;
-    if (!isL2) {
+    const isL3 = gs && gs.level === 3;
+    if (!isL2 && !isL3) {
       // Level 1: use the canonical names
       const names = { venomoni: 'Venom Oni — Mini-boss', infernolord: 'Inferno Demon Lord' };
       nameEl.textContent = names[boss._type] || boss._type;
     }
+    // L2 and L3 bosses set their own name via document.getElementById at spawn time;
     // Tint: venomoni phases use purple→bright-purple; infernolord uses fire→ice
     let col;
     if (boss._type === 'venomoni') {
       col = phase >= 2 ? '#ff44ff' : '#ff8844';
     } else {
-      // infernolord / DemonLordL2 — color follows current element
-      col = boss.element === 'ice' ? '#66ccff' : (phase >= 2 ? '#ff5522' : '#ff8844');
+      // infernolord / DemonLordL2 / DemonLordL3 — color follows current element
+      if (boss.element === 'ice')    col = '#66ccff';
+      else if (boss.element === 'poison') col = '#aa44ff';
+      else if (boss.element === 'water')  col = '#4499ff';
+      else col = phase >= 2 ? '#ff5522' : '#ff8844';
     }
     nameEl.style.color = col;
   }

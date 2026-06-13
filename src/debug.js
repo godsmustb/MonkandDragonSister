@@ -98,11 +98,11 @@ export function setupDebugAPI() {
     startEndless() { _startEndless(); },
 
     /**
-     * Start a specific campaign level (1 or 2).
+     * Start a specific campaign level (1, 2, or 3).
      * Players must already be initialised (after startGame() / skipIntro()).
-     * Level 2 assumes all dragon forms are already unlocked; call unlockAll() first
-     * if testing from wave 1 without completing Level 1.
-     * @param {number} n - 1 or 2
+     * Levels 2 and 3 assume all dragon forms are already unlocked; call unlockAll()
+     * first if testing from wave 1 without completing prior levels.
+     * @param {number} n - 1, 2, or 3
      */
     startLevel(n) { _startLevel(n); },
 

@@ -56,12 +56,16 @@ const THEMES = {
     hemi:      { sky: 0xe4f0fb, ground: 0x9fb0c2, intensity: 0.5 },
     sun:       { color: 0xdfecff, intensity: 1.15 },
     rim:       { color: 0xd6e8ff, intensity: 0.75 },
-    // Icy blue-white wash over the meadow + raked rings (snow blanket).
-    groundTint:   0xcfe0ef,
-    mountainTint: 0xeef4fb,   // brighter white/snow peaks
-    cherryTint:   0xdfeaf5,   // frosted / snow-laden canopy (pale blue-white)
-    grassTint:    0xcfe0e8,   // frosted pale grass
-    flowerTint:   0xdfe9f2,   // pale frosted blossoms
+    // Icy blue-white wash. tintMix>0 → LERP the baked albedo toward these targets
+    // (not multiply) so pink blossoms/green grass actually FROST OVER to white-blue
+    // instead of staying a darker pink. Ground keeps a lower mix so the raked rings
+    // still read faintly under the "snow".
+    tintMix:      { ground: 0.62, mountain: 0.66, cherry: 0.8, grass: 0.74, flower: 0.78 },
+    groundTint:   0xd9e7f2,   // snow blanket over the gravel
+    mountainTint: 0xeef5fc,   // bright white/snow peaks
+    cherryTint:   0xe9f2fb,   // snow-laden canopy (icy white)
+    grassTint:    0xd4e4ee,   // frosted snowy field
+    flowerTint:   0xe6eff8,   // pale frosted blossoms
     // Petals → gentle WHITE SNOW: drift straighter & a little faster, less flutter.
     petal: { color: 0xffffff, opacity: 0.85, mode: 'snow' },
   },
@@ -110,13 +114,18 @@ function _repaintSkyDome(theme) {
 // tint. Each material caches its original color (m._themeBaseColor) the first
 // time it is seen, so level 1 (tint 0xffffff) restores the exact original color
 // and the per-blob painterly variation in the cherry canopy is preserved.
-function _tintMaterials(mats, hex) {
+// the cached base by a falsy/undefined `mix` (level 1, tint 0xffffff → identity),
+// or LERP the base toward the tint by `mix` (0..1) when given — lerp is needed to
+// desaturate a saturated albedo toward a pale target (e.g. pink blossom → snow),
+// which multiply cannot do.
+function _tintMaterials(mats, hex, mix) {
   if (!mats) return;
   _c.set(hex);
   for (const m of mats) {
     if (!m || !m.color) continue;
     if (!m._themeBaseColor) m._themeBaseColor = m.color.clone();
-    m.color.copy(m._themeBaseColor).multiply(_c);
+    if (mix) m.color.copy(m._themeBaseColor).lerp(_c, mix);
+    else     m.color.copy(m._themeBaseColor).multiply(_c);
   }
 }
 
@@ -157,12 +166,15 @@ export function applyLevelTheme(level) {
     ctx.rimLight.intensity = theme.rim.intensity;
   }
 
-  // ── Ground / mountains / flora tints (multiply baked albedo by theme tint) ──
-  if (refs.groundMat) _tintMaterials([refs.groundMat], theme.groundTint);
-  _tintMaterials(refs.mountainMats, theme.mountainTint);
-  _tintMaterials(refs.cherryMats,   theme.cherryTint);
-  _tintMaterials(refs.grassMats,    theme.grassTint);
-  _tintMaterials(refs.flowerMats,   theme.flowerTint);
+  // ── Ground / mountains / flora tints. Level 1 multiplies (tintMix absent →
+  // identity with white); levels with a tintMix lerp toward the target so the
+  // albedo recolours strongly instead of only darkening. ──
+  const mix = theme.tintMix || {};
+  if (refs.groundMat) _tintMaterials([refs.groundMat], theme.groundTint, mix.ground);
+  _tintMaterials(refs.mountainMats, theme.mountainTint, mix.mountain);
+  _tintMaterials(refs.cherryMats,   theme.cherryTint,   mix.cherry);
+  _tintMaterials(refs.grassMats,    theme.grassTint,    mix.grass);
+  _tintMaterials(refs.flowerMats,   theme.flowerTint,   mix.flower);
 
   // ── Petals: tint + behaviour mode (drives the main.js drift loop) ──
   if (ctx.petals) {

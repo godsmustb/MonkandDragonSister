@@ -42,12 +42,22 @@ async function testDevice(label, browser, device) {
   const isTouch = await page.evaluate(() => window.__game.isTouch);
   check(label, 'touch detected (__game.isTouch)', isTouch === true, `isTouch=${isTouch}`);
 
-  // Tap-navigate the menu to start a 1P game.
-  await tapText(page, 'START GAME'); await sleep(300);
-  const okMode = await tapText(page, '1 PLAYER'); await sleep(250);
+  // Boot must be clean: splash removed, split-screen chrome hidden (no flash).
+  const boot = await page.evaluate(() => ({
+    splash: !!document.getElementById('boot-splash'),
+    divider: (() => { const d = document.getElementById('divider'); return d ? getComputedStyle(d).display : 'none'; })(),
+  }));
+  check(label, 'boot splash removed + split chrome hidden on menu', boot.splash === false && boot.divider === 'none', `splash=${boot.splash} divider=${boot.divider}`);
+
+  // Mobile = 1-Player only: START GAME goes straight to character select, with NO
+  // 1P/2P chooser (no "2 PLAYERS" option on mobile).
+  await tapText(page, 'START GAME'); await sleep(350);
+  const hasMonk = await page.evaluate(() => [...document.querySelectorAll('div')].some(e => e.textContent.trim() === 'THE MONK' && e.offsetParent !== null));
+  const has2P = await page.evaluate(() => [...document.querySelectorAll('div')].some(e => e.textContent.trim() === '2 PLAYERS' && e.offsetParent !== null));
+  check(label, 'mobile START GAME → 1P character select (no 2P option)', hasMonk && !has2P, `monk=${hasMonk} 2P=${has2P}`);
   await tapText(page, 'THE MONK'); await sleep(150);
   const okBegin = await tapText(page, 'BEGIN');
-  check(label, 'menu tap-navigation works', okMode && okBegin);
+  check(label, 'menu tap-navigation works', okBegin);
   const gotIntro = await page.waitForFunction(() => window.__game.state === 'INTRO', { timeout: 8000 }).then(()=>true).catch(()=>false);
   // Tap anywhere to dismiss the intro (no keyboard on mobile).
   if (gotIntro) await page.touchscreen.tap(device.viewport.width/2, device.viewport.height/2);

@@ -4,19 +4,15 @@
 // Render quality: 'high' (post-processing composer: bloom + ACES + SMAA) or
 // 'low' (direct render, no composer — for weak machines). Persisted to
 // localStorage; default 'high'. Read once at boot so module init can branch.
+import { IS_TOUCH } from './config.js';
 function _readQuality() {
   try {
     const v = localStorage.getItem('mds_quality');
     if (v === 'low' || v === 'high') return v;
   } catch (e) { /* localStorage may be unavailable */ }
   // No saved preference yet: default TOUCH/mobile devices to 'low'. The high path's
-  // bloom + SMAA composer is heavy for mobile GPUs and triggers a texSubImage2D
-  // WebGL error from SMAA on iOS/WebKit. Desktop still defaults to 'high'.
-  try {
-    const touch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
-      || (window.matchMedia && window.matchMedia('(pointer:coarse)').matches);
-    if (touch) return 'low';
-  } catch (e) { /* ignore */ }
+  // bloom + SMAA composer is heavy for mobile GPUs. Desktop still defaults to 'high'.
+  if (IS_TOUCH) return 'low';
   return 'high';
 }
 

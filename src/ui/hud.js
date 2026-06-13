@@ -610,14 +610,21 @@ export function updateHUD() {
       hudP2.style.width = showP2 ? '100%' : '50%';
       hudP2.style.display = showP2 ? '' : 'none';
     }
-    if (divider) divider.style.display = 'none';
-    // The split-screen DOM vignette overlays frame two halves; hide them in 1P
-    // (the composer grade already vignettes the full-screen view).
-    const vL = document.querySelector('.vignette');
-    const vR = document.querySelector('.vignette-r');
-    if (vL) vL.style.display = 'none';
-    if (vR) vR.style.display = 'none';
   }
+
+  // Split-screen chrome (the centre divider + the two vignette halves) belongs
+  // ONLY to 2P gameplay. Keep it hidden on the menu / intro / 1P (it is also
+  // display:none by default in CSS) so it never flashes as a fake "static split
+  // screen" while the page is still fetching the Three.js CDN module on load.
+  const _st = ctx.gameState.state;
+  const _inGame = _st !== 'MENU' && _st !== 'INTRO' && _st !== 'GAMEOVER' && _st !== 'COMPLETE';
+  const _show2pChrome = ctx.mode === '2p' && _inGame;
+  const _div = document.getElementById('divider');
+  const _vL = document.querySelector('.vignette');
+  const _vR = document.querySelector('.vignette-r');
+  if (_div) _div.style.display = _show2pChrome ? '' : 'none';
+  if (_vL) _vL.style.display = _show2pChrome ? '' : 'none';
+  if (_vR) _vR.style.display = _show2pChrome ? '' : 'none';
 
   _updatePlayerPlate('p1', p1);
   _updatePlayerPlate('p2', p2);

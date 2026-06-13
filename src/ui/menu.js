@@ -5,6 +5,9 @@ import { startIntro } from '../game/quest.js';
 import { initAudioOnGesture, toggleMute, audioLabel, sfx } from '../audio/audio.js';
 import { saveBindings, resetBindings, DEFAULT_BINDINGS } from '../game/bindings.js';
 import { LANDS } from '../game/campaign.js';
+// On mobile (touch-primary) there's no room/multitouch for split-screen, so we
+// offer 1-Player only (Monk or Sister); desktop keeps the full 1P/2P choice.
+import { IS_TOUCH } from '../config.js';
 
 // ── State ─────────────────────────────────────────────────────────────────
 let _menuEl   = null;
@@ -176,9 +179,11 @@ function _activateItem(idx) {
   // Every menu interaction is a user gesture — init audio context
   try { initAudioOnGesture(); } catch {}
   if (idx === 0) {
-    // START GAME → open mode select
+    // START GAME. Mobile/touch → straight to 1-Player character select (no
+    // split-screen on phones). Desktop → the 1P/2P mode chooser.
     try { sfx.menuSelect(); } catch {}
-    _showModeSelect();
+    if (IS_TOUCH) { ctx.mode = '1p'; _showCharSelect(); }
+    else _showModeSelect();
   } else if (idx === 1) {
     // CAMPAIGN — show lands preview
     try { sfx.menuSelect(); } catch {}
@@ -408,7 +413,9 @@ function _showCharSelect() {
   const btnBack = _makeMenuBtn('BACK', () => {
     try { sfx.menuTick(); } catch {}
     _hideCharSelect();
-    _showModeSelect();
+    // Mobile entered char-select directly from the main menu (no mode chooser).
+    if (IS_TOUCH) showMenu();
+    else _showModeSelect();
   });
 
   actionRow.appendChild(btnBegin);

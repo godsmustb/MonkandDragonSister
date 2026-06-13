@@ -3,13 +3,10 @@
 import { ctx } from '../state.js';
 import { initAudioOnGesture } from '../audio/audio.js';
 import { togglePause } from './menu.js';
+import { IS_TOUCH } from '../config.js';
 
-// ── Touch detection ────────────────────────────────────────────────────────
-export const IS_TOUCH = (
-  ('ontouchstart' in window) ||
-  navigator.maxTouchPoints > 0 ||
-  matchMedia('(pointer:coarse)').matches
-);
+// ── Touch detection (single source of truth in config.js) ───────────────────
+export { IS_TOUCH };
 
 // ── Module state ───────────────────────────────────────────────────────────
 let _dispatchPlayerAction = null;  // injected from main.js

@@ -60,6 +60,15 @@ export const FORM_DATA = {
   water:  { color: 0x0066ff, trailColor: 0x00ccff, name: 'Water',  glowColor: 0x0044cc },
 };
 
+// Touch/mobile-primary detection — single source of truth.
+// Uses ONLY the primary-pointer media query: `(pointer:coarse)` is true when the
+// primary input is touch (phone/tablet) and false on desktop — including desktop
+// Chrome, which misleadingly reports `'ontouchstart' in window` = true and
+// `navigator.maxTouchPoints` = 10. Those two signals are unreliable, so excluded.
+export const IS_TOUCH = (typeof window !== 'undefined') && !!(
+  window.matchMedia && window.matchMedia('(pointer:coarse)').matches
+);
+
 export const PREVENT_KEYS = new Set([
   'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
   'Numpad8', 'Numpad4', 'Numpad5', 'Numpad6', 'Numpad7', 'Numpad9', 'Numpad0',

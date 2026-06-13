@@ -433,6 +433,9 @@ function init() {
   setupDebugAPI();
   // Touch controls (no-op on desktop)
   initTouchControls(dispatchPlayerAction);
+  // Menu is mounted — remove the boot splash so the MENU is the first thing seen.
+  const _splash = document.getElementById('boot-splash');
+  if (_splash) { _splash.style.transition = 'opacity 0.25s'; _splash.style.opacity = '0'; setTimeout(() => _splash.remove(), 280); }
   animate();
 }
 

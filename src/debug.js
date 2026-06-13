@@ -372,5 +372,37 @@ export function setupDebugAPI() {
         if (m.touchMove) m.touchMove(who, dx, dz);
       }).catch(() => {});
     },
+
+    // ── Touch layout API ─────────────────────────────────────────────────
+    /**
+     * Returns the current saved touch layout override map
+     * ({ controlId: {x, y, scale} }), or {} if using defaults.
+     * Only meaningful on touch devices.
+     */
+    get touchLayout() {
+      // Import synchronously from module cache (touch.js already loaded on touch)
+      // Use a workaround: getTouchLayout() is exported from touch.js
+      try {
+        // dynamic import resolves from cache on touch devices
+        let result = {};
+        import('./ui/touch.js').then(m => {
+          if (m.getTouchLayout) result = m.getTouchLayout();
+        }).catch(() => {});
+        // For sync tests, expose the promise on _touchLayoutPromise
+        const p = import('./ui/touch.js').then(m => m.getTouchLayout ? m.getTouchLayout() : {}).catch(() => ({}));
+        window.__game._touchLayoutPromise = p;
+        return result;
+      } catch (_) { return {}; }
+    },
+
+    /**
+     * Reset touch layout to defaults (clears localStorage + rebuilds overlay).
+     * Only has effect on touch devices.
+     */
+    resetTouchLayout() {
+      import('./ui/touch.js').then(m => {
+        if (m.resetTouchLayout) m.resetTouchLayout();
+      }).catch(() => {});
+    },
   };
 }

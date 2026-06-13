@@ -8,6 +8,8 @@ import { LANDS } from '../game/campaign.js';
 // On mobile (touch-primary) there's no room/multitouch for split-screen, so we
 // offer 1-Player only (Monk or Sister); desktop keeps the full 1P/2P choice.
 import { IS_TOUCH } from '../config.js';
+// Touch layout editor — import lazily to avoid loading touch.js on desktop builds
+// that never need it. Resolved at call-time inside showControls().
 
 // ── State ─────────────────────────────────────────────────────────────────
 let _menuEl   = null;
@@ -743,6 +745,22 @@ export function showControls() {
   hint.textContent = 'Click an action row to rebind. Press a key to assign. Esc cancels.';
   hint.style.cssText = 'color:#888;font-size:11px;margin-bottom:18px;letter-spacing:1px;flex-shrink:0;';
 
+  // ── Touch-only: EDIT TOUCH LAYOUT button (built now, appended in order below) ──
+  let _editLayoutBtn = null;
+  if (IS_TOUCH) {
+    _editLayoutBtn = _makeMenuBtn('✛ EDIT TOUCH LAYOUT', () => {
+      try { sfx.menuTick(); } catch {}
+      // Lazy import to keep touch.js out of desktop execution path
+      import('./touch.js').then(m => {
+        if (m.enterTouchLayoutEditor) m.enterTouchLayoutEditor();
+      }).catch(() => {});
+    });
+    _editLayoutBtn.style.marginBottom = '16px';
+    _editLayoutBtn.style.letterSpacing = '3px';
+    _editLayoutBtn.style.fontSize = 'clamp(13px,1.6vw,16px)';
+    _editLayoutBtn.style.flexShrink = '0';
+  }
+
   const cols = document.createElement('div');
   cols.style.cssText = 'display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;justify-content:center;flex-shrink:0;';
 
@@ -851,6 +869,7 @@ export function showControls() {
 
   _ctrlEl.appendChild(h);
   _ctrlEl.appendChild(hint);
+  if (_editLayoutBtn) _ctrlEl.appendChild(_editLayoutBtn); // touch-only layout editor entry
   _ctrlEl.appendChild(cols);
   _ctrlEl.appendChild(btnRow);
   _ctrlEl.appendChild(esc);

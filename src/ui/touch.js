@@ -2,7 +2,7 @@
 // Only activates when touch is detected; desktop gets no DOM/listeners.
 import { ctx } from '../state.js';
 import { initAudioOnGesture } from '../audio/audio.js';
-import { togglePause } from './menu.js';
+import { togglePause, pauseGame, resumeGame } from './menu.js';
 import { IS_TOUCH } from '../config.js';
 
 // ── Touch detection (single source of truth in config.js) ───────────────────
@@ -13,6 +13,83 @@ let _dispatchPlayerAction = null;  // injected from main.js
 let _overlayEl = null;
 let _audioInited = false;
 let _builtSig = null; // mode:soloChar the overlay was last built for
+
+// ── Touch layout persistence ───────────────────────────────────────────────
+// Each control group has an id; users can override {x, y, scale}.
+// x/y are viewport-relative percentages [0..100] (left/top).
+// scale is a multiplier [0.7..1.6] applied via CSS transform: scale().
+// Saved to localStorage as JSON: { [controlId]: {x, y, scale} }.
+const LS_KEY = 'mds_touch_layout';
+
+// Default positions for each control id (as % of viewport, left/top origin).
+// These mirror the hardcoded CSS in _buildJoystick/_buildActionButtons/_buildPauseButton.
+// We compute defaults lazily in the editor so we have accurate viewport dims.
+const _DEFAULTS = {
+  'joy-p1':          { xPct: 2,   yPct: null, xFromRight: false, yFromBottom: true,  wPx: 100, hPx: 100, bottomPx: 120, leftPx: 16 },
+  'joy-p2':          { xPct: 50,  yPct: null, xFromRight: false, yFromBottom: true,  wPx: 100, hPx: 100, bottomPx: 120, leftPx: null },
+  'btn-cluster-p1':  { xPct: null, yPct: null, xFromRight: false, yFromBottom: true, wPx: 176, hPx: 120, bottomPx: 16,  leftPx: null },
+  'btn-cluster-p2':  { xPct: null, yPct: null, xFromRight: true,  yFromBottom: true, wPx: 176, hPx: 120, bottomPx: 16,  rightPx: 16 },
+  'touch-pause-btn': { xPct: null, yPct: null, xFromRight: true,  yFromBottom: false, wPx: 44, hPx: 44, topPx: 12, rightPx: 12 },
+};
+
+let _layoutOverrides = {};   // controlId → { x, y, scale }  (x/y in px, left/top)
+let _editorEl = null;        // the live editor overlay element
+
+function _loadLayout() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) _layoutOverrides = JSON.parse(raw);
+  } catch (_) { _layoutOverrides = {}; }
+}
+
+function _saveLayout() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(_layoutOverrides)); } catch (_) {}
+}
+
+export function resetTouchLayout() {
+  _layoutOverrides = {};
+  try { localStorage.removeItem(LS_KEY); } catch (_) {}
+  if (IS_TOUCH) _rebuildOverlay();
+}
+
+export function getTouchLayout() {
+  return JSON.parse(JSON.stringify(_layoutOverrides));
+}
+
+// Apply any saved layout override to a control element.
+// Clears default positioning (left/right/bottom/top) and uses explicit left/top + scale.
+function _applyLayoutOverride(el, id) {
+  const ov = _layoutOverrides[id];
+  if (!ov) return;
+  el.style.left   = ov.x + 'px';
+  el.style.top    = ov.y + 'px';
+  el.style.right  = 'auto';
+  el.style.bottom = 'auto';
+  el.style.transformOrigin = 'top left';
+  el.style.transform = 'scale(' + ov.scale + ')';
+}
+
+// Compute the default top-left pixel position of a control (for editor drag baseline).
+function _defaultPx(id) {
+  const d = _DEFAULTS[id];
+  if (!d) return { x: 16, y: 16, scale: 1 };
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  let x, y;
+  if (id === 'joy-p1')         { x = 16; y = vh - 120 - 100; }
+  else if (id === 'joy-p2')    { x = vw * 0.5; y = vh - 120 - 100; }
+  else if (id === 'btn-cluster-p1') {
+    // left:calc(50% - 176px); bottom:16px  → approx
+    x = vw * 0.5 - 176; y = vh - 16 - 120;
+  } else if (id === 'btn-cluster-p2') {
+    // right:16px; bottom:16px → left = vw-16-176
+    x = vw - 16 - 176; y = vh - 16 - 120;
+  } else if (id === 'touch-pause-btn') {
+    // right:12px; top:12px → left = vw-12-44
+    x = vw - 12 - 44; y = 12;
+  } else { x = 16; y = 16; }
+  return { x, y, scale: 1 };
+}
 
 // Joystick state per player slot (p1, p2)
 const _joy = {
@@ -60,6 +137,7 @@ export function initTouchControls(dispatchFn) {
   if (!IS_TOUCH) return; // desktop: do nothing
   _dispatchPlayerAction = dispatchFn;
 
+  _loadLayout();
   _buildOverlay();
 
   // First touch anywhere → init audio (iOS requirement)
@@ -155,6 +233,9 @@ function _buildJoystick(who, position) {
   container.appendChild(base);
   container.appendChild(thumb);
   _overlayEl.appendChild(container);
+
+  // Apply any saved layout override (position + scale)
+  _applyLayoutOverride(container, `joy-${who}`);
 
   // Store refs
   _joy[who].el = container;
@@ -351,6 +432,9 @@ function _buildActionButtons(who, position) {
   cluster.appendChild(row2);
   cluster.appendChild(row3);
   _overlayEl.appendChild(cluster);
+
+  // Apply any saved layout override (position + scale)
+  _applyLayoutOverride(cluster, `btn-cluster-${who}`);
 }
 
 function _makeBtn(label, action, who, isHeld) {
@@ -467,6 +551,392 @@ function _buildPauseButton() {
     try { togglePause(); } catch (_) {}
   }, { passive: false });
   _overlayEl.appendChild(btn);
+
+  // Apply any saved layout override (position + scale)
+  _applyLayoutOverride(btn, 'touch-pause-btn');
+}
+
+// ── Touch Layout Editor ────────────────────────────────────────────────────
+// Opens a full-screen editor overlay. Each control group becomes draggable.
+// Tap to select → resize toolbar appears. SAVE/RESET/DONE in a fixed toolbar.
+
+export function enterTouchLayoutEditor() {
+  if (!IS_TOUCH) return;
+  if (_editorEl) return; // already open
+
+  // Pause the game while editing (if in-play)
+  let _wasPlaying = false;
+  const gs = ctx.gameState;
+  if (gs && /^WAVE/.test(gs.state) && !gs._paused) {
+    _wasPlaying = true;
+    try { pauseGame(); } catch (_) {}
+  }
+
+  // ── Ensure layout is loaded ──
+  if (Object.keys(_layoutOverrides).length === 0) _loadLayout();
+
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  // ── Working copy we edit live; only commit on SAVE ──
+  const _working = {};
+  function _wGet(id) {
+    if (_working[id]) return _working[id];
+    if (_layoutOverrides[id]) {
+      _working[id] = { ..._layoutOverrides[id] };
+    } else {
+      _working[id] = { ..._defaultPx(id) };
+    }
+    return _working[id];
+  }
+
+  // ── Determine which control IDs are present for the current mode ──
+  const mode = ctx.mode || '2p';
+  let _controlIds;
+  if (mode === '1p') {
+    const who = ctx.soloChar === 'sister' ? 'p2' : 'p1';
+    _controlIds = [`joy-${who}`, `btn-cluster-${who}`, 'touch-pause-btn'];
+  } else {
+    _controlIds = ['joy-p1', 'joy-p2', 'btn-cluster-p1', 'btn-cluster-p2', 'touch-pause-btn'];
+  }
+
+  const _LABELS = {
+    'joy-p1': 'P1 Joystick',
+    'joy-p2': 'P2 Joystick',
+    'btn-cluster-p1': 'P1 Buttons',
+    'btn-cluster-p2': 'P2 Buttons',
+    'touch-pause-btn': 'Pause Button',
+  };
+
+  // Control element sizes (approx bounding box for drag + display)
+  const _SIZES = {
+    'joy-p1': { w: 100, h: 100 },
+    'joy-p2': { w: 100, h: 100 },
+    'btn-cluster-p1': { w: 176, h: 120 },
+    'btn-cluster-p2': { w: 176, h: 120 },
+    'touch-pause-btn': { w: 44, h: 44 },
+  };
+
+  // ── Build editor overlay ──
+  _editorEl = document.createElement('div');
+  _editorEl.id = 'touch-layout-editor';
+  _editorEl.style.cssText = `
+    position:fixed;top:0;left:0;width:100%;height:100%;
+    z-index:900;
+    font-family:Georgia,serif;
+    touch-action:none;
+    overflow:hidden;
+  `;
+
+  // Dimmed backdrop
+  const _backdrop = document.createElement('div');
+  _backdrop.style.cssText = `
+    position:absolute;top:0;left:0;width:100%;height:100%;
+    background:rgba(0,0,0,0.72);
+  `;
+  _editorEl.appendChild(_backdrop);
+
+  // ── Selected control state ──
+  let _selectedId = null;
+  const _ctrlEls = {};    // id → DOM element
+  const _labelEls = {};   // id → label DOM element
+
+  // ── Build one draggable proxy for each control ──
+  function _buildProxy(id) {
+    const st = _wGet(id);
+    const sz = _SIZES[id] || { w: 100, h: 60 };
+    const proxy = document.createElement('div');
+    proxy.dataset.ctrlId = id;
+    proxy.style.cssText = `
+      position:fixed;
+      left:${st.x}px;
+      top:${st.y}px;
+      width:${sz.w}px;
+      height:${sz.h}px;
+      transform:scale(${st.scale});
+      transform-origin:top left;
+      box-sizing:border-box;
+      border:2px dashed rgba(200,160,0,0.6);
+      border-radius:10px;
+      background:rgba(0,0,0,0.35);
+      display:flex;align-items:center;justify-content:center;
+      touch-action:none;
+      user-select:none;
+      -webkit-user-select:none;
+      cursor:grab;
+    `;
+
+    const labelEl = document.createElement('div');
+    labelEl.textContent = _LABELS[id] || id;
+    labelEl.style.cssText = `
+      color:rgba(200,160,0,0.9);
+      font-size:11px;
+      letter-spacing:2px;
+      text-align:center;
+      pointer-events:none;
+      padding:4px;
+    `;
+    proxy.appendChild(labelEl);
+    _ctrlEls[id] = proxy;
+    _labelEls[id] = labelEl;
+
+    // ── Drag logic ──
+    let _dragActive = false;
+    let _dragTouchId = null;
+    let _dragStartX = 0;
+    let _dragStartY = 0;
+    let _dragOrigX = 0;
+    let _dragOrigY = 0;
+    let _hasMoved = false;
+
+    proxy.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      for (const t of e.changedTouches) {
+        if (_dragActive) break; // only track one finger per proxy
+        _dragActive = true;
+        _dragTouchId = t.identifier;
+        _dragStartX = t.clientX;
+        _dragStartY = t.clientY;
+        const cur = _wGet(id);
+        _dragOrigX = cur.x;
+        _dragOrigY = cur.y;
+        _hasMoved = false;
+        break;
+      }
+    }, { passive: false });
+
+    proxy.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      for (const t of e.changedTouches) {
+        if (t.identifier !== _dragTouchId) continue;
+        const dx = t.clientX - _dragStartX;
+        const dy = t.clientY - _dragStartY;
+        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) _hasMoved = true;
+        const cur = _wGet(id);
+        const sz2 = _SIZES[id] || { w: 100, h: 60 };
+        const newX = Math.max(0, Math.min(vw - sz2.w, _dragOrigX + dx));
+        const newY = Math.max(0, Math.min(vh - sz2.h, _dragOrigY + dy));
+        cur.x = newX;
+        cur.y = newY;
+        proxy.style.left = newX + 'px';
+        proxy.style.top  = newY + 'px';
+        break;
+      }
+    }, { passive: false });
+
+    const _endDrag = (e) => {
+      e.preventDefault();
+      for (const t of e.changedTouches) {
+        if (t.identifier !== _dragTouchId) continue;
+        _dragActive = false;
+        _dragTouchId = null;
+        // If finger didn't move much, treat as a tap → select
+        if (!_hasMoved) {
+          _selectControl(id);
+        }
+        break;
+      }
+    };
+    proxy.addEventListener('touchend', _endDrag, { passive: false });
+    proxy.addEventListener('touchcancel', _endDrag, { passive: false });
+
+    _editorEl.appendChild(proxy);
+  }
+
+  _controlIds.forEach(_buildProxy);
+
+  // ── Select / deselect ──
+  function _selectControl(id) {
+    // Deselect previous
+    if (_selectedId && _ctrlEls[_selectedId]) {
+      _ctrlEls[_selectedId].style.borderColor = 'rgba(200,160,0,0.6)';
+      _ctrlEls[_selectedId].style.background  = 'rgba(0,0,0,0.35)';
+    }
+    _selectedId = id;
+    if (_ctrlEls[id]) {
+      _ctrlEls[id].style.borderColor = 'rgba(255,220,50,1)';
+      _ctrlEls[id].style.background  = 'rgba(200,160,0,0.18)';
+    }
+    _refreshToolbar();
+  }
+
+  // ── Top toolbar ──
+  const _topBar = document.createElement('div');
+  _topBar.style.cssText = `
+    position:fixed;top:0;left:0;width:100%;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 14px;
+    background:rgba(0,0,0,0.85);
+    border-bottom:1px solid rgba(200,160,0,0.4);
+    box-sizing:border-box;z-index:1;
+    gap:10px;
+  `;
+
+  const _titleEl = document.createElement('span');
+  _titleEl.textContent = 'EDIT TOUCH LAYOUT';
+  _titleEl.style.cssText = 'color:#c8a000;font-size:12px;letter-spacing:3px;flex-shrink:0;';
+
+  const _saveBtn  = _makeEditorBtn('SAVE');
+  const _resetBtn = _makeEditorBtn('RESET');
+  const _doneBtn  = _makeEditorBtn('DONE');
+
+  _saveBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    // Commit working copy → persisted overrides
+    Object.keys(_working).forEach(id => { _layoutOverrides[id] = { ..._working[id] }; });
+    _saveLayout();
+    _rebuildOverlay(); // apply to live game overlay
+    _flashBtn(_saveBtn, 'SAVED!');
+  }, { passive: false });
+
+  _resetBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    // Clear everything and rebuild proxies with defaults
+    _layoutOverrides = {};
+    try { localStorage.removeItem(LS_KEY); } catch (_) {}
+    // Reset working copy + proxy positions
+    _controlIds.forEach(id => {
+      const def = _defaultPx(id);
+      _working[id] = { ...def };
+      const el = _ctrlEls[id];
+      if (el) {
+        el.style.left = def.x + 'px';
+        el.style.top  = def.y + 'px';
+        el.style.transform = 'scale(1)';
+      }
+    });
+    _selectedId = null;
+    _refreshToolbar();
+    if (_IS_TOUCH_ref) _rebuildOverlay();
+  }, { passive: false });
+
+  _doneBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    _closeEditor();
+  }, { passive: false });
+
+  _topBar.appendChild(_titleEl);
+  _topBar.appendChild(_saveBtn);
+  _topBar.appendChild(_resetBtn);
+  _topBar.appendChild(_doneBtn);
+  _editorEl.appendChild(_topBar);
+
+  // ── Bottom resize toolbar (shown when a control is selected) ──
+  const _bottomBar = document.createElement('div');
+  _bottomBar.style.cssText = `
+    position:fixed;bottom:0;left:0;width:100%;
+    display:flex;align-items:center;justify-content:center;
+    padding:10px 14px;
+    background:rgba(0,0,0,0.85);
+    border-top:1px solid rgba(200,160,0,0.4);
+    box-sizing:border-box;z-index:1;
+    gap:16px;
+    display:none;
+  `;
+
+  const _selLabel = document.createElement('span');
+  _selLabel.style.cssText = 'color:#c8a000;font-size:11px;letter-spacing:2px;min-width:80px;text-align:center;';
+
+  const _scaleLabel = document.createElement('span');
+  _scaleLabel.style.cssText = 'color:#ffdd55;font-size:13px;min-width:42px;text-align:center;';
+
+  const _minusBtn = _makeEditorBtn('A−');
+  const _plusBtn  = _makeEditorBtn('A+');
+
+  _minusBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (!_selectedId) return;
+    const st = _wGet(_selectedId);
+    st.scale = Math.max(0.7, Math.round((st.scale - 0.1) * 10) / 10);
+    _applyProxyScale(_selectedId, st.scale);
+    _scaleLabel.textContent = st.scale.toFixed(1) + '×';
+  }, { passive: false });
+
+  _plusBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (!_selectedId) return;
+    const st = _wGet(_selectedId);
+    st.scale = Math.min(1.6, Math.round((st.scale + 0.1) * 10) / 10);
+    _applyProxyScale(_selectedId, st.scale);
+    _scaleLabel.textContent = st.scale.toFixed(1) + '×';
+  }, { passive: false });
+
+  _bottomBar.appendChild(_selLabel);
+  _bottomBar.appendChild(_minusBtn);
+  _bottomBar.appendChild(_scaleLabel);
+  _bottomBar.appendChild(_plusBtn);
+  _editorEl.appendChild(_bottomBar);
+
+  function _refreshToolbar() {
+    if (_selectedId) {
+      _bottomBar.style.display = 'flex';
+      _selLabel.textContent = _LABELS[_selectedId] || _selectedId;
+      const st = _wGet(_selectedId);
+      _scaleLabel.textContent = st.scale.toFixed(1) + '×';
+    } else {
+      _bottomBar.style.display = 'none';
+    }
+  }
+
+  function _applyProxyScale(id, scale) {
+    const el = _ctrlEls[id];
+    if (!el) return;
+    el.style.transform = 'scale(' + scale + ')';
+  }
+
+  function _flashBtn(btn, msg) {
+    const orig = btn.textContent;
+    btn.textContent = msg;
+    btn.style.color = '#66ff88';
+    // Use requestAnimationFrame-based delay to avoid setTimeout for UI (allowed for UI only)
+    // The constraint is no setTimeout for game/FX; UI feedback is fine
+    let t = Date.now();
+    function _check() {
+      if (Date.now() - t >= 800) {
+        btn.textContent = orig;
+        btn.style.color = '';
+      } else {
+        requestAnimationFrame(_check);
+      }
+    }
+    requestAnimationFrame(_check);
+  }
+
+  function _closeEditor() {
+    if (_editorEl) {
+      _editorEl.remove();
+      _editorEl = null;
+    }
+    // Resume game if we paused it
+    if (_wasPlaying) {
+      try { resumeGame(); } catch (_) {}
+    }
+  }
+
+  document.body.appendChild(_editorEl);
+}
+
+// Keep a local ref to IS_TOUCH for the reset handler inside the closure
+const _IS_TOUCH_ref = IS_TOUCH;
+
+function _makeEditorBtn(label) {
+  const btn = document.createElement('div');
+  btn.textContent = label;
+  btn.style.cssText = `
+    font-size:12px;letter-spacing:3px;color:#c8a000;
+    padding:7px 14px;
+    border:1px solid rgba(200,160,0,0.5);
+    border-radius:4px;
+    background:rgba(0,0,0,0.5);
+    touch-action:none;
+    user-select:none;
+    -webkit-user-select:none;
+    cursor:pointer;
+    flex-shrink:0;
+  `;
+  return btn;
 }
 
 // ── Debug helpers (called from debug.js) ──────────────────────────────────

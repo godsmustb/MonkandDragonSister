@@ -741,6 +741,12 @@ body,#game-container{
   (function(){
     var splash = document.getElementById('boot-splash');
     function msg(html, color){ if(!splash) return; var d=splash.getElementsByTagName('div'); if(d.length){ var el=d[d.length-1]; el.innerHTML=html; if(color) el.style.color=color; } }
+    // file:// — ES modules are blocked when opening the HTML directly. The game
+    // MUST be served over http. Tell the user exactly how, instead of a cryptic error.
+    if (location.protocol === 'file:') {
+      msg('⚠ Don\'t open this file directly — the game must run on a local server.<br><span style="font-size:13px;color:#d8b890;line-height:1.8;display:inline-block;margin-top:6px">Double-click <b>play.bat</b> in the game folder.<br>(or run <b>py -m http.server 8321</b> in this folder,<br>then open <b>http://localhost:8321</b> in your browser)</span>', '#e0a060');
+      return;
+    }
     // The instant the menu mounts, remove the splash — belt-and-suspenders in case
     // main.js's own removal didn't run, so the user is never trapped on "LOADING…".
     var poll = setInterval(function(){

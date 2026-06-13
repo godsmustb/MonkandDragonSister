@@ -33,6 +33,14 @@ const AUTO_YAW_RATE  = 2.5;   // rad/s max yaw follow rate
 const LOCK_BREAK_DIST = 18;   // units: break lock if target XZ dist exceeds this
 const LOCK_AIM_BLEND = 0.60;  // fraction: blend auto-aim facing toward target (60%)
 const FIXED_CAM_YAW  = 0;     // world yaw the camera always rests at (0 = view from +Z looking −Z)
+const FOV_BASE       = 65;    // base perspective FOV (matches camera creation in main.js)
+
+// Add a transient FOV "kick" for a given camera ('p1'/'p2'), eased back to base in
+// updateCamera — called from dodge/ultimate for a punch of speed/impact.
+export function addFovKick(camId, amt) {
+  const cx = _camExtra[camId];
+  if (cx) cx.fovKick = Math.min(16, (cx.fovKick || 0) + amt);
+}
 
 // Scratch vectors — module-scope to avoid per-frame allocation.
 // Note: two players call updateCamera() sequentially each frame; these are
@@ -158,15 +166,20 @@ export function updateCamera(camId, player) {
   const finalYaw = targetYaw + cx.yawOffset;
   const cosA = Math.cos(finalYaw), sinA = Math.sin(finalYaw);
 
-  // Camera behind player: offset in -forward direction
-  const dist = 10, height = 6;
+  // Camera behind player: a RAISED ~40° three-quarter angle (Genshin-style) for
+  // depth + arena framing, instead of the old flat near-horizontal view.
+  const dist = 11, height = 9.5;
   _v2.set(dist * sinA, height, dist * cosA);
-  // Reuse module-scope scratch vectors (hoisted from per-call allocation — FIX 8)
   _targetPos.copy(player.pos).add(_v2);
-  _targetLook.copy(player.pos); _targetLook.y += 1.2;
+  // Look at the hero's upper body, leading slightly in the facing direction so the
+  // camera gently anticipates movement (dynamism without losing the player).
+  _targetLook.copy(player.pos);
+  _targetLook.y += 1.6;
+  _targetLook.x += player.facing.x * 1.8;
+  _targetLook.z += player.facing.z * 1.8;
 
   // Ground-clip prevention
-  if (_targetPos.y < 1.2) _targetPos.y = 1.2;
+  if (_targetPos.y < 1.5) _targetPos.y = 1.5;
 
   // Camera shake
   if (cs.shake > 0) {
@@ -176,10 +189,16 @@ export function updateCamera(camId, player) {
     if (cs.shake < 0.005) cs.shake = 0;
   }
 
-  cs.pos.lerp(_targetPos, 0.08);
-  cs.look.lerp(_targetLook, 0.12);
+  cs.pos.lerp(_targetPos, 0.09);
+  cs.look.lerp(_targetLook, 0.13);
   cam.position.copy(cs.pos);
   cam.lookAt(cs.look);
+
+  // Dynamic FOV: a subtle kick (set by addFovKick() on dodge/ultimate) that eases
+  // back to base — a punch of speed/impact.
+  cx.fovKick = (cx.fovKick || 0) * Math.max(0, 1 - 6 * frameDt);
+  const targetFov = FOV_BASE + cx.fovKick;
+  if (Math.abs(cam.fov - targetFov) > 0.03) { cam.fov += (targetFov - cam.fov) * Math.min(1, 9 * frameDt); cam.updateProjectionMatrix(); }
 
   // ── Lock-on indicator ──
   if (cx.lockTarget && cx.lockTarget.alive && cx.lockMesh) {

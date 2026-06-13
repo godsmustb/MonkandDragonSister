@@ -23,6 +23,7 @@ import {
 } from './projectiles.js';
 import { updateHUD } from '../ui/hud.js';
 import { showToast, showBanner, showPlayerToast } from '../ui/hud.js';
+import { addFovKick } from '../game/camera.js';
 
 // ---- Knockback helper ----
 export function knockback(spirit, fromPos, force) {
@@ -795,6 +796,7 @@ export class Player {
 
     this.resonance = 0;
     this.ultimateActive = true;
+    addFovKick('p' + this.id, 11);
     this._ultimateTimer = ULTIMATE_DURATION;
     this._iframes = Math.max(this._iframes || 0, ULTIMATE_IFRAMES);
 
@@ -939,6 +941,7 @@ export class Player {
     this._dodgeCd = 2;
     this._dodgeTimer = 0.3;
     this._iframes = 0.3;
+    addFovKick('p' + this.id, 5);
     const dashDir = this.facing.clone().multiplyScalar(-4);
     dashDir.y = 0;
     this.pos.add(dashDir);

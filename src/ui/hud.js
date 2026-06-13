@@ -78,6 +78,37 @@ export function showWaveBanner(state) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// CINEMATIC NAME BANNER (Pass 16) — reuses the wave-banner DOM for one-off
+// awakening / ultimate / boss-phase name flashes. Custom title + subtitle.
+// ────────────────────────────────────────────────────────────────────────────
+export function showBanner(title, sub, color) {
+  const banner = document.getElementById('wave-banner');
+  if (!banner) return;
+  const titleEl = document.getElementById('wave-banner-title');
+  const subEl   = document.getElementById('wave-banner-sub');
+  if (!titleEl || !subEl) return;
+  try { sfx.waveBanner(); } catch {}
+  titleEl.textContent = title || '';
+  subEl.textContent   = sub || '';
+  if (color) { titleEl.style.color = color; titleEl.style.textShadow = `0 0 24px ${color}`; }
+  else       { titleEl.style.color = ''; titleEl.style.textShadow = ''; }
+  titleEl.classList.remove('animate-in','animate-out');
+  banner.style.display = 'flex';
+  void banner.offsetWidth;
+  titleEl.classList.add('animate-in');
+  setTimeout(() => {
+    titleEl.classList.remove('animate-in');
+    titleEl.classList.add('animate-out');
+    setTimeout(() => {
+      banner.style.display = 'none';
+      titleEl.classList.remove('animate-out');
+      titleEl.style.color = '';
+      titleEl.style.textShadow = '';
+    }, 400);
+  }, 2200);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // DAMAGE / HEAL NUMBERS
 // ────────────────────────────────────────────────────────────────────────────
 export function showDamageNumber(worldPos, amount, element, mult) {
@@ -488,8 +519,8 @@ function _buildFormStrip() {
 // CONTROLS CHIP HOVER TOOLTIP
 // ────────────────────────────────────────────────────────────────────────────
 function _wireControlsChips() {
-  const P1_CONTROLS = 'WASD: Move | I/Spc: Attack | U: Heavy | G: Block/Parry | J: Shield | K: Dodge | L: Heal | C: Jump | F: Lock-on';
-  const P2_CONTROLS = 'Arrows: Move | Ent/8: Attack | Num3: Heavy | Num1: Block/Parry | Num4: Transform | Num5: Dodge | Num6: Special | Num2: Jump | 0: Lock-on';
+  const P1_CONTROLS = 'WASD: Move | I/Spc: Attack | U: Heavy | G: Block/Parry | J: Shield | K: Dodge | L: Heal | C: Jump | F: Lock-on | R: Ultimate';
+  const P2_CONTROLS = 'Arrows: Move | Ent/8: Attack | Num3: Heavy | Num1: Block/Parry | Num4: Transform | Num5: Dodge | Num6: Special | Num2: Jump | 0: Lock-on | Num*: Ultimate';
 
   [['controls-chip-p1', P1_CONTROLS],['controls-chip-p2', P2_CONTROLS]].forEach(([id, txt]) => {
     const chip = document.getElementById(id);
@@ -603,6 +634,37 @@ function _updateMeterFor(pid, player) {
   // Visual state flags
   if (m.guardWrap) m.guardWrap.classList.toggle('broken', guard <= 0);
   if (m.resonWrap) m.resonWrap.classList.toggle('full', reson >= 100);
+  // Pass 16: ULTIMATE READY glow — resonance full AND the hero has unlocked it
+  // (Shikai cleared on Wave 2). Toggle a label + glow class on the resonance bar.
+  const ultReady = reson >= 100 && !!player.shikaiUnlocked && !player.ultimateActive;
+  if (m.resonWrap) {
+    m.resonWrap.classList.toggle('ult-ready', ultReady);
+    let lbl = m._ultLabel;
+    if (ultReady) {
+      if (!lbl) {
+        lbl = document.createElement('div');
+        lbl.className = 'ult-ready-label';
+        lbl.textContent = 'ULTIMATE READY';
+        lbl.style.cssText = 'position:absolute;left:0;right:0;top:-13px;text-align:center;' +
+          'font-family:Georgia,serif;font-size:9px;letter-spacing:2px;color:#ffe27a;' +
+          'text-shadow:0 0 8px rgba(255,200,60,0.9);pointer-events:none;' +
+          'animation:ultPulse 0.9s ease-in-out infinite;';
+        // ensure a positioning context
+        if (getComputedStyle(m.resonWrap).position === 'static') m.resonWrap.style.position = 'relative';
+        m.resonWrap.appendChild(lbl);
+        m._ultLabel = lbl;
+        if (!document.getElementById('_ultPulseStyle')) {
+          const st = document.createElement('style');
+          st.id = '_ultPulseStyle';
+          st.textContent = '@keyframes ultPulse{0%,100%{opacity:0.55;}50%{opacity:1;}}';
+          document.head.appendChild(st);
+        }
+      }
+      lbl.style.display = 'block';
+    } else if (lbl) {
+      lbl.style.display = 'none';
+    }
+  }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -874,16 +936,20 @@ export function updateBossBar(boss, show) {
   const pct = Math.max(0, Math.min(100, (boss.hp / boss.maxHp) * 100));
   fillEl.style.width = pct + '%';
 
-  // Phase 2 at 50% HP
-  const isPhase2 = boss.hp / boss.maxHp <= 0.5;
-  if (bgEl) bgEl.classList.toggle('phase2', isPhase2);
-  if (phaseEl) phaseEl.textContent = isPhase2 ? 'PHASE II' : 'PHASE I';
+  // Pass 16: phase is now driven by the boss's own `phase` field (1..3).
+  const phase = boss.phase || (boss.hp / boss.maxHp <= 0.5 ? 2 : 1);
+  const advanced = phase >= 2;
+  if (bgEl) bgEl.classList.toggle('phase2', advanced);
+  const roman = phase >= 3 ? 'PHASE III' : phase === 2 ? 'PHASE II' : 'PHASE I';
+  if (phaseEl) phaseEl.textContent = roman + (boss.enraged ? ' • ENRAGED' : '');
 
-  // Name
+  // Name (Pass 16: phase 3 of the lord tints toward its shifted element)
   if (nameEl && boss._type) {
     const names = { venomoni: 'Venom Oni — Mini-boss', infernolord: 'Inferno Demon Lord' };
     nameEl.textContent = names[boss._type] || boss._type;
-    nameEl.style.color = isPhase2 ? '#ff44ff' : '#ff8844';
+    let col = phase >= 2 ? '#ff44ff' : '#ff8844';
+    if (boss._type === 'infernolord' && phase >= 3) col = '#66ccff'; // ice shift
+    nameEl.style.color = col;
   }
 }
 

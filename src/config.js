@@ -66,4 +66,6 @@ export const PREVENT_KEYS = new Set([
   'Numpad2', 'Numpad1', 'Numpad3',
   'Enter', 'NumpadEnter',
   'KeyI', 'KeyJ', 'KeyK', 'KeyL', 'KeyF', 'KeyQ', 'KeyE', 'KeyC', 'KeyU', 'KeyG',
+  // Pass 16 — ULTIMATE: P1=R, P2=Numpad *
+  'KeyR', 'NumpadMultiply',
 ]);

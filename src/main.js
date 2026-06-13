@@ -202,6 +202,7 @@ window.addEventListener('keydown', (e) => {
     if (act1 === 'dodge')   p1.dodge();
     if (act1 === 'heal')    p1.healingPulse();
     if (act1 === 'jump')    p1.jump();
+    if (act1 === 'ultimate') p1.ultimate();
   }
   // Camera V2: P1 lock-on (allowed even while KO so player can track the fight)
   if (p1Active && act1 === 'lockon') toggleLockOn('p1');
@@ -213,6 +214,7 @@ window.addEventListener('keydown', (e) => {
     if (act2 === 'dodge')     p2.dodge();
     if (act2 === 'special')   p2.special();
     if (act2 === 'jump')      p2.jump();
+    if (act2 === 'ultimate')  p2.ultimate();
   }
   // Camera V2: P2 lock-on
   if (p2Active && act2 === 'lockon') toggleLockOn('p2');

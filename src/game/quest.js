@@ -119,6 +119,10 @@ export function checkWaveComplete() {
       gameState.p2.unlockForm('poison');
       spawnRelicDrop('Prayer Beads', new THREE.Vector3(0, 0, 0));
       showToast('POISON DRAGON unlocked! Prayer Beads relic dropped.');
+      // Pass 16 — T2 SHIKAI awakening: unlocks the ULTIMATE for both heroes.
+      // Staggered cinematic flashes so each named banner reads cleanly.
+      if (gameState.p1 && gameState.p1.grantShikai) gameState.p1.grantShikai();
+      _fxTimers.push(setTimeout(() => { if (gameState.p2 && gameState.p2.grantShikai) gameState.p2.grantShikai(); }, 2400));
       _fxTimers.push(setTimeout(() => startWave(3), 3000));
     } else if (wave === 3) {
       gameState.p2.unlockForm('ice');

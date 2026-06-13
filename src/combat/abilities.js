@@ -19,9 +19,10 @@ import {
   buildChiShieldMesh, spawnShieldImpactRipple,
   spawnMeditationLotus,
   spawnHeavySwingFx, spawnBlockSpark, spawnParryFlash,
+  spawnUltimateAura,
 } from './projectiles.js';
 import { updateHUD } from '../ui/hud.js';
-import { showToast } from '../ui/hud.js';
+import { showToast, showBanner } from '../ui/hud.js';
 
 // ---- Knockback helper ----
 export function knockback(spirit, fromPos, force) {
@@ -40,6 +41,21 @@ export const PARRY_WINDOW = 0.2;       // seconds after pressing block that a hi
 export const PARRY_RESONANCE = 35;     // resonance granted on a perfect parry
 export const HIT_RESONANCE = 4;        // resonance per landed light hit
 export const HEAVY_RESONANCE = 10;     // resonance per landed heavy hit
+
+// ---- Pass 16 tuning constants (ULTIMATE / Bankai transformation super-state) ----
+export const ULTIMATE_DURATION = 10;   // seconds the super-state lasts
+export const ULTIMATE_IFRAMES  = 1.0;  // i-frames on activation
+export const ULTIMATE_DMG_MULT  = 2.5; // damage multiplier while active
+// Named cinematic flashes per hero (T3 Bankai super-state).
+const ULTIMATE_NAMES = {
+  1: { title: 'AWAKENING', sub: 'Chi Sovereign', color: '#ffe27a' },
+  2: { title: 'BANKAI', sub: 'Heavenly Dragon Sovereign', color: '#ff6a2a' },
+};
+// Named cinematic flashes per hero (T2 Shikai, granted when Wave 2 clears).
+const SHIKAI_NAMES = {
+  1: { title: 'SHIKAI', sub: 'Staff of the Undying Wind', color: '#ffd24b' },
+  2: { title: 'SHIKAI', sub: 'Dragon Claw Manifest', color: '#46d6e0' },
+};
 
 // ---- dealDamageToPlayer ----
 export function dealDamageToPlayer(player, amount, element) {
@@ -162,6 +178,12 @@ export class Player {
     this.guard = 100;            // GUARD meter 0..100 (depletes on block, regens out of combat)
     this.resonance = 0;          // RESONANCE meter 0..100 (builds from hits/heavy/parry)
     this._lastCombatTime = -999; // last time guard was drained or a hit dealt
+
+    // Pass 16: ULTIMATE / Bankai super-state
+    this.shikaiUnlocked = false; // T2 gate — set true when Wave 2 clears
+    this.ultimateActive = false; // T3 super-state currently running
+    this._ultimateTimer = 0;     // counts DOWN while active
+    this._ultAuraEntry = null;   // _fxEffects handle for the aura
 
     this._koTimer = 0;
     this.isKO = false;
@@ -333,6 +355,12 @@ export class Player {
     if (this._stunTimer > 0) this._stunTimer -= dt;
     if (this._iframes > 0) this._iframes -= dt;
     if (this._comboTimer > 0) this._comboTimer -= dt; else this._comboCount = 0;
+
+    // Pass 16: ultimate super-state timer (dt-driven, no setTimeout)
+    if (this.ultimateActive) {
+      this._ultimateTimer -= dt;
+      if (this._ultimateTimer <= 0) this._endUltimate();
+    }
 
     // Pass 14: block stance + guard/resonance meters
     this._updateGuardBlock(dt);
@@ -519,6 +547,9 @@ export class Player {
     this._lastCombatTime = performance.now() / 1000;
   }
 
+  // Pass 16: damage scalar applied to every offensive hit while ultimate is active.
+  _ultMult() { return this.ultimateActive ? ULTIMATE_DMG_MULT : 1; }
+
   _monkAttack() {
     this._comboCount = (this._comboTimer > 0) ? this._comboCount + 1 : 1;
     if (this._comboCount > 3) this._comboCount = 1;
@@ -530,7 +561,7 @@ export class Player {
     const isFinisher = this._comboCount === 3;
     try { sfx.monkSwing(this._comboCount, isFinisher); } catch {}
     const baseDmg = this.atk;
-    const dmg = isFinisher ? baseDmg * 2 : baseDmg;
+    const dmg = (isFinisher ? baseDmg * 2 : baseDmg) * this._ultMult(); // Pass 16 ult buff
     const range = isFinisher ? 3.5 : 2.5;
 
     if (isFinisher) {
@@ -570,7 +601,7 @@ export class Player {
     this._attackAnim = 0;
 
     const form = this.form;
-    const baseDmg = Math.round(this.atk * this._relicBonuses.elemDmg);
+    const baseDmg = Math.round(this.atk * this._relicBonuses.elemDmg * this._ultMult()); // Pass 16 ult buff
 
     if (form === 'human') {
       // Palm strike — cyan crescent flash
@@ -629,7 +660,7 @@ export class Player {
     const element = this.id === 1 ? 'neutral' : this.getElement();
     // Light hit damage baseline = atk (with sister elem bonus); heavy = 2.2x.
     const lightBase = this.id === 1 ? this.atk : Math.round(this.atk * this._relicBonuses.elemDmg);
-    const dmg = Math.round(lightBase * 2.2);
+    const dmg = Math.round(lightBase * 2.2 * this._ultMult()); // Pass 16 ult buff
     const range = 3.6;
 
     // Weighty feedback: hitstop + screen shake + impact light.
@@ -698,6 +729,66 @@ export class Player {
     this._forceBlock = !!on;
     if (on && !this.blocking) this._parryTimer = PARRY_WINDOW;
     if (this._stunTimer <= 0 && !this.isKO) this.blocking = !!on;
+  }
+
+  // =====================================================================
+  //  PASS 16 — ULTIMATE / BANKAI SUPER-STATE
+  // =====================================================================
+  /** True only if the hero may fire an ultimate right now. */
+  ultimateReady() {
+    return this.shikaiUnlocked && !this.ultimateActive && (this.resonance || 0) >= 100;
+  }
+
+  /**
+   * Fire the ultimate: consume resonance, grant i-frames + a 10s damage buff,
+   * spawn a pulsing aura, and flash the hero's named banner. dt-driven (no timers).
+   * Does nothing unless Shikai is unlocked and resonance is full.
+   */
+  ultimate() {
+    if (this.isKO || this.inactive) return;
+    if (!this.ultimateReady()) return;
+
+    this.resonance = 0;
+    this.ultimateActive = true;
+    this._ultimateTimer = ULTIMATE_DURATION;
+    this._iframes = Math.max(this._iframes || 0, ULTIMATE_IFRAMES);
+
+    // Aura that follows the hero while active.
+    const _self = this;
+    const col = this.id === 1 ? 0xffe27a : (ELEMENT_COLORS[this.getElement()] || 0xff6a2a);
+    const entry = spawnUltimateAura(col, () => _self.ultimateActive ? _self.pos : null);
+    this._ultAuraEntry = entry;
+    _fxEffects.push(entry);
+
+    // Cinematic name flash + cast spectacle.
+    const nm = ULTIMATE_NAMES[this.id] || ULTIMATE_NAMES[1];
+    showBanner(nm.title + ': ' + nm.sub, 'Ultimate unleashed', nm.color);
+    spawnTransformPillar(this, this.id === 2 ? this.getElement() : 'human');
+    ctx.camState['p' + this.id].shake = 0.35;
+    try { sfx.levelUp(); } catch {}
+    updateHUD();
+  }
+
+  _endUltimate() {
+    this.ultimateActive = false;
+    this._ultimateTimer = 0;
+    if (this._ultAuraEntry) { this._ultAuraEntry.timer = 0; this._ultAuraEntry = null; }
+    showToast(`P${this.id} ultimate fades.`);
+    updateHUD();
+  }
+
+  /**
+   * Grant the T2 Shikai release (mid-quest awakening when Wave 2 clears).
+   * One-time: unlocks the ultimate and plays a named cinematic flash.
+   */
+  grantShikai() {
+    if (this.shikaiUnlocked) return;
+    this.shikaiUnlocked = true;
+    const nm = SHIKAI_NAMES[this.id] || SHIKAI_NAMES[1];
+    showBanner(nm.title + ': ' + nm.sub, 'Power released — ULTIMATE awakened', nm.color);
+    spawnTransformPillar(this, this.id === 2 ? this.getElement() : 'human');
+    ctx.camState['p' + this.id].shake = 0.2;
+    updateHUD();
   }
 
   special() {

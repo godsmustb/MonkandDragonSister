@@ -30,6 +30,8 @@ export function setupDebugAPI() {
       return ctx.gameState.spirits.filter(s => s.alive).map(s => ({
         pos: { x: s.pos.x, y: s.pos.y, z: s.pos.z },
         hp: s.hp, maxHp: s.maxHp, element: s.element, alive: s.alive,
+        // Pass 16: boss-phase telemetry (undefined/1 for non-bosses)
+        phase: s.phase || 1, enraged: !!s.enraged,
       }));
     },
 
@@ -41,6 +43,8 @@ export function setupDebugAPI() {
         hp: p.hp, maxHp: p.maxHp, level: p.level, xp: p.xp,
         isKO: p.isKO,
         resonance: p.resonance || 0, guard: p.guard != null ? p.guard : 100, blocking: !!p.blocking,
+        // Pass 16: ultimate telemetry
+        ultimateActive: !!p.ultimateActive, ultimateReady: !!(p.ultimateReady && p.ultimateReady()),
         hasLockTarget: !!(camExtra.p1 && camExtra.p1.lockTarget && camExtra.p1.lockTarget.alive),
       };
     },
@@ -54,6 +58,8 @@ export function setupDebugAPI() {
         form: p.form, unlocked: p.unlockedForms.slice(),
         isKO: p.isKO,
         resonance: p.resonance || 0, guard: p.guard != null ? p.guard : 100, blocking: !!p.blocking,
+        // Pass 16: ultimate telemetry
+        ultimateActive: !!p.ultimateActive, ultimateReady: !!(p.ultimateReady && p.ultimateReady()),
         hasLockTarget: !!(camExtra.p2 && camExtra.p2.lockTarget && camExtra.p2.lockTarget.alive),
       };
     },
@@ -150,6 +156,26 @@ export function setupDebugAPI() {
       if (p && p.setBlocking) p.setBlocking(!!on);
     },
 
+    // ── Pass 16: Ultimate / Bankai ───────────────────────────────────────
+    /** Fill player n's RESONANCE meter to 100 (E2E hook). */
+    fillResonance(playerNum) {
+      const p = playerNum === 1 ? ctx.gameState.p1 : ctx.gameState.p2;
+      if (p) p.resonance = 100;
+    },
+    /**
+     * Grant the Shikai release (unlocks the ultimate) for player n — E2E hook so
+     * tests can reach the ultimate without playing through Wave 2. Optional.
+     */
+    grantShikai(playerNum) {
+      const p = playerNum === 1 ? ctx.gameState.p1 : ctx.gameState.p2;
+      if (p && p.grantShikai) p.grantShikai();
+    },
+    /** Activate player n's ULTIMATE if ready (resonance>=100 + Shikai unlocked). */
+    ultimate(playerNum) {
+      const p = playerNum === 1 ? ctx.gameState.p1 : ctx.gameState.p2;
+      if (p && p.ultimate) p.ultimate();
+    },
+
     // ── Camera / lock-on ────────────────────────────────────────────────
     /**
      * Toggle lock-on for a player (1 or 2).
@@ -183,7 +209,7 @@ export function setupDebugAPI() {
       s._aiState = 'recover'; s._aiTimer = 9999; // hold idle, no lunge
       s._pinned = true;
       if (s.mesh) s.mesh.position.copy(s.pos);
-      return { x: s.pos.x, y: s.pos.y, z: s.pos.z, type: s._type, phase: s._phase || 1 };
+      return { x: s.pos.x, y: s.pos.y, z: s.pos.z, type: s._type, phase: s.phase || 1 };
     },
 
     // ── Pause (optional convenience) ─────────────────────────────────────

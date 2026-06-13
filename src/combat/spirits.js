@@ -313,8 +313,92 @@ class BossBase extends Spirit {
     const cfg = DEMON_TABLE[type];
     this.mesh.scale.setScalar(cfg.scale);
     this._pools = [];
+
+    // ── Pass 16 — multi-phase / weighted-attack / enrage state ──
+    this.phase = 1;            // 1..3 (exposed to HUD + debug)
+    this.enraged = false;      // soft enrage flag (exposed to debug)
+    this.enrageTimer = 0;      // counts UP toward the enrage threshold
+    this._enrageAt = 90;       // seconds until soft enrage (subclass overrides)
+    this._enrageAtkMult = 1.3; // ATK multiplier on enrage (subclass overrides)
+    this._enrageCdMult = 0.7;  // attack-cooldown multiplier on enrage
+    this.lastAttacks = [];     // recent attack-bag picks (anti-repeat, max 3)
+    this.attackCooldown = 3.0; // seconds between weighted-bag attacks
+    this.attackTimer = this.attackCooldown * (0.6 + Math.random() * 0.4);
+    this.spawnAddCooldown = 12;
+    this.spawnAddTimer = this.spawnAddCooldown;
+    this.aoeTimer = 6;         // ground-AOE cadence (lord)
+    this.aoeWarnings = [];     // telegraphed ground circles {mesh, pos, r, delay, exploded, life}
+    this._auraMesh = null;     // red enrage aura
+
     document.getElementById('boss-hp-bar').style.display = 'block';
   }
+
+  // ── Pass 16: weighted attack-bag picker with "never same >2× in a row" ──
+  _pickAttack(bag) {
+    // bag: [{ name, weight }]. Filter out a choice if it would be the 3rd repeat.
+    const last = this.lastAttacks;
+    const blocked = (last.length >= 2 && last[last.length - 1] === last[last.length - 2])
+      ? last[last.length - 1] : null;
+    let pool = bag.filter(b => b.name !== blocked && b.weight > 0);
+    if (pool.length === 0) pool = bag.filter(b => b.weight > 0);
+    if (pool.length === 0) return null;
+    const total = pool.reduce((s, b) => s + b.weight, 0);
+    let roll = Math.random() * total;
+    let chosen = pool[pool.length - 1].name;
+    for (const b of pool) { if (roll < b.weight) { chosen = b.name; break; } roll -= b.weight; }
+    last.push(chosen);
+    if (last.length > 3) last.shift();
+    return chosen;
+  }
+
+  // ── Pass 16: shared phase/enrage tick. Subclasses provide config + executors. ──
+  tickBossPhase(dt, players) {
+    if (!this.alive) return;
+
+    // Phase transitions (subclass decides thresholds via _checkPhase()).
+    this._checkPhase(players);
+
+    // Soft enrage (time-based).
+    if (!this.enraged) {
+      this.enrageTimer += dt;
+      if (this.enrageTimer >= this._enrageAt) this._enterEnrage();
+    }
+    if (this._auraMesh) {
+      this._auraMesh.position.copy(this.pos);
+      this._auraMesh.rotation.z += dt * 1.5;
+      this._auraMesh.material.opacity = 0.35 + Math.sin(this._idlePhase * 4) * 0.12;
+    }
+
+    // Weighted attack bag (gated to not overlap the melee-FSM strike windows).
+    this.attackTimer -= dt;
+    if (this.attackTimer <= 0 && this._aiState !== 'strike' && this._aiState !== 'telegraph') {
+      const cd = this.attackCooldown * (this.enraged ? this._enrageCdMult : 1);
+      this.attackTimer = cd * (0.75 + Math.random() * 0.5);
+      const name = this._pickAttack(this._attackBag());
+      if (name) this._doAttack(name, players);
+    }
+  }
+
+  _enterEnrage() {
+    this.enraged = true;
+    this.atk = Math.round(this.atk * this._enrageAtkMult);
+    // Red aura ring around the boss.
+    const aura = new THREE.Mesh(
+      new THREE.RingGeometry(1.6, 2.4, 24),
+      new THREE.MeshBasicMaterial({ color: 0xff2200, transparent: true, opacity: 0.4,
+        blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    aura.rotation.x = -Math.PI / 2;
+    aura.position.copy(this.pos);
+    ctx.scene.add(aura);
+    this._auraMesh = aura;
+    ctx.camState.p1.shake = 0.25; ctx.camState.p2.shake = 0.25;
+    import('../ui/hud.js').then(m => m.showToast('THE BOSS ENRAGES — attacks come faster!')).catch(() => {});
+  }
+
+  // Subclass hooks (defaults = no-op single phase).
+  _checkPhase(players) {}
+  _attackBag() { return [{ name: 'melee_combo', weight: 1 }]; }
+  _doAttack(name, players) {}
 
   // Boss bar is now owned exclusively by hud.js updateBossBar().
   // This method is intentionally a no-op to avoid dual-writer drift.
@@ -338,20 +422,86 @@ class BossBase extends Spirit {
     }
   }
 
+  // ── Pass 16: telegraphed ground-AOE circles that appear then explode ──
+  _spawnGroundAoe(pos, radius, element, dmg, delay = 1.1) {
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(radius * 0.85, radius, 24),
+      new THREE.MeshBasicMaterial({ color: element === 'ice' ? 0x66ccff : 0xff5522,
+        transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(pos.x, 0.06, pos.z);
+    ctx.scene.add(ring);
+    const inner = new THREE.Mesh(
+      new THREE.CircleGeometry(radius, 24),
+      new THREE.MeshBasicMaterial({ color: element === 'ice' ? 0x66ccff : 0xff5522,
+        transparent: true, opacity: 0.0, side: THREE.DoubleSide, depthWrite: false }));
+    inner.rotation.x = -Math.PI / 2;
+    inner.position.set(pos.x, 0.05, pos.z);
+    ctx.scene.add(inner);
+    this.aoeWarnings.push({ ring, inner, pos: pos.clone(), r: radius, element, dmg, delay, exploded: false, life: delay + 0.6 });
+  }
+
+  _updateGroundAoe(dt, players) {
+    for (let i = this.aoeWarnings.length - 1; i >= 0; i--) {
+      const a = this.aoeWarnings[i];
+      a.life -= dt;
+      if (a.delay > 0) {
+        a.delay -= dt;
+        const pulse = 0.4 + Math.abs(Math.sin(a.life * 12)) * 0.4;
+        a.ring.material.opacity = pulse;
+        a.inner.material.opacity = (1 - a.delay / (a.delay + 0.0001)) * 0; // keep inner faint until blast
+        if (a.delay <= 0) {
+          // Detonate.
+          a.exploded = true;
+          a.inner.material.opacity = 0.55;
+          players.forEach(p => {
+            if (p.shieldActive) return;
+            if (p.pos.distanceTo(a.pos) < a.r && dealDamageToPlayer) dealDamageToPlayer(p, a.dmg, a.element);
+          });
+          spawnDeathParticles(new THREE.Vector3(a.pos.x, 0.3, a.pos.z), a.element === 'ice' ? 0x66ccff : 0xff6a2a);
+        }
+      } else {
+        a.inner.material.opacity = Math.max(0, a.inner.material.opacity - dt * 1.5);
+        a.ring.material.opacity = Math.max(0, a.ring.material.opacity - dt * 1.5);
+      }
+      if (a.life <= 0) {
+        ctx.scene.remove(a.ring); ctx.scene.remove(a.inner);
+        this.aoeWarnings.splice(i, 1);
+      }
+    }
+  }
+
+  _clearAuraAndAoe() {
+    if (this._auraMesh) { ctx.scene.remove(this._auraMesh); this._auraMesh = null; }
+    if (this.aoeWarnings) this.aoeWarnings.forEach(a => { ctx.scene.remove(a.ring); ctx.scene.remove(a.inner); });
+    this.aoeWarnings = [];
+  }
+
   die() {
     super.die();
+    this._clearAuraAndAoe();
     document.getElementById('boss-hp-bar').style.display = 'none';
     this._pools.forEach(p => ctx.scene.remove(p.mesh));
     this._pools = [];
   }
+
+  cleanup() {
+    super.cleanup();
+    this._clearAuraAndAoe();
+  }
 }
 
-// ── L4 — VENOM ONI (mini-boss) ──
+// ── L4 — VENOM ONI (mini-boss) — Pass 16 two-phase ──
+//  P1 (100-60% HP): standard melee combo + poison projectile.
+//  P2 (60-0% HP):   transition spectacle, faster attacks, spawns poison adds.
 export class BossSpirit extends BossBase {
   constructor(pos) {
     super('venomoni', pos || new THREE.Vector3(0, 0, -15), 4);
     this._venomTimer = 5;
-    this._addTimer = 15;
+    this._enrageAt = 90;          // soft enrage after 90s
+    this._enrageAtkMult = 1.3;    // +30% ATK
+    this._enrageCdMult = 0.65;    // faster attack cadence
+    this.attackCooldown = 3.2;
     document.getElementById('boss-name').textContent = 'VENOM ONI';
   }
 
@@ -360,25 +510,100 @@ export class BossSpirit extends BossBase {
     if (!this.alive) return;
     this._updateBossBar();
 
+    // Pass 16: phase machine + weighted attack bag + enrage.
+    this.tickBossPhase(dt, players);
+
     // Club-slam telegraph pose: raise club arm overhead during telegraph.
     const p = this._parts;
     if (this._aiState === 'telegraph' && p.clubArm) { p.clubArm.rotation.x = -2.2; p.clubArm.rotation.z = 0.1; }
     else if (p.clubArm) { p.clubArm.rotation.x = 0; p.clubArm.rotation.z = 0.3; }
     if (p.kanji) p.kanji.material.opacity = this._aiState === 'telegraph' ? 1.0 : 0.85;
 
-    // Venom-pool spit.
+    // Passive venom-pool spit (ambient hazard, phase-independent).
     this._venomTimer -= dt;
     if (this._venomTimer <= 0) {
-      this._venomTimer = 6;
+      this._venomTimer = this.phase === 2 ? 4.5 : 6;
       this._spawnVenomPool();
     }
     this._updatePools(dt, players, 8, 'poison', 2.5);
+  }
 
-    // Spawn 2 shadowling adds periodically.
-    this._addTimer -= dt;
-    if (this._addTimer <= 0 && ctx.gameState.spirits.filter(s => s.alive && !s._isBoss).length < 2) {
-      this._addTimer = 20;
-      spawnShadowAdds(2);
+  // ── Phase 1 → 2 at 60% HP ──
+  _checkPhase(players) {
+    if (this.phase === 1 && this.hp <= this.maxHp * 0.6) {
+      this.phase = 2;
+      this._baseSpeed *= 1.2; this.speed = this._baseSpeed;
+      this.attackCooldown = 2.4;        // faster
+      this.spawnAddTimer = 4;
+      this.mesh.scale.multiplyScalar(1.05);
+      ctx.camState.p1.shake = 0.32; ctx.camState.p2.shake = 0.32;
+      if (ctx.impactLight) {
+        ctx.impactLight.color.setHex(0x88ff44); ctx.impactLight.intensity = 2.5;
+        _fxTimers.push(setTimeout(() => { if (ctx.impactLight) ctx.impactLight.intensity = 0; }, 1000));
+      }
+      import('../ui/hud.js').then(m => {
+        m.showBanner('VENOM ONI: SECOND VENOM', 'The oni festers — poison adds incoming!', '#88ff44');
+      }).catch(() => {});
+    }
+  }
+
+  _attackBag() {
+    const bag = [
+      { name: 'melee_combo', weight: 3 },
+      { name: 'poison_spit', weight: 2 },
+      { name: 'gap_closer',  weight: 2 },
+    ];
+    if (this.phase === 2) bag.push({ name: 'spawn_adds', weight: 1 });
+    return bag;
+  }
+
+  _doAttack(name, players) {
+    if (name === 'melee_combo') {
+      // Force the FSM toward a telegraph→strike if a target is near.
+      if (this._aiState === 'pursue' || this._aiState === 'recover') {
+        this._aiState = 'pursue';
+      }
+    } else if (name === 'poison_spit') {
+      this._spitVenom(players);
+    } else if (name === 'gap_closer') {
+      this._gapCloser(players);
+    } else if (name === 'spawn_adds') {
+      if (ctx.gameState.spirits.filter(s => s.alive && !s._isBoss).length < 3) {
+        spawnShadowAdds(1 + (Math.random() < 0.5 ? 1 : 0)); // 1-2 poison adds
+        import('../ui/hud.js').then(m => m.showToast('Venom Oni summons spawn!')).catch(() => {});
+      }
+    }
+  }
+
+  // Lob a fast poison glob toward the nearest player.
+  _spitVenom(players) {
+    let target = null, best = Infinity;
+    players.forEach(p => { if (p.inactive || p.isKO) return; const d = xzDist(this, p); if (d < best) { best = d; target = p; } });
+    if (!target) return;
+    const start = this.pos.clone(); start.y = this._hoverY() + 1.4;
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.3, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0x7fe05a }));
+    mesh.position.copy(start);
+    ctx.scene.add(mesh);
+    const dir = new THREE.Vector3().subVectors(target.pos, start).normalize();
+    this._projectiles.push({ pos: start.clone(), vel: dir.multiplyScalar(11), mesh, life: 3, _hit: false });
+  }
+
+  // Quick lunge toward the nearest player (forced reposition / pressure).
+  _gapCloser(players) {
+    let target = null, best = Infinity;
+    players.forEach(p => { if (p.inactive || p.isKO) return; const d = xzDist(this, p); if (d < best) { best = d; target = p; } });
+    if (!target) return;
+    const dir = new THREE.Vector3(target.pos.x - this.pos.x, 0, target.pos.z - this.pos.z);
+    const len = dir.length() || 1;
+    const dash = Math.min(len - 2, 8);
+    if (dash > 0) {
+      this.pos.x += (dir.x / len) * dash;
+      this.pos.z += (dir.z / len) * dash;
+      this.pos.x = THREE.MathUtils.clamp(this.pos.x, -ARENA_SIZE + 2, ARENA_SIZE - 2);
+      this.pos.z = THREE.MathUtils.clamp(this.pos.z, -ARENA_SIZE + 2, ARENA_SIZE - 2);
+      spawnDeathParticles(new THREE.Vector3(this.pos.x, 0.3, this.pos.z), 0x88ff44);
     }
   }
 
@@ -398,16 +623,23 @@ export class BossSpirit extends BossBase {
   }
 }
 
-// ── L5 — INFERNO DEMON LORD (2-phase final boss) ──
+// ── L5 — INFERNO DEMON LORD — Pass 16 THREE-phase final boss ──
+//  P1 (100-70% HP): normal fire attacks, telegraphed AOE.
+//  P2 (70-35% HP):  transition spectacle, faster + harder, arena hazards.
+//  P3 (35-0%  HP):  element SHIFTS to 'ice' (Fire dragon now optimal), full hazards.
+//  NOTE: spawn element stays 'fire' (E2E contract) — it only changes in P3.
+//  Stays KILLABLE by plain neutral attacks throughout (no damage immunity).
 export class DemonLord extends BossBase {
   constructor(pos) {
     super('infernolord', pos || new THREE.Vector3(0, 0, -16), 5);
-    this._phase = 1;
     this._emberTimer = 4;
     this._flameWaveTimer = 7;
-    this._addTimer = 999; // adds only in phase 2
     this._waves = [];      // expanding flame ring hazards
     this._embers = [];     // falling meteor projectiles + targeting circles
+    this._enrageAt = 120;  // soft enrage after 120s
+    this._enrageAtkMult = 1.4; // +40% ATK
+    this._enrageCdMult = 0.7;
+    this.attackCooldown = 3.5;
     document.getElementById('boss-name').textContent = 'INFERNO DEMON LORD';
   }
 
@@ -416,70 +648,136 @@ export class DemonLord extends BossBase {
     if (!this.alive) return;
     this._updateBossBar();
 
-    // Phase transition (<50% HP).
-    if (this._phase === 1 && this.hp < this.maxHp * 0.5) this._enterPhase2();
+    // Pass 16: phase machine + weighted attack bag + enrage.
+    this.tickBossPhase(dt, players);
 
     // Idle: flame crown flicker + wing breathing + vein pulse.
     this._animateLord(dt);
 
-    // Attacks.
+    // Ambient hazards (cadence scales with phase).
     this._emberTimer -= dt;
     if (this._emberTimer <= 0) {
-      this._emberTimer = this._phase === 2 ? 4.5 : 6;
+      this._emberTimer = this.phase >= 2 ? 4.5 : 6;
       this._emberStorm(players);
     }
     this._flameWaveTimer -= dt;
     if (this._flameWaveTimer <= 0) {
-      this._flameWaveTimer = this._phase === 2 ? 6 : 9;
+      this._flameWaveTimer = this.phase >= 2 ? 6 : 9;
       this._flameWave();
     }
     this._updateWaves(dt, players);
     this._updateEmbers(dt, players);
-
-    // Phase 2 adds.
-    if (this._phase === 2) {
-      this._addTimer -= dt;
-      if (this._addTimer <= 0 && ctx.gameState.spirits.filter(s => s.alive && !s._isBoss).length < 2) {
-        this._addTimer = 22;
-        spawnShadowAdds(2);
-      }
-    }
+    this._updateGroundAoe(dt, players);
   }
 
   _animateLord(dt) {
     const p = this._parts;
     const t = this._idlePhase;
-    const phaseBoost = this._phase === 2 ? 1.6 : 1.0;
+    const phaseBoost = this.phase >= 2 ? 1.6 : 1.0;
     if (p.crown) p.crown.forEach(f => {
       f.scale.y = (0.18 + Math.sin(t * 8 + f._phase) * 0.05) / 0.18 * 0.18;
       f.material.emissiveIntensity = 2.6 * (0.8 + Math.sin(t * 6 + f._phase) * 0.2) * phaseBoost;
     });
     if (p.veins) p.veins.forEach(v => { v.material.emissiveIntensity = 2.2 * phaseBoost * (0.85 + Math.sin(t * 2) * 0.15); });
     if (p.eyes) p.eyes.forEach(e => { e.material.emissiveIntensity = 2.8 * phaseBoost; });
-    // Wing breathing (fold in P1, spread in P2).
+    // Wing breathing (fold in P1, spread in P2+).
     if (p.wings) p.wings.forEach(w => {
-      const target = this._phase === 2 ? 1 : 0;
+      const target = this.phase >= 2 ? 1 : 0;
       w._spread = THREE.MathUtils.lerp(w._spread, target, 0.05);
       w.rotation.y = w._side * (0.5 - w._spread * 0.45) + Math.sin(t * 1.5) * 0.05 * (this._aiState === 'telegraph' ? 3 : 1);
     });
   }
 
+  // ── Phase transitions: P2 at 70% HP, P3 (element shift) at 35% HP ──
+  _checkPhase(players) {
+    if (this.phase === 1 && this.hp <= this.maxHp * 0.70) this._enterPhase2();
+    else if (this.phase === 2 && this.hp <= this.maxHp * 0.35) this._enterPhase3();
+  }
+
   _enterPhase2() {
-    this._phase = 2;
-    this.maxHp = this.maxHp; // unchanged
+    this.phase = 2;
     this._baseSpeed *= 1.25; this.speed = this._baseSpeed;
-    this._addTimer = 6;
+    this.attackCooldown = 2.8;
+    this.spawnAddTimer = 6;
     this.mesh.scale.multiplyScalar(1.05);
-    // Lighting/atmosphere shift to red.
     if (ctx.impactLight) { ctx.impactLight.color.setHex(0xff3300); ctx.impactLight.intensity = 2.5;
       _fxTimers.push(setTimeout(() => { if (ctx.impactLight) ctx.impactLight.intensity = 0; }, 1200)); }
+    ctx.camState.p1.shake = 0.35; ctx.camState.p2.shake = 0.35;
+    import('../ui/hud.js').then(m => {
+      m.showBanner('INFERNO LORD: WINGS SPREAD', 'Arena ignites — watch the ground circles!', '#ff5522');
+    }).catch(() => {});
+  }
+
+  _enterPhase3() {
+    this.phase = 3;
+    // ELEMENT SHIFT — boss now defends as ICE, so Fire dragon becomes optimal.
+    this.element = 'ice';
+    this._baseSpeed *= 1.15; this.speed = this._baseSpeed;
+    this.attackCooldown = 2.2;
+    if (ctx.impactLight) { ctx.impactLight.color.setHex(0x66ccff); ctx.impactLight.intensity = 3;
+      _fxTimers.push(setTimeout(() => { if (ctx.impactLight) ctx.impactLight.intensity = 0; }, 1400)); }
+    ctx.camState.p1.shake = 0.45; ctx.camState.p2.shake = 0.45;
+    // Recolor the boss light to the new element.
+    if (this._light) this._light.color.setHex(ELEMENT_COLORS.ice);
+    import('../ui/hud.js').then(m => {
+      m.showBanner('INFERNO LORD: FROST HEART', 'Element shifts to ICE — swap to FIRE dragon!', '#66ccff');
+    }).catch(() => {});
+  }
+
+  _attackBag() {
+    const bag = [
+      { name: 'melee_slam',  weight: 3 },
+      { name: 'fire_barrage', weight: 2 },
+    ];
+    if (this.phase === 2) bag.push({ name: 'ground_aoe', weight: 2 });
+    if (this.phase === 3) {
+      bag.push({ name: 'ground_aoe', weight: 3 });
+      bag.push({ name: 'element_burst', weight: 1 });
+    }
+    return bag;
+  }
+
+  _doAttack(name, players) {
+    if (name === 'melee_slam') {
+      if (this._aiState === 'recover') this._aiState = 'pursue';
+    } else if (name === 'fire_barrage') {
+      this._emberStorm(players);
+    } else if (name === 'ground_aoe') {
+      this._aoeBarrage(players);
+    } else if (name === 'element_burst') {
+      this._elementBurst(players);
+    }
+  }
+
+  // Telegraphed ground-AOE circles around the players (P2+).
+  _aoeBarrage(players) {
+    const count = this.phase >= 3 ? 4 : 2;
+    const el = this.element === 'ice' ? 'ice' : 'fire';
+    for (let i = 0; i < count; i++) {
+      const target = players[i % players.length];
+      const tx = target.pos.x + (Math.random() - 0.5) * 6;
+      const tz = target.pos.z + (Math.random() - 0.5) * 6;
+      this._spawnGroundAoe(new THREE.Vector3(tx, 0, tz), 2.6, el, Math.round(this.atk * 1.1), 1.1);
+    }
+  }
+
+  // P3 signature — a big radial burst of AOE circles + flame wave.
+  _elementBurst(players) {
+    const el = this.element === 'ice' ? 'ice' : 'fire';
+    for (let i = 0; i < 6; i++) {
+      const ang = (i / 6) * Math.PI * 2;
+      const r = 6 + Math.random() * 4;
+      this._spawnGroundAoe(
+        new THREE.Vector3(this.pos.x + Math.cos(ang) * r, 0, this.pos.z + Math.sin(ang) * r),
+        2.4, el, Math.round(this.atk * 1.0), 1.0);
+    }
+    this._flameWave();
     ctx.camState.p1.shake = 0.3; ctx.camState.p2.shake = 0.3;
-    import('../ui/hud.js').then(m => m.showToast('THE DEMON LORD ROARS — wings spread! Swap to WATER!')).catch(() => {});
   }
 
   // Ember storm — targeting circles + falling meteor projectiles.
   _emberStorm(players) {
-    const count = this._phase === 2 ? 5 : 3;
+    const count = this.phase >= 2 ? 5 : 3;
     for (let i = 0; i < count; i++) {
       const target = players[i % players.length];
       const tx = target.pos.x + (Math.random() - 0.5) * 6;
@@ -537,7 +835,7 @@ export class DemonLord extends BossBase {
 
   // Flame wave — expanding ring hazard rolling outward from boss.
   _flameWave() {
-    const big = this._phase === 2;
+    const big = this.phase >= 2;
     const mesh = new THREE.Mesh(
       new THREE.RingGeometry(0.8, big ? 2.2 : 1.4, 32),
       new THREE.MeshBasicMaterial({ color: 0xff6a2a, transparent: true, opacity: 0.75, side: THREE.DoubleSide })
@@ -585,6 +883,16 @@ export class DemonLord extends BossBase {
     if (this._waves) this._waves.forEach(w => { if (w.mesh.parent) ctx.scene.remove(w.mesh); });
     if (this._embers) this._embers.forEach(e => { if (e.circle.parent) ctx.scene.remove(e.circle); if (e.meteor.parent) ctx.scene.remove(e.meteor); });
     this._waves = []; this._embers = [];
+  }
+}
+
+// ── Pass 16: module-level delegating hook (boss phase/attack-bag/enrage tick) ──
+// Bosses already self-call this from their update() (once, after the melee FSM
+// has run inside super.update()). Exported so external callers / tests can drive
+// it explicitly. Safe no-op for non-boss spirits.
+export function tickBossPhase(boss, dt, players) {
+  if (boss && boss._isBoss && typeof boss.tickBossPhase === 'function') {
+    boss.tickBossPhase(dt, players);
   }
 }
 

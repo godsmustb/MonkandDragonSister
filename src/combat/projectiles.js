@@ -1148,6 +1148,79 @@ export function spawnMeditationLotus(playerPos, onTick) {
 }
 
 // =====================================================================
+//  PASS 16 — ULTIMATE / TRANSFORMATION AURA
+// =====================================================================
+/**
+ * Pulsing emissive halo + ground ring + orbiting motes that follow the hero
+ * while their ULTIMATE/Bankai is active. `onTick()` returns the live world
+ * position while active, or null once it ends (the fx then self-cleans).
+ * Returns an _fxEffects entry; caller pushes it and nulls its own handle when done.
+ */
+export function spawnUltimateAura(color, onTick) {
+  const scene = ctx.scene;
+  const col = color != null ? color : 0xffe27a;
+
+  // Ground halo ring
+  const halo = new THREE.Mesh(GEO.ring24,
+    new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.7,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  halo.rotation.x = -Math.PI / 2;
+  halo.scale.setScalar(1.6);
+  scene.add(halo);
+
+  // Vertical body glow (soft cylinder)
+  const pillar = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.9, 1.1, 2.4, 12, 1, true),
+    new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.22,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  scene.add(pillar);
+
+  // Orbiting motes
+  const motes = [];
+  const COUNT = 6;
+  for (let i = 0; i < COUNT; i++) {
+    const m = new THREE.Mesh(GEO.sphere4,
+      new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.9,
+        blending: THREE.AdditiveBlending, depthWrite: false }));
+    m.scale.setScalar(0.12);
+    m._phase = (i / COUNT) * Math.PI * 2;
+    scene.add(m);
+    motes.push(m);
+  }
+
+  let t = 0;
+  const fxEntry = {
+    timer: 999,
+    tick: (dt) => {
+      const pos = onTick();
+      if (!pos) { fxEntry.timer = 0; return; }
+      t += dt;
+      const pulse = 0.7 + Math.sin(t * 6) * 0.25;
+      halo.position.set(pos.x, 0.06, pos.z);
+      halo.scale.setScalar(1.4 + Math.sin(t * 3) * 0.25);
+      halo.material.opacity = 0.55 * pulse;
+      halo.rotation.z += dt * 1.5;
+      pillar.position.set(pos.x, 1.2, pos.z);
+      pillar.material.opacity = 0.22 * pulse;
+      pillar.rotation.y += dt * 2;
+      for (const m of motes) {
+        m._phase += dt * 2.2;
+        m.position.set(
+          pos.x + Math.cos(m._phase) * 1.1,
+          0.6 + Math.sin(m._phase * 1.5 + t) * 0.6 + 0.6,
+          pos.z + Math.sin(m._phase) * 1.1);
+        m.material.opacity = 0.6 + Math.sin(m._phase * 2) * 0.3;
+      }
+    },
+    cleanup: () => {
+      scene.remove(halo); scene.remove(pillar);
+      motes.forEach(m => scene.remove(m));
+    },
+  };
+  return fxEntry;
+}
+
+// =====================================================================
 //  PROJECTILE UPDATES (extended for V2 effects)
 // =====================================================================
 export function updateProjectiles(dt) {

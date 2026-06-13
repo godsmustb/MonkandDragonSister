@@ -1,6 +1,6 @@
 // src/game/lives.js — Team lives, KO handling, GAME OVER
 import { ctx } from '../state.js';
-import { updateHUD, showToast } from '../ui/hud.js';
+import { updateHUD, showToast, showPlayerToast } from '../ui/hud.js';
 import { clearAllFx } from '../combat/projectiles.js';
 import { sfx } from '../audio/audio.js';
 
@@ -74,7 +74,7 @@ function _respawnAtShrine(player) {
   player.pos.set(0, 0, 5);
   const cm = player.currentMesh && player.currentMesh();
   if (cm) cm.position.copy(player.pos);
-  showToast(`P${player.id} respawned at the shrine! ${ctx.gameState.lives} lives remain.`);
+  showPlayerToast(player.id, `Respawned at the shrine! ${ctx.gameState.lives} lives remain.`);
   updateHUD();
 }
 

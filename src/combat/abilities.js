@@ -22,7 +22,7 @@ import {
   spawnUltimateAura,
 } from './projectiles.js';
 import { updateHUD } from '../ui/hud.js';
-import { showToast, showBanner } from '../ui/hud.js';
+import { showToast, showBanner, showPlayerToast } from '../ui/hud.js';
 
 // ---- Knockback helper ----
 export function knockback(spirit, fromPos, force) {
@@ -129,9 +129,16 @@ export function dealDamageToPlayer(player, amount, element) {
   if (player.hp <= 0) {
     player.hp = 0;
     player.isKO = true;
-    player._koTimer = 10; // 10s revive window (changed from 5)
-    showToast(`P${player.id} is down! Partner has 10s to revive!`);
     try { sfx.playerKO(); } catch {}
+    if (ctx.gameState._endless) {
+      // Endless = SUDDEN DEATH: a single KO ends the run immediately — no revive,
+      // no life spent. (Regular play keeps the 3-lives / 10s-revive system.)
+      showPlayerToast(player.id, `P${player.id} has fallen — the endless run is over!`);
+      import('../game/lives.js').then(m => m.triggerGameOver()).catch(() => {});
+    } else {
+      player._koTimer = 10; // 10s revive window
+      showPlayerToast(player.id, `P${player.id} is down! Partner has 10s to revive!`);
+    }
   }
   updateHUD();
 }
@@ -243,7 +250,7 @@ export class Player {
   equipRelic(relic) {
     if (this.relics.includes(relic)) return;
     this.relics.push(relic);
-    showToast('Relic: ' + relic + ' equipped!');
+    showPlayerToast(this.id, 'Relic: ' + relic + ' equipped!');
     if (relic === 'Prayer Beads') {
       this._relicBonuses.def = 1.15;
       this.def = Math.round(LEVEL_TABLE[this.level - 1].def * 1.15);
@@ -272,7 +279,7 @@ export class Player {
     this.hp = this.maxHp;
     this.atk = stats.atk;
     this.def = Math.round(stats.def * this._relicBonuses.def);
-    showToast(`P${this.id} Level ${this.level}! ATK ${oldAtk}→${this.atk}`);
+    showPlayerToast(this.id, `Level ${this.level}! ATK ${oldAtk}→${this.atk}`);
     triggerLevelUpFlash(this);
     try { sfx.levelUp(); } catch {}
     // Award score for leveling up (level × 200, flat — no endless multiplier on XP gates)
@@ -316,7 +323,7 @@ export class Player {
       spawnTransformPillar(this, toForm);
       try { sfx.dragonTransform(); } catch {}
     }
-    showToast(`Dragon Sister: ${FORM_DATA[toForm].name} Form!`);
+    showPlayerToast(this.id, `Dragon Sister: ${FORM_DATA[toForm].name} Form!`);
     updateHUD();
   }
 
@@ -333,7 +340,7 @@ export class Player {
   unlockForm(form) {
     if (!this.unlockedForms.includes(form)) {
       this.unlockedForms.push(form);
-      showToast(`Dragon form unlocked: ${FORM_DATA[form].name}!`);
+      showPlayerToast(this.id, `Dragon form unlocked: ${FORM_DATA[form].name}!`);
       updateHUD();
     }
   }
@@ -403,7 +410,7 @@ export class Player {
         this.isKO = false;
         this._koTimer = 0;
         this._iframes = 1.5;
-        showToast(`P${this.id} revived by partner!`);
+        showPlayerToast(this.id, `P${this.id} revived by partner!`);
         try { sfx.playerRevive(); } catch {}
         updateHUD();
       }
@@ -787,7 +794,7 @@ export class Player {
     this.ultimateActive = false;
     this._ultimateTimer = 0;
     if (this._ultAuraEntry) { this._ultAuraEntry.timer = 0; this._ultAuraEntry = null; }
-    showToast(`P${this.id} ultimate fades.`);
+    showPlayerToast(this.id, `Ultimate fades.`);
     updateHUD();
   }
 
@@ -830,7 +837,7 @@ export class Player {
       ctx.gameState.spirits.forEach(s => {
         if (s.alive && this.pos.distanceTo(s.pos) < 3) s.takeDamage(this.atk * 2, 'fire');
       });
-      showToast('Fire Dash!');
+      showPlayerToast(this.id, 'Fire Dash!');
     } else if (form === 'ice') {
       ctx.gameState.spirits.forEach(s => {
         if (!s.alive) return;
@@ -841,16 +848,16 @@ export class Player {
         }
       });
       spawnFrostNova(this.pos);
-      showToast('Frost Nova!');
+      showPlayerToast(this.id, 'Frost Nova!');
     } else if (form === 'poison') {
       spawnToxicCloud(this.pos.clone());
-      showToast('Toxic Cloud!');
+      showPlayerToast(this.id, 'Toxic Cloud!');
     } else if (form === 'water') {
       const healAmt = Math.round(ctx.gameState.p1.maxHp * 0.2);
       ctx.gameState.p1.hp = Math.min(ctx.gameState.p1.hp + healAmt, ctx.gameState.p1.maxHp);
       ctx.gameState.p2.hp = Math.min(ctx.gameState.p2.hp + healAmt, ctx.gameState.p2.maxHp);
       spawnHealingRain(this.pos);
-      showToast('Healing Rain!');
+      showPlayerToast(this.id, 'Healing Rain!');
       updateHUD();
     }
   }
@@ -867,7 +874,7 @@ export class Player {
     this._shieldMesh = shieldMesh;
 
     try { sfx.chiShield(); } catch {}
-    showToast('Chi Shield activated!');
+    showPlayerToast(this.id, 'Chi Shield activated!');
 
     _fxTimers.push(setTimeout(() => {
       this.shieldActive = false;
@@ -888,7 +895,7 @@ export class Player {
     }
     spawnHealRing(this.pos);
     try { sfx.healingPulse(); } catch {}
-    showToast('Healing Pulse!');
+    showPlayerToast(this.id, 'Healing Pulse!');
     updateHUD();
   }
 

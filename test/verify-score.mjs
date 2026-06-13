@@ -23,8 +23,14 @@ const browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-
   // Boundary: teleport to a far corner; the circular clamp should pull P1 back
   // onto the disc and keep it grounded (y≈0), not floating in the void.
   await page.evaluate(() => window.__game.teleport(1, 100, 100));
-  await sleep(400);
-  const p = await page.evaluate(() => ({ x: window.__game.p1.pos.x, y: window.__game.p1.pos.y, z: window.__game.p1.pos.z }));
+  // Poll until the update loop applies the circular clamp (robust against a
+  // load-starved headless sim that may not advance a frame for a while).
+  let p = { x: 100, y: 0, z: 100 };
+  for (let i = 0; i < 25; i++) {
+    p = await page.evaluate(() => ({ x: window.__game.p1.pos.x, y: window.__game.p1.pos.y, z: window.__game.p1.pos.z }));
+    if (Math.hypot(p.x, p.z) <= 57) break;
+    await sleep(80);
+  }
   const dist = Math.hypot(p.x, p.z);
   check('Player clamped to circular disc (not square corner)', dist <= 57, `dist=${dist.toFixed(1)}`);
   check('Player stays grounded (y≈0, not in air)', Math.abs(p.y) < 0.2, `y=${p.y.toFixed(2)}`);

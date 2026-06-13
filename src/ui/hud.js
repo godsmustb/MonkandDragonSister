@@ -29,8 +29,16 @@ export function setFxTimersRef(arr) { _fxTimersRef = arr; }
 // ────────────────────────────────────────────────────────────────────────────
 // TOAST / UNLOCK NOTIFICATION
 // ────────────────────────────────────────────────────────────────────────────
-export function showToast(msg, duration = 2300, variant = '') {
-  const c = document.getElementById('toast-container');
+// side: undefined/'center' = shared centre column (global events like waves/bosses);
+// 'p1'/'p2' (or 1/2) = that player's half of the split screen. In 1P (single
+// full-screen view) everything routes to the centre column.
+export function showToast(msg, duration = 2300, variant = '', side) {
+  let containerId = 'toast-container';
+  if (side && ctx.mode !== '1p') {
+    if (side === 'p1' || side === 1) containerId = 'toast-container-p1';
+    else if (side === 'p2' || side === 2) containerId = 'toast-container-p2';
+  }
+  const c = document.getElementById(containerId) || document.getElementById('toast-container');
   if (!c) return;
   const el = document.createElement('div');
   el.className = 'toast' + (variant ? ' ' + variant : '');
@@ -38,6 +46,12 @@ export function showToast(msg, duration = 2300, variant = '') {
   c.appendChild(el);
   const tid = setTimeout(() => { if (el.parentNode) el.remove(); }, duration);
   if (_fxTimersRef) _fxTimersRef.push(tid);
+}
+
+// Convenience: a notification that belongs to a specific player (id 1 or 2),
+// rendered on that player's side of the split screen.
+export function showPlayerToast(playerId, msg, duration = 2300, variant = '') {
+  showToast(msg, duration, variant, 'p' + playerId);
 }
 
 // ────────────────────────────────────────────────────────────────────────────

@@ -36,13 +36,20 @@ export function knockback(spirit, fromPos, force) {
 // A square clamp lets characters walk to the diagonal corners (e.g. 58,58 ≈ 82
 // units from centre) which are OFF the radius-60 ground disc, so they appear to
 // float in the void beyond the edge ("standing in air"). This clamps XZ to a radius.
-const ARENA_RADIUS = ARENA_SIZE - 4;
+// In endless mode ctx.gameState.arenaRadius shrinks each collapse; all non-player
+// entities (spirits, knockback) use this so they stay on the shrinking disc.
+// Players in endless are NOT clamped by this — they fall off instead (see Player.update).
+const ARENA_RADIUS = ARENA_SIZE - 4;  // full-disc constant (56); also used as fallback
 export function clampToArena(pos) {
+  // Use the current safe radius (shrinks during endless sudden-death) with fallback.
+  const r = (ctx.gameState && ctx.gameState.arenaRadius != null)
+    ? ctx.gameState.arenaRadius
+    : ARENA_RADIUS;
   const r2 = pos.x * pos.x + pos.z * pos.z;
-  if (r2 > ARENA_RADIUS * ARENA_RADIUS) {
-    const r = Math.sqrt(r2) || 1;
-    pos.x = (pos.x / r) * ARENA_RADIUS;
-    pos.z = (pos.z / r) * ARENA_RADIUS;
+  if (r2 > r * r) {
+    const dist = Math.sqrt(r2) || 1;
+    pos.x = (pos.x / dist) * r;
+    pos.z = (pos.z / dist) * r;
   }
 }
 
@@ -446,9 +453,26 @@ export class Player {
     }
     const moveVec = _v3;
 
-    clampToArena(this.pos);
+    // In endless mode players are NOT clamped to the shrinking disc — they can
+    // walk off the edge and fall (handled by suddendeath.js updateSuddenDeath).
+    // They ARE still clamped to the full original footprint (ARENA_RADIUS=56) so
+    // they can't escape the world entirely.
+    // In non-endless modes clampToArena uses ctx.gameState.arenaRadius (always 56).
+    if (ctx.gameState && ctx.gameState._endless) {
+      // Clamp to full footprint only (not the shrinking safe radius)
+      const r2 = this.pos.x * this.pos.x + this.pos.z * this.pos.z;
+      if (r2 > ARENA_RADIUS * ARENA_RADIUS) {
+        const dist = Math.sqrt(r2) || 1;
+        this.pos.x = (this.pos.x / dist) * ARENA_RADIUS;
+        this.pos.z = (this.pos.z / dist) * ARENA_RADIUS;
+      }
+    } else {
+      clampToArena(this.pos);
+    }
 
     // Pass 13: jump physics — only pin y=0 when not airborne
+    // In endless mode, suddendeath.js may drive pos.y downward (_falling).
+    // We skip the y=0 pin while falling so the fall animation plays correctly.
     if (this._airborne) {
       const GRAVITY = 22;
       this.pos.y += this._jumpVel * dt;
@@ -458,7 +482,7 @@ export class Player {
         this._airborne = false;
         this._jumpVel = 0;
       }
-    } else {
+    } else if (!this._falling) {
       this.pos.y = 0;
     }
 
@@ -833,7 +857,17 @@ export class Player {
         updateWeaponTrail(lungeTrail, tp, 0.02, li === 6);
       }
       this.pos.addScaledVector(dir, dashDist);
-      clampToArena(this.pos);
+      // Clamp fire dash to full footprint in endless (player may land in danger zone)
+      if (ctx.gameState && ctx.gameState._endless) {
+        const _r2 = this.pos.x * this.pos.x + this.pos.z * this.pos.z;
+        if (_r2 > ARENA_RADIUS * ARENA_RADIUS) {
+          const _d = Math.sqrt(_r2) || 1;
+          this.pos.x = (this.pos.x / _d) * ARENA_RADIUS;
+          this.pos.z = (this.pos.z / _d) * ARENA_RADIUS;
+        }
+      } else {
+        clampToArena(this.pos);
+      }
       ctx.gameState.spirits.forEach(s => {
         if (s.alive && this.pos.distanceTo(s.pos) < 3) s.takeDamage(this.atk * 2, 'fire');
       });
@@ -908,7 +942,17 @@ export class Player {
     const dashDir = this.facing.clone().multiplyScalar(-4);
     dashDir.y = 0;
     this.pos.add(dashDir);
-    clampToArena(this.pos);
+    // In endless mode clamp to the full footprint only (player may land in danger zone)
+    if (ctx.gameState && ctx.gameState._endless) {
+      const r2 = this.pos.x * this.pos.x + this.pos.z * this.pos.z;
+      if (r2 > ARENA_RADIUS * ARENA_RADIUS) {
+        const dist = Math.sqrt(r2) || 1;
+        this.pos.x = (this.pos.x / dist) * ARENA_RADIUS;
+        this.pos.z = (this.pos.z / dist) * ARENA_RADIUS;
+      }
+    } else {
+      clampToArena(this.pos);
+    }
   }
 
   // Pass 13: Jump — brief airborne hop with i-frames at takeoff
@@ -1061,7 +1105,7 @@ export class Player {
         this._shieldMesh = null;
       }
     }
-  }
+  }  // end _runAiPartner
 
   /** Get world-space position of staff tip (used for trail) */
   _getStaffTipPos() {

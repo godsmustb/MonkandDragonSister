@@ -6,13 +6,15 @@
 // PASS 7 ADDITIONS: audioReady boolean (context created after first gesture)
 // PASS 13 ADDITIONS: bindings getter, rebind(who, action, code)
 // PASS 15 ADDITIONS: dda getter {S,m}, lands getter (LANDS data)
+// SUDDEN DEATH ADDITIONS: arenaRadius, suddenDeathElapsed, startEndless()
 import { ctx } from './state.js';
-import { endIntro } from './game/quest.js';
+import { endIntro, startEndless as _startEndless } from './game/quest.js';
 import { startGame as menuStartGame } from './ui/menu.js';
 import { consumeLife as _consumeLife, loadHighScores, recordScore as _recordScore } from './game/lives.js';
 import { toggleLockOn, camExtra } from './game/camera.js';
 import { saveBindings } from './game/bindings.js';
 import { getDDA, LANDS } from './game/campaign.js';
+import { getSuddenDeathElapsed } from './game/suddendeath.js';
 
 export function setupDebugAPI() {
   // Expose raw ctx for VFX testing / screenshot scripts
@@ -76,6 +78,22 @@ export function setupDebugAPI() {
 
     // Pass 12: endless mode cycle counter
     get endlessCycle() { return ctx.gameState.endlessCycle || 0; },
+
+    // ── Collapsing-arena sudden death ────────────────────────────────────────
+    /** Current safe ground radius (starts 56, shrinks each collapse in endless). */
+    get arenaRadius() {
+      return ctx.gameState && ctx.gameState.arenaRadius != null
+        ? ctx.gameState.arenaRadius
+        : 56;
+    },
+    /** Seconds elapsed into the 90s sudden-death countdown (0 if not active). */
+    get suddenDeathElapsed() { return getSuddenDeathElapsed(); },
+    /**
+     * Debug hook to enter endless mode without completing Quest 1.
+     * Sets up players at default positions and starts the endless wave loop.
+     * Note: players must already be initialised (after startGame() / skipIntro()).
+     */
+    startEndless() { _startEndless(); },
 
     // Score system
     get score() { return ctx.gameState.score || 0; },

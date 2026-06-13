@@ -202,8 +202,19 @@ export class Spirit {
 
     updateMeleeAI(this, dt, nearest, nearXZDist);
 
-    this.pos.x = THREE.MathUtils.clamp(this.pos.x, -ARENA_SIZE + 2, ARENA_SIZE - 2);
-    this.pos.z = THREE.MathUtils.clamp(this.pos.z, -ARENA_SIZE + 2, ARENA_SIZE - 2);
+    // Clamp spirits to the current safe radius.
+    // In endless mode ctx.gameState.arenaRadius shrinks each collapse so demons
+    // crowd the players on the shrinking ground. In regular play it stays 56.
+    {
+      const _gs = ctx.gameState;
+      const _clampR = (_gs && _gs.arenaRadius != null) ? _gs.arenaRadius : (ARENA_SIZE - 4);
+      const _r2 = this.pos.x * this.pos.x + this.pos.z * this.pos.z;
+      if (_r2 > _clampR * _clampR) {
+        const _d = Math.sqrt(_r2) || 1;
+        this.pos.x = (this.pos.x / _d) * _clampR;
+        this.pos.z = (this.pos.z / _d) * _clampR;
+      }
+    }
 
     // Ranged attack (frost imp lob / tide wraith bolt).
     if (this._ranged !== 'none') {

@@ -24,6 +24,7 @@ import { buildPostFX, renderPostFX, resizePostFX, postFxEnabled, disposePostFX }
 import { setQuality } from './state.js';
 import { loadBindings, matchAction } from './game/bindings.js';
 import { updatePowerLabels } from './ui/powerlabel.js';
+import { updateSuddenDeath } from './game/suddendeath.js';
 
 // ---- Wire up lazy cross-module references ----
 setDealDamageToPlayer(dealDamageToPlayer);
@@ -146,6 +147,9 @@ function updateGame(dt) {
   updateParticles(dt);
   updateRelicDrops(dt);
   updateFxEffects(dt);
+
+  // Collapsing-arena sudden death (endless mode only; no-op in regular play)
+  updateSuddenDeath(dt);
 
   // Update world-space XP/Level power labels under each character
   updatePowerLabels([gameState.p1, gameState.p2]);

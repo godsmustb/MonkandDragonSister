@@ -10,6 +10,7 @@ import {
   LAND_ELEMENTS, ELEMENT_TO_TYPE, pickWeightedElement,
   scaleHp, scaleAtk, dIndex, recordWavePerf, resetDDA, getDDA,
 } from './campaign.js';
+import { resetSuddenDeath, SD_FULL_RADIUS } from './suddendeath.js';
 // clearLockTargets imported lazily below to avoid circular dep at module load time
 
 export const gameState = {
@@ -30,6 +31,10 @@ export const gameState = {
   endlessCycle: 0,
   // Score system
   score: 0,
+  // Collapsing-arena sudden death (endless only).
+  // Starts at SD_FULL_RADIUS (56) and shrinks each collapse step.
+  // Non-endless waves always keep 56 so clampToArena is unaffected.
+  arenaRadius: 56,
 };
 
 export function startIntro() {
@@ -50,6 +55,11 @@ export function startWave(n) {
   gameState.state = 'WAVE' + n;
   gameState._waveClearing = false;
   gameState._waveClearGranted = false;
+  // Non-endless waves always use the full arena radius.
+  // Endless uses startEndless() which sets arenaRadius via resetSuddenDeath.
+  if (!gameState._endless) {
+    gameState.arenaRadius = SD_FULL_RADIUS;
+  }
 
   // Cancel all outstanding FX timers and effects
   clearAllFx();
@@ -219,6 +229,15 @@ export function startEndless() {
   gameState._completed = false;
   gameState._waveClearing = false;
   gameState._waveClearGranted = false;
+
+  // Reset sudden-death arena (also resets arenaRadius to SD_FULL_RADIUS)
+  resetSuddenDeath();
+  gameState.arenaRadius = SD_FULL_RADIUS;
+
+  // Clear any lingering _falling flag on players
+  [gameState.p1, gameState.p2].forEach(p => {
+    if (p) { p._falling = false; p._fallVel = 0; p.pos.y = 0; }
+  });
 
   // Pass 15: reset DDA to neutral on each fresh endless run
   resetDDA();

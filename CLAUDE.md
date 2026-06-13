@@ -6,7 +6,87 @@
 
 A **2-player local split-screen co-op 3D action game**, anime/cel-shaded, built in **Three.js** as a self-contained browser game. Setting: a Japanese Zen garden invaded by demons. P1 is **The Monk** (support/control — staff combos, chi shield, healing, meditation). P2 is **The Dragon Sister** (a human girl who transforms into 4 elemental dragons — Fire/Ice/Poison/Water). Quest 1 ("The Initial Compassion") is a 5-wave story arc ending in a 2-phase boss.
 
-Status: **post-v3, ~20+ passes committed on `master`.** Big additions since v3 (see "Updates since v3" below): fixed-angle camera + world-locked movement, full renderer/art polish (rim light, normal-mapped floor, Bob-Ross sky), **1P/2P + character select + full-screen solo / AI-partner**, **remappable controls (localStorage)** + jump/evade, **deep combat** (light/heavy, block/parry, guard + resonance meters), **multi-phase bosses + Bleach-style ultimate**, **campaign/DDA framework**, **XP power labels + score + arcade leaderboard**, **Endless collapsing-arena sudden death**, and **full mobile/touch support (iOS Safari + Android Chrome)**. Gate: **desktop E2E 60/60 + 7 verify suites + mobile verify (Android+iOS) all green, 0 console errors.** Two open research docs in `docs/`: `CONTENT_PIPELINE_2026.md` (open-source AI asset pipeline) and `PROGRESSION_DESIGN_2026.md` (4-land campaign / difficulty / boss / power design).
+Status: **V1.0 — tagged & pushed to GitHub (`godsmustb/MonkandDragonSister`, branch `main`).** ~30+ passes committed. The GitHub repo is **frozen at V1.0 by Owner request — do NOT push to GitHub again until the Owner explicitly says "ready for v1.1."** (Local commits + the Hostinger FTP deploy continue as normal; only the GitHub remote is frozen.) Big additions since v3: fixed-angle camera + world-locked movement, full renderer/art polish (rim light, normal-mapped floor, Bob-Ross sky), **1P/2P + character select + full-screen solo / AI-partner**, **remappable controls (localStorage)** + jump/evade, **deep combat** (light/heavy, block/parry, guard + resonance meters), **multi-phase bosses + Bleach-style ultimate**, **campaign/DDA framework**, **XP power labels + score + arcade leaderboard**, **Endless collapsing-arena sudden death**, **full mobile/touch support (iOS Safari + Android Chrome)**, **per-level themed worlds**, the **5-item polish plan** (camera/juice/grade/UI-cohesion/adaptive-audio), and **live-ops** (cross-device leaderboard + anonymous analytics + FTP auto-deploy). Gate: **desktop E2E 60/60 + verify suites + mobile verify (Android+iOS) all green, 0 console errors.** Two open research docs in `docs/`: `CONTENT_PIPELINE_2026.md` (open-source AI asset pipeline — Owner is revamping this) and `PROGRESSION_DESIGN_2026.md` (4-land campaign / difficulty / boss / power design).
+
+---
+
+## V1.0 — Features
+
+**Modes & front-end**
+- Main menu → **1-Player** (Solo or AI-Partner, choose Monk/Sister, full-screen single camera) or **2-Player** (split-screen, two EffectComposers).
+- **Endless mode** (post-quest) with escalating waves + **90s collapsing-arena sudden death**; arcade high-score board.
+- **Campaign preview**, **Quality** (high/low) and **Audio** toggles, in-menu + in-pause **Controls** (remap + touch-layout editor).
+- **Full mobile/touch** (iOS Safari + Android Chrome): on-screen joystick + buttons, tap nav, 1P-only, low-quality default.
+
+**Combat & characters**
+- Two playable heroes — **Monk** (staff combos, chi shield, heal, meditation; support/control) and **Dragon Sister** (transforms between 4 elemental dragons — Fire/Ice/Poison/Water).
+- **Light + heavy attacks** (combos, finisher, knockback, hitstop), **block + parry** (Guard meter), **dodge + jump** (i-frames), **lock-on** aim-assist.
+- **Resonance meter → Ultimate** (Bleach-style ~10s super: i-frames + 2.5× dmg + named banner), unlocked via a mid-quest Shikai awakening.
+- **Elemental ring** Water→Fire→Ice→Poison→Water (2× / 0.5× / 1×).
+
+**Content**
+- **Quest I "The Initial Compassion"** — 5 waves, 5 demon types, progressive dragon unlocks, **2 multi-phase bosses** (Venom Oni mini-boss + Inferno Demon Lord final w/ phase-3 element shift + AoE hazards).
+- **3 themed worlds** — Zen Garden, Glacial Peaks (ice), Venom Abyss (poison) — re-paletted per level.
+- **Relics** (auto-equip), shared-party **XP/levels**, **score**, **3 team lives**.
+
+**Presentation**
+- Cel-shaded toon + outline characters, Fresnel rim light, normal-mapped ground, Bob-Ross sky; **dual-composer bloom + ACES + SMAA + painterly color grade**.
+- **Juice:** hitstop, enemy hit-flash, boss-death slow-mo, movement/dodge dust (via a `ctx.timeScale` hooked into the fixed-substep loop).
+- **Procedural WebAudio** — synth SFX + generative music that's **adaptive** (intensity/boss/low-HP/per-level mood, crossfaded).
+
+**Live-ops & tooling**
+- **Cross-device per-stage leaderboard** + **anonymous analytics** (PHP flat-file APIs, fail-silent client, `API_ENABLED` gate).
+- **FTP auto-deploy** (`deploy.mjs`) to Hostinger after every change.
+- **QA gate:** Playwright E2E (~60 assertions) + 11 targeted `verify-*` suites (incl. mobile WebKit+Chromium); `window.__game` debug API.
+
+## V1.0 — Folder Structure & System Architecture
+
+```
+FirstGame/
+├─ index.html              # shell: CSS + :root design tokens, HUD/menu DOM, importmap, boot splash/self-heal
+├─ play.bat                # Windows launcher (python http.server 8321)
+├─ deploy.mjs              # basic-ftp auto-deploy to Hostinger (reads deploy.config.json — GITIGNORED)
+├─ deploy.config.example.json   # scrubbed template (real secrets live in gitignored deploy.config.json)
+├─ package.json / -lock    # deps (basic-ftp)
+├─ CLAUDE.md / README.md   # dev context (this file) / player how-to-play guide
+├─ src/                    # ~35 ES modules (~440kb) — the game
+│  ├─ main.js              # boot, renderer/cameras, fixed-substep animate()/updateGame(), resize, juice+dust hook
+│  ├─ state.js             # ctx — the ONE shared mutable object (scene, cameras, gameState, keys, themeRefs, timeScale…)
+│  ├─ config.js            # LEVEL/DEMON tables, element ring, IS_TOUCH, API_ENABLED, PREVENT_KEYS
+│  ├─ debug.js             # window.__game (the E2E contract — ADD-only)
+│  ├─ world/               # garden.js (terrain/flora/pond/props) · sky.js (mountains/clouds/sun/lighting) · theme.js (per-level re-palette)
+│  ├─ chars/               # common.js (toon/outline helpers) · monk.js · sister.js · dragon.js · anim.js · ik.js · builders.js
+│  ├─ combat/              # spirits.js (Spirit/BossSpirit+waves) · demons.js · ai.js · abilities.js (Player+abilities) · projectiles.js (pooled VFX)
+│  ├─ game/                # quest.js (wave machine+Endless) · campaign.js (4-land/DDA) · lives.js · progression.js (relics)
+│  │                       #   camera.js (fixed-angle+lock-on) · bindings.js (remap) · suddendeath.js · juice.js (timeScale) · leaderboard.js · analytics.js
+│  ├─ ui/                  # hud.js (plates/meters/boss bar/banners/toasts/score) · menu.js · touch.js · powerlabel.js
+│  ├─ fx/                  # postfx.js (dual-composer bloom+ACES+SMAA+grade; SSAO vendored, gated off)
+│  └─ audio/               # audio.js (procedural SFX + adaptive generative music — only allowed setInterval)
+├─ vendor/three/           # Three.js r160 VENDORED (core + postprocessing/shaders/utils addons) — no CDN, offline
+├─ api/                    # leaderboard.php · analytics.php (flat-file, flock, never-500) · data/ (gitignored runtime files)
+├─ test/                   # e2e.mjs + 11 verify-*.mjs (Playwright) + screenshot scripts; shots/ output
+└─ docs/                   # design bible, company, research docs (CONTENT_PIPELINE_2026, PROGRESSION_DESIGN_2026, ROADMAP, ENGINE_RESEARCH)
+```
+
+**System architecture / conventions** (detail in the `## Architecture` section below):
+- **`ctx` singleton** (`state.js`) is the only shared state — no `window` globals, no prop-threading. Circular deps broken via **setter injection** in `main.js` at boot.
+- **Fixed-substep sim** in `main.js`: real frame dt × `ctx.timeScale` feeds a 1/60 accumulator (juice scales sim, not render); cosmetic anims + camera use raw dt.
+- **Render:** 1 composer (1P) / 2 composers (2P split) for correct per-viewport bloom; mobile/low skips the composer.
+- **FX are dt-driven & pooled** in `projectiles.js` (`_fxEffects`/`_particles`, `clearAllFx()` on wave transitions) — **no setTimeout/setInterval** for game FX (audio's music scheduler is the sole exception).
+- **`window.__game`** (`debug.js`) is the E2E contract — **only ever ADD** to it.
+- **Data flow:** menu/input → `bindings.js` → `abilities.js`/`quest.js` mutate `ctx.gameState` → `main.js` loop updates spirits/AI/FX/camera → `hud.js`/`postfx.js` render; `leaderboard.js`/`analytics.js` POST to `api/*.php` (gated by `API_ENABLED`).
+
+## How can we improve this? (v1.1+ candidates)
+
+- **Asset quality (the #1 lever):** the in-code procedural art has a stylized-chibi ceiling. The open-source AI **content pipeline** (Blender-CLI / GLB models + textures; `docs/CONTENT_PIPELINE_2026.md`) — *Owner is revamping this now* — is what unlocks a real visual jump. The zen-garden **floor** remains the weakest element.
+- **SSAO:** implemented (SAOPass + vendored addons) but **gated off** — its `DstColor×AO` multiply blacks the scene under headless SwiftShader and was never validated on real GPU. Revisit: verify on real hardware, or switch to a gentler AO/contact-shadow approach.
+- **Gamepad support** (controller mapping alongside keyboard/touch) — natural next input mode; pairs with the existing `bindings.js`.
+- **More content:** Quests 2–5 + Lands 2–4 (campaign framework + DDA already exist in `campaign.js`); more demon/boss archetypes; more relics/abilities.
+- **Performance:** pool the remaining per-frame allocations in boss-hazard spawns (`spirits.js` ember/flame/venom — not yet pooled like `projectiles.js`); profile mobile.
+- **Online co-op** (vs local split-screen) — large; flagged for the v2.0 engine evaluation.
+- **Accessibility:** colorblind-safe element cues (beyond color), text scaling, remappable everything, difficulty options surfaced.
+- **Robustness:** `location.reload()` for return-to-menu is heavy — consider a soft teardown; re-audit lock-on through obstacles and single-source pause.
+- **Engine path:** stay Three.js for browser reach now; evaluate **Godot 4** port for the full release (`docs/ENGINE_RESEARCH.md`, `docs/ROADMAP_2026.md`).
 
 ## How to run
 

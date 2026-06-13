@@ -733,6 +733,17 @@ body,#game-container{
   <div style="font-size:clamp(20px,4.5vw,46px);color:#c8a000;letter-spacing:3px;text-shadow:0 0 40px rgba(200,160,0,0.8);">The Monk &amp; The Dragon Sister</div>
   <div style="margin-top:20px;font-size:13px;color:#9a8050;letter-spacing:4px;">LOADING&hellip;</div>
 </div>
+<script>
+  // Failsafe: if the menu never mounts within 14s (e.g. the Three.js CDN is
+  // blocked/slow), replace "LOADING…" with an error instead of trapping the user.
+  setTimeout(function(){
+    var s = document.getElementById('boot-splash');
+    if (s && !document.getElementById('main-menu')) {
+      var lines = s.getElementsByTagName('div');
+      if (lines.length) lines[lines.length-1].innerHTML = 'Could not load the game.<br>Check your connection and reload.';
+    }
+  }, 14000);
+</script>
 <div id="game-container">
   <canvas id="gameCanvas"></canvas>
   <div id="divider"></div>

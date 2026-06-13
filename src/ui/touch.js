@@ -12,6 +12,7 @@ export { IS_TOUCH };
 let _dispatchPlayerAction = null;  // injected from main.js
 let _overlayEl = null;
 let _audioInited = false;
+let _builtSig = null; // mode:soloChar the overlay was last built for
 
 // Joystick state per player slot (p1, p2)
 const _joy = {
@@ -33,11 +34,25 @@ export function setDispatchPlayerAction(fn) {
 
 // ── Public: show/hide overlay based on game state ─────────────────────────
 export function updateTouchOverlay() {
+  if (!IS_TOUCH) return;
+  // The layout is chosen at build time from ctx.mode/soloChar. If the mode changed
+  // since it was built (boot default 2P → a 1P game), rebuild so 1P shows ONE
+  // control set and 2P shows two — not the wrong default layout.
+  const sig = (ctx.mode || '2p') + ':' + (ctx.soloChar || '');
+  if (!_overlayEl || sig !== _builtSig) _rebuildOverlay();
   if (!_overlayEl) return;
   const state = ctx.gameState && ctx.gameState.state;
   const paused = ctx.gameState && ctx.gameState._paused;
   const live = state && /^WAVE/.test(state) && !paused;
   _overlayEl.style.display = live ? 'block' : 'none';
+}
+
+function _rebuildOverlay() {
+  if (_overlayEl) { _overlayEl.remove(); _overlayEl = null; }
+  _joy.p1.touchId = null; _joy.p1.active = false;
+  _joy.p2.touchId = null; _joy.p2.active = false;
+  _btnTouches.clear();
+  _buildOverlay();
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────
@@ -86,6 +101,8 @@ function _buildOverlay() {
 
   // Pause button (top-right corner)
   _buildPauseButton();
+
+  _builtSig = (ctx.mode || '2p') + ':' + (ctx.soloChar || '');
 }
 
 // ── Joystick ───────────────────────────────────────────────────────────────

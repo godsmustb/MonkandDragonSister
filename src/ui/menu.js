@@ -212,6 +212,10 @@ export function showMenu() {
   _menuEl.style.display = 'flex';
   _menuVisible = true;
   _selectItem(0);
+  // The menu is now visible — remove the boot splash so it can never trap the
+  // user on a "LOADING…" screen (robust even if later init steps fail).
+  const _splash = document.getElementById('boot-splash');
+  if (_splash) { _splash.style.transition = 'opacity 0.25s'; _splash.style.opacity = '0'; setTimeout(() => _splash.remove(), 280); }
 }
 
 export function hideMenu() {
@@ -423,7 +427,9 @@ function _showCharSelect() {
 
   _charEl.appendChild(h);
   _charEl.appendChild(charRow);
-  _charEl.appendChild(partnerWrap);
+  // AI Partner is a split-screen / desktop feature (an AI plays the second hero).
+  // Mobile is single-player only, so don't offer the Solo/AI toggle there.
+  if (!IS_TOUCH) _charEl.appendChild(partnerWrap);
   _charEl.appendChild(actionRow);
   document.body.appendChild(_charEl);
 

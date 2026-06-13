@@ -54,7 +54,8 @@ async function testDevice(label, browser, device) {
   await tapText(page, 'START GAME'); await sleep(350);
   const hasMonk = await page.evaluate(() => [...document.querySelectorAll('div')].some(e => e.textContent.trim() === 'THE MONK' && e.offsetParent !== null));
   const has2P = await page.evaluate(() => [...document.querySelectorAll('div')].some(e => e.textContent.trim() === '2 PLAYERS' && e.offsetParent !== null));
-  check(label, 'mobile START GAME → 1P character select (no 2P option)', hasMonk && !has2P, `monk=${hasMonk} 2P=${has2P}`);
+  const hasAI = await page.evaluate(() => [...document.querySelectorAll('div')].some(e => e.textContent.trim() === 'AI PARTNER' && e.offsetParent !== null));
+  check(label, 'mobile START GAME → 1P char select (no 2P, no AI-Partner)', hasMonk && !has2P && !hasAI, `monk=${hasMonk} 2P=${has2P} AI=${hasAI}`);
   await tapText(page, 'THE MONK'); await sleep(150);
   const okBegin = await tapText(page, 'BEGIN');
   check(label, 'menu tap-navigation works', okBegin);
@@ -68,6 +69,9 @@ async function testDevice(label, browser, device) {
   // Touch overlay visible during gameplay.
   const overlay = await page.evaluate(() => { const o = document.getElementById('touch-overlay'); return !!o && getComputedStyle(o).display !== 'none'; });
   check(label, 'on-screen touch controls shown in gameplay', overlay);
+  // 1P → exactly ONE joystick (overlay rebuilt for the real mode, not the 2P default).
+  const joyCount = await page.evaluate(() => document.querySelectorAll('#joy-p1, #joy-p2').length);
+  check(label, '1P shows a single joystick (overlay matches mode)', joyCount === 1, `joysticks=${joyCount}`);
   await page.screenshot({ path: path.join(SHOTS, `mobile-${label}-gameplay.png`) });
 
   // Touch movement via the debug hook.

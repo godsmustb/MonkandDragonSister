@@ -429,13 +429,11 @@ function init() {
   initLives();
 
   updateHUD();
-  buildMenu();      // shows menu, wires its own event listeners
+  buildMenu();      // shows menu (and removes the boot splash in showMenu)
   setupDebugAPI();
-  // Touch controls (no-op on desktop)
-  initTouchControls(dispatchPlayerAction);
-  // Menu is mounted — remove the boot splash so the MENU is the first thing seen.
-  const _splash = document.getElementById('boot-splash');
-  if (_splash) { _splash.style.transition = 'opacity 0.25s'; _splash.style.opacity = '0'; setTimeout(() => _splash.remove(), 280); }
+  // Touch controls (no-op on desktop). Wrapped so a touch-build error can never
+  // stop the game from running or leave the boot splash up.
+  try { initTouchControls(dispatchPlayerAction); } catch (e) { console.warn('[touch] init failed:', e && e.message); }
   animate();
 }
 

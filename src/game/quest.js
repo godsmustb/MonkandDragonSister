@@ -43,12 +43,22 @@ export function startIntro() {
   gameState.score = 0;
   const introEl = document.getElementById('intro-screen');
   if (introEl) introEl.style.display = 'flex';
-  // Tap to begin (mobile) — fires endIntro() same as any keydown
+  // Dismiss on ANY tap/click. Listen for pointerup + touchend + click because a
+  // synthesized `click` is unreliable on touch (esp. with touch-action:none).
+  // Guard on state so it fires once. Keyboard path stays in main.js. A document-
+  // level fallback covers the case where something swallows the element's event.
   if (introEl && !introEl._tapWired) {
     introEl._tapWired = true;
-    introEl.addEventListener('click', () => {
-      if (ctx.gameState.state === 'INTRO') endIntro();
-    });
+    const dismiss = (e) => {
+      if (!gameState || gameState.state !== 'INTRO') return;
+      if (e && e.cancelable) e.preventDefault();
+      endIntro();
+    };
+    introEl.addEventListener('click', dismiss);
+    introEl.addEventListener('pointerup', dismiss);
+    introEl.addEventListener('touchend', dismiss, { passive: false });
+    document.addEventListener('pointerup', dismiss);
+    document.addEventListener('touchend', dismiss, { passive: false });
   }
 }
 

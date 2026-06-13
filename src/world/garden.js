@@ -33,30 +33,41 @@ function addOutline(mesh, scaleFactor = 1.04) {
 
 // ---- Canvas texture generators ----
 
-// PAINTED GROUND (Pass 8 art polish) — one big painterly canvas mapped across
-// the arena. Enhanced from Pass 4: deeper tonal contrast between jade zones and
-// warm patches, scattered moss speckles + dry-brush streaks, deeper raked-ring
-// groove shadows, and a radial vignette darkening toward the arena edge.
+// Shared raked-gravel ring geometry (as texture-space fractions, so albedo and
+// normal-map rings line up at any resolution since both map 0..1 across the disc).
+const SAND_R_FRAC   = 0.16;   // gravel circle radius as fraction of full texture
+const RAKE_STEP_FRAC = 0.012; // spacing between concentric rake rings
+function _forEachRakeRing(SZ, fn) {
+  const sandR = SZ * SAND_R_FRAC;
+  for (let rr = sandR * 0.12; rr < sandR * 0.95; rr += SZ * RAKE_STEP_FRAC) fn(rr, sandR);
+}
+
+// PAINTED GROUND (Pass 10 art polish) — higher-res painterly albedo. A cool pale
+// raked-gravel zen circle at centre (crisp groove shadows + ridge highlights)
+// surrounded by a jade meadow with moss + sun-bleached patches. Paired with a
+// generated normal map (makeGroundNormalTexture) so the rake grooves and grass
+// clumps catch the warm key sun for real relief instead of reading flat.
 function makePaintedGroundTexture() {
-  const SZ = 1024;
+  const SZ = 2048;
   const c = document.createElement('canvas');
   c.width = c.height = SZ;
   const g = c.getContext('2d');
+  const cx = SZ / 2, cy = SZ / 2;
 
-  // Base jade wash — slightly deeper than before for more contrast headroom.
+  // Base jade wash.
   g.fillStyle = '#4d9459';
   g.fillRect(0, 0, SZ, SZ);
 
-  // Mottled grass: wider value range for more contrast between light/shadow zones.
+  // Mottled grass: wide value range for contrast between light/shadow zones.
   const grassCols = ['#72c47f', '#3e8050', '#82ce8c', '#366844', '#5ea86a', '#2d6040'];
   const warmCols  = ['#b2c26a', '#c8b25e', '#98b85c', '#d4b870']; // sun-bleached / warm
-  for (let i = 0; i < 3200; i++) {
+  for (let i = 0; i < 6400; i++) {
     const warm = Math.random() < 0.22;
     const pal = warm ? warmCols : grassCols;
     g.fillStyle = pal[(Math.random() * pal.length) | 0];
-    g.globalAlpha = 0.12 + Math.random() * 0.28; // higher max alpha = more contrast
+    g.globalAlpha = 0.12 + Math.random() * 0.28;
     const x = Math.random() * SZ, y = Math.random() * SZ;
-    const r = 6 + Math.random() * 44;
+    const r = 12 + Math.random() * 88;
     g.beginPath();
     g.ellipse(x, y, r, r * (0.4 + Math.random() * 0.7), Math.random() * Math.PI, 0, Math.PI * 2);
     g.fill();
@@ -64,23 +75,22 @@ function makePaintedGroundTexture() {
   g.globalAlpha = 1;
 
   // Darker moss speckles scattered across the field.
-  for (let i = 0; i < 600; i++) {
+  for (let i = 0; i < 1200; i++) {
     g.fillStyle = `rgba(${28 + (Math.random() * 20 | 0)},${70 + (Math.random() * 30 | 0)},${36 + (Math.random() * 20 | 0)},${(0.25 + Math.random() * 0.35).toFixed(2)})`;
     const x = Math.random() * SZ, y = Math.random() * SZ;
-    const r = 2 + Math.random() * 7;
+    const r = 3 + Math.random() * 13;
     g.beginPath(); g.ellipse(x, y, r, r * (0.5 + Math.random() * 0.5), Math.random() * Math.PI, 0, Math.PI * 2); g.fill();
   }
 
   // Light dry-brush streaks radiating outward from the centre.
-  const cx = SZ / 2, cy = SZ / 2;
-  for (let i = 0; i < 80; i++) {
+  for (let i = 0; i < 150; i++) {
     const ang = Math.random() * Math.PI * 2;
     const startR = SZ * 0.22 + Math.random() * SZ * 0.15;
     const len = SZ * 0.04 + Math.random() * SZ * 0.10;
     const x0 = cx + Math.cos(ang) * startR;
     const y0 = cy + Math.sin(ang) * startR;
     g.strokeStyle = `rgba(200,230,180,${(0.07 + Math.random() * 0.13).toFixed(2)})`;
-    g.lineWidth = 0.8 + Math.random() * 1.6;
+    g.lineWidth = 1.4 + Math.random() * 2.8;
     g.beginPath();
     g.moveTo(x0, y0);
     g.lineTo(x0 + Math.cos(ang) * len, y0 + Math.sin(ang) * len);
@@ -89,59 +99,123 @@ function makePaintedGroundTexture() {
 
   // Painterly directional brush flecks for grain.
   g.strokeStyle = 'rgba(40,100,60,0.20)';
-  g.lineWidth = 1.4;
-  for (let i = 0; i < 1600; i++) {
+  g.lineWidth = 2.2;
+  for (let i = 0; i < 3000; i++) {
     const x = Math.random() * SZ, y = Math.random() * SZ;
     const a = Math.random() * Math.PI;
-    const len = 4 + Math.random() * 14;
+    const len = 8 + Math.random() * 26;
     g.beginPath();
     g.moveTo(x, y);
     g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
     g.stroke();
   }
 
-  // ── Raked-sand centre circle (combat circle, radius ~5 world → centre of tex).
-  const sandR = SZ * 0.16; // ~radius 5 in a ~30u arena mapped to half-tex
-  // sand fill with soft painterly edge
+  // ── Raked-gravel centre circle — cool pale stone, not muddy tan.
+  const sandR = SZ * SAND_R_FRAC;
   const sandGrad = g.createRadialGradient(cx, cy, sandR * 0.2, cx, cy, sandR);
-  sandGrad.addColorStop(0.0, '#ecdcb0');
-  sandGrad.addColorStop(0.7, '#e6d3a2');
-  sandGrad.addColorStop(0.92, '#dcc690');
-  sandGrad.addColorStop(1.0, 'rgba(220,198,144,0)');
+  sandGrad.addColorStop(0.0, '#e7e9df');
+  sandGrad.addColorStop(0.7, '#dadecf');
+  sandGrad.addColorStop(0.92, '#c9cfbc');
+  sandGrad.addColorStop(1.0, 'rgba(201,207,188,0)');
   g.fillStyle = sandGrad;
   g.beginPath(); g.arc(cx, cy, sandR, 0, Math.PI * 2); g.fill();
 
-  // sand grain mottle
+  // gravel grain + crisp concentric rake rings (groove shadow + ridge highlight).
   g.save();
   g.beginPath(); g.arc(cx, cy, sandR * 0.97, 0, Math.PI * 2); g.clip();
-  for (let i = 0; i < 500; i++) {
-    g.fillStyle = Math.random() < 0.5 ? 'rgba(200,176,120,0.20)' : 'rgba(255,244,210,0.18)';
+  for (let i = 0; i < 1100; i++) {
+    g.fillStyle = Math.random() < 0.5 ? 'rgba(150,156,140,0.16)' : 'rgba(255,255,250,0.18)';
     const x = cx + (Math.random() - 0.5) * sandR * 2;
     const y = cy + (Math.random() - 0.5) * sandR * 2;
-    g.beginPath(); g.arc(x, y, 1 + Math.random() * 2.5, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.arc(x, y, 1 + Math.random() * 3, 0, Math.PI * 2); g.fill();
   }
-  // concentric raked rings — deeper groove shadow + crisper highlight (Pass 8)
-  for (let rr = sandR * 0.12; rr < sandR * 0.95; rr += SZ * 0.012) {
-    g.strokeStyle = 'rgba(140,112,64,0.70)'; // deeper groove shadow
-    g.lineWidth = 2.4;
+  _forEachRakeRing(SZ, (rr) => {
+    g.strokeStyle = 'rgba(120,128,112,0.65)'; // cool groove shadow
+    g.lineWidth = 4.0;
     g.beginPath(); g.arc(cx, cy, rr, 0, Math.PI * 2); g.stroke();
-    g.strokeStyle = 'rgba(255,248,218,0.55)';
-    g.lineWidth = 1.1;
-    g.beginPath(); g.arc(cx, cy, rr + 2.4, 0, Math.PI * 2); g.stroke();
-  }
+    g.strokeStyle = 'rgba(255,255,252,0.6)';  // ridge highlight
+    g.lineWidth = 1.8;
+    g.beginPath(); g.arc(cx, cy, rr + 4.0, 0, Math.PI * 2); g.stroke();
+  });
   g.restore();
 
-  // Radial vignette: darken toward the arena edge (painted into the canvas).
+  // Radial vignette: gently darken toward the arena edge.
   const vignette = g.createRadialGradient(cx, cy, SZ * 0.28, cx, cy, SZ * 0.58);
   vignette.addColorStop(0,   'rgba(0,0,0,0)');
   vignette.addColorStop(0.6, 'rgba(0,0,0,0)');
-  vignette.addColorStop(1.0, 'rgba(0,0,0,0.42)');
+  vignette.addColorStop(1.0, 'rgba(0,0,0,0.34)');
   g.fillStyle = vignette;
   g.fillRect(0, 0, SZ, SZ);
 
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 4;
+  t.anisotropy = 16;
+  return t;
+}
+
+// Generate a tangent-space NORMAL map for the ground from a procedural height
+// field (raised grass clumps + recessed rake grooves), via a cheap Sobel pass.
+// Lower res than the albedo (normals tolerate it) to keep the one-time cost down.
+function makeGroundNormalTexture() {
+  const SZ = 1024;
+  const c = document.createElement('canvas');
+  c.width = c.height = SZ;
+  const g = c.getContext('2d');
+  const cx = SZ / 2, cy = SZ / 2;
+
+  // Mid height baseline.
+  g.fillStyle = '#808080';
+  g.fillRect(0, 0, SZ, SZ);
+
+  // Soft grass clumps as gentle bumps (lighter = higher) across the meadow.
+  for (let i = 0; i < 2600; i++) {
+    const x = Math.random() * SZ, y = Math.random() * SZ;
+    const r = 4 + Math.random() * 16;
+    const up = Math.random() < 0.6;
+    const a = (0.06 + Math.random() * 0.14).toFixed(2);
+    const rg = g.createRadialGradient(x, y, 0, x, y, r);
+    rg.addColorStop(0, up ? `rgba(255,255,255,${a})` : `rgba(0,0,0,${a})`);
+    rg.addColorStop(1, 'rgba(128,128,128,0)');
+    g.fillStyle = rg;
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+
+  // Raked rings as recessed grooves with raised ridges — strong, aligned relief.
+  _forEachRakeRing(SZ, (rr) => {
+    g.strokeStyle = 'rgba(0,0,0,0.85)';   // groove (low)
+    g.lineWidth = 3.0;
+    g.beginPath(); g.arc(cx, cy, rr, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,0.7)'; // ridge (high)
+    g.lineWidth = 2.0;
+    g.beginPath(); g.arc(cx, cy, rr + 3.0, 0, Math.PI * 2); g.stroke();
+  });
+
+  // Sobel → normal map.
+  const src = g.getImageData(0, 0, SZ, SZ).data;
+  const out = g.createImageData(SZ, SZ);
+  const o = out.data;
+  const at = (x, y) => src[((y * SZ + x) << 2)]; // red == height (grayscale)
+  const strength = 2.4;
+  for (let y = 0; y < SZ; y++) {
+    const yu = (y - 1 + SZ) % SZ, yd = (y + 1) % SZ;
+    for (let x = 0; x < SZ; x++) {
+      const xl = (x - 1 + SZ) % SZ, xr = (x + 1) % SZ;
+      let nx = (at(xl, y) - at(xr, y)) / 255 * strength;
+      let ny = (at(x, yu) - at(x, yd)) / 255 * strength;
+      let nz = 1;
+      const inv = 1 / Math.hypot(nx, ny, nz);
+      nx *= inv; ny *= inv; nz *= inv;
+      const i = (y * SZ + x) << 2;
+      o[i]     = (nx * 0.5 + 0.5) * 255;
+      o[i + 1] = (ny * 0.5 + 0.5) * 255;
+      o[i + 2] = (nz * 0.5 + 0.5) * 255;
+      o[i + 3] = 255;
+    }
+  }
+  g.putImageData(out, 0, 0);
+  const t = new THREE.CanvasTexture(c); // linear (normal data) — do NOT set sRGB
+  t.anisotropy = 8;
+  t.needsUpdate = true;
   return t;
 }
 
@@ -187,9 +261,15 @@ export function buildWorld() {
   // The painterly texture maps ONCE across the whole disc so the central
   // combat circle stays a single readable feature.
   const groundTex = makePaintedGroundTexture();
+  const groundNormal = makeGroundNormalTexture();
   const ground = new THREE.Mesh(
     new THREE.CircleGeometry(ARENA_SIZE, 96),
-    new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: _getGradTex(), map: groundTex })
+    new THREE.MeshToonMaterial({
+      color: 0xffffff, gradientMap: _getGradTex(),
+      map: groundTex,
+      normalMap: groundNormal,
+      normalScale: new THREE.Vector2(0.85, 0.85),
+    })
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;

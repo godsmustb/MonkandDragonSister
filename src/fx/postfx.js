@@ -40,7 +40,39 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { ctx } from '../state.js';
+
+// Subtle cinematic grade — runs in display space after tone mapping. A touch of
+// saturation + a warm push + a gentle vignette to frame each split-screen half.
+// Kept understated so it polishes rather than dominates the toon palette.
+const GradeShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    uVignette: { value: 0.22 },
+    uWarm:     { value: 0.035 },
+    uSat:      { value: 1.07 },
+  },
+  vertexShader: /* glsl */`
+    varying vec2 vUv;
+    void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+  `,
+  fragmentShader: /* glsl */`
+    varying vec2 vUv;
+    uniform sampler2D tDiffuse;
+    uniform float uVignette, uWarm, uSat;
+    void main(){
+      vec4 c = texture2D(tDiffuse, vUv);
+      float l = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+      c.rgb = mix(vec3(l), c.rgb, uSat);              // saturation
+      c.rgb += vec3(uWarm, uWarm * 0.4, -uWarm * 0.5); // warm grade
+      vec2 d = vUv - 0.5;
+      float v = smoothstep(0.85, 0.35, length(d));     // 1 = centre, 0 = edge
+      c.rgb *= mix(1.0 - uVignette, 1.0, v);           // vignette
+      gl_FragColor = c;
+    }
+  `,
+};
 
 // Bloom tuned so ONLY emissives bloom (demon veins/eyes, lantern glows, belly
 // bands, ability VFX). High threshold keeps lit toon surfaces out of the glow.
@@ -91,12 +123,16 @@ export function buildPostFX() {
       const output = new OutputPass();
       composer.addPass(output);
 
+      // Cinematic grade (saturation + warm + vignette) in display space.
+      const grade = new ShaderPass(GradeShader);
+      composer.addPass(grade);
+
       // Anti-alias last (operates in display space). SMAA is cheap + sharp for
       // the stylized toon edges.
       const smaa = new SMAAPass(w, h);
       composer.addPass(smaa);
 
-      return { composer, renderPass, bloom, smaa };
+      return { composer, renderPass, bloom, smaa, grade };
     };
 
     _composers = { p1: make(cameras.p1), p2: make(cameras.p2) };

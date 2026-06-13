@@ -184,10 +184,22 @@ export function buildLighting() {
   scene.add(sun);
   scene.add(sun.target);
 
+  // Cool rim / back light — the "Genshin pop". Placed opposite the warm key,
+  // on the far (−Z) side behind the characters relative to the fixed +Z camera,
+  // so it edge-lights their silhouettes and separates them from the background.
+  // No shadows (rim lights never cast) and kept below the key so it reads as a
+  // cool sky-bounce highlight, not a second sun.
+  const rim = new THREE.DirectionalLight(0xbcd2ff, 0.7);
+  rim.position.set(-22, 24, -40);
+  rim.castShadow = false;
+  scene.add(rim);
+  scene.add(rim.target);
+  ctx.rimLight = rim;
+
   const impactLight = new THREE.PointLight(0xffffff, 0, 20);
   scene.add(impactLight);
   ctx.impactLight = impactLight;
 
   ctx.sun = sun;
-  return { sun };
+  return { sun, rim };
 }

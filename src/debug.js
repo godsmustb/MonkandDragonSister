@@ -5,12 +5,14 @@
 //   state now reports 'MENU' and 'GAMEOVER'
 // PASS 7 ADDITIONS: audioReady boolean (context created after first gesture)
 // PASS 13 ADDITIONS: bindings getter, rebind(who, action, code)
+// PASS 15 ADDITIONS: dda getter {S,m}, lands getter (LANDS data)
 import { ctx } from './state.js';
 import { endIntro } from './game/quest.js';
 import { startGame as menuStartGame } from './ui/menu.js';
 import { consumeLife as _consumeLife } from './game/lives.js';
 import { toggleLockOn, camExtra } from './game/camera.js';
 import { saveBindings } from './game/bindings.js';
+import { getDDA, LANDS } from './game/campaign.js';
 
 export function setupDebugAPI() {
   // Expose raw ctx for VFX testing / screenshot scripts
@@ -74,6 +76,12 @@ export function setupDebugAPI() {
 
     // Pass 12: endless mode cycle counter
     get endlessCycle() { return ctx.gameState.endlessCycle || 0; },
+
+    // Pass 15: DDA state — {S: EWMA skill score [0,1], m: HP/density multiplier [0.85,1.15]}
+    get dda() { return getDDA(); },
+
+    // Pass 15: campaign land data — 4 lands, Land 1 playable, 2-4 comingSoon
+    get lands() { return LANDS; },
 
     get relics() {
       const p1 = ctx.gameState.p1, p2 = ctx.gameState.p2;

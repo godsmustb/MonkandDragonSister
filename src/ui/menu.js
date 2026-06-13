@@ -4,6 +4,7 @@ import { ctx } from '../state.js';
 import { startIntro } from '../game/quest.js';
 import { initAudioOnGesture, toggleMute, audioLabel, sfx } from '../audio/audio.js';
 import { saveBindings, resetBindings, DEFAULT_BINDINGS } from '../game/bindings.js';
+import { LANDS } from '../game/campaign.js';
 
 // ── State ─────────────────────────────────────────────────────────────────
 let _menuEl   = null;
@@ -11,11 +12,12 @@ let _pauseEl  = null;
 let _ctrlEl   = null;
 let _modeEl   = null;     // Pass 12: mode-select sub-screen
 let _charEl   = null;     // Pass 12: character-select sub-screen
+let _campaignEl = null;   // Pass 15: campaign preview sub-screen
 let _selectedIndex = 0;
 let _menuVisible   = false;
 let _pauseVisible  = false;
 
-const MENU_ITEMS = ['START GAME', 'CONTROLS', 'QUALITY', 'AUDIO'];
+const MENU_ITEMS = ['START GAME', 'CAMPAIGN', 'CONTROLS', 'QUALITY', 'AUDIO'];
 
 // Quality label reflects ctx.quality ('high' = bloom+ACES composer, 'low' = direct).
 function _qualityLabel() {
@@ -178,20 +180,24 @@ function _activateItem(idx) {
     try { sfx.menuSelect(); } catch {}
     _showModeSelect();
   } else if (idx === 1) {
+    // CAMPAIGN — show lands preview
+    try { sfx.menuSelect(); } catch {}
+    showCampaignPreview();
+  } else if (idx === 2) {
     try { sfx.menuSelect(); } catch {}
     showControls();
-  } else if (idx === 2) {
+  } else if (idx === 3) {
     // QUALITY — toggle high/low, persist + rebuild composer, refresh label.
     try { sfx.menuTick(); } catch {}
     const next = (ctx.quality === 'low') ? 'high' : 'low';
     if (typeof window.__applyQuality === 'function') window.__applyQuality(next);
     const els = _menuEl && _menuEl._itemEls;
-    if (els && els[2]) els[2].textContent = _qualityLabel();
-  } else if (idx === 3) {
+    if (els && els[3]) els[3].textContent = _qualityLabel();
+  } else if (idx === 4) {
     // AUDIO — toggle mute
     try { toggleMute(); sfx.menuTick(); } catch {}
     const els = _menuEl && _menuEl._itemEls;
-    if (els && els[3]) els[3].textContent = _audioItemLabel();
+    if (els && els[4]) els[4].textContent = _audioItemLabel();
   }
 }
 
@@ -477,6 +483,145 @@ function _makeMenuBtn(label, fn) {
   });
   btn.addEventListener('click', fn);
   return btn;
+}
+
+// ── Campaign preview ──────────────────────────────────────────────────────
+// Lightweight listing of the 4 elemental lands. Reachable from main menu and
+// wired to the complete-screen via _wireCampaignFromComplete() in quest.js.
+export function showCampaignPreview(fromComplete = false) {
+  if (_campaignEl && _campaignEl.parentNode) {
+    _campaignEl.style.display = 'flex';
+    return;
+  }
+
+  _campaignEl = document.createElement('div');
+  _campaignEl.id = 'campaign-preview';
+  _campaignEl.style.cssText = `
+    position:fixed;top:0;left:0;width:100%;height:100%;
+    background:rgba(0,0,0,0.93);z-index:170;
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:flex-start;
+    font-family:Georgia,serif;
+    overflow-y:auto;padding:30px 16px 36px;
+  `;
+
+  const h = document.createElement('h2');
+  h.textContent = 'CAMPAIGN — ELEMENTAL LANDS';
+  h.style.cssText = 'color:#c8a000;font-size:clamp(18px,2.5vw,26px);letter-spacing:5px;margin-bottom:6px;text-align:center;';
+
+  const sub = document.createElement('p');
+  sub.textContent = 'Master all four dragon forms across four elemental realms.';
+  sub.style.cssText = 'color:#888;font-size:12px;letter-spacing:1px;margin-bottom:28px;text-align:center;';
+
+  // Element accent colors matching ELEMENT_COLORS
+  const ELEM_CSS = {
+    neutral: '#aaaaaa',
+    fire:    '#ff6633',
+    ice:     '#88ddff',
+    poison:  '#cc44ff',
+    water:   '#4499ff',
+  };
+
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:flex;flex-direction:column;gap:16px;width:100%;max-width:520px;';
+
+  LANDS.forEach(land => {
+    const card = document.createElement('div');
+    const accent = ELEM_CSS[land.themeElement] || '#c8a000';
+    const playable = !land.comingSoon;
+    card.style.cssText = `
+      border:1px solid ${playable ? accent : 'rgba(200,160,0,0.2)'};
+      border-radius:6px;
+      padding:14px 18px;
+      background:${playable ? 'rgba(200,160,0,0.06)' : 'rgba(30,30,30,0.5)'};
+      opacity:${playable ? '1' : '0.65'};
+    `;
+
+    const cardTitle = document.createElement('div');
+    cardTitle.style.cssText = `display:flex;align-items:baseline;gap:12px;margin-bottom:4px;`;
+
+    const landNum = document.createElement('span');
+    landNum.textContent = `LAND ${land.id}`;
+    landNum.style.cssText = `color:${accent};font-size:11px;letter-spacing:3px;`;
+
+    const landName = document.createElement('span');
+    landName.textContent = land.name;
+    landName.style.cssText = `color:${playable ? '#ffdd88' : '#aaa'};font-size:clamp(14px,1.8vw,17px);letter-spacing:2px;`;
+
+    const badge = document.createElement('span');
+    badge.textContent = playable ? 'PLAYABLE' : 'COMING SOON';
+    badge.style.cssText = `
+      margin-left:auto;
+      font-size:9px;letter-spacing:2px;
+      color:${playable ? '#66ff88' : '#666'};
+      border:1px solid ${playable ? 'rgba(100,255,136,0.5)' : 'rgba(100,100,100,0.3)'};
+      border-radius:3px;padding:2px 6px;
+    `;
+
+    cardTitle.appendChild(landNum);
+    cardTitle.appendChild(landName);
+    cardTitle.appendChild(badge);
+
+    const cardSub = document.createElement('div');
+    cardSub.textContent = land.subtitle;
+    cardSub.style.cssText = `color:#888;font-size:11px;font-style:italic;letter-spacing:1px;margin-bottom:6px;`;
+
+    const cardDesc = document.createElement('div');
+    cardDesc.textContent = land.description;
+    cardDesc.style.cssText = `color:#ccc;font-size:12px;line-height:1.6;margin-bottom:8px;`;
+
+    const cardMeta = document.createElement('div');
+    cardMeta.style.cssText = 'display:flex;gap:18px;flex-wrap:wrap;';
+
+    const elemTag = document.createElement('span');
+    elemTag.textContent = `Theme: ${land.themeElement.toUpperCase()}`;
+    elemTag.style.cssText = `font-size:10px;color:${accent};letter-spacing:2px;`;
+
+    const counterTag = document.createElement('span');
+    counterTag.textContent = `Counter: ${land.counterDragon.toUpperCase()} DRAGON`;
+    counterTag.style.cssText = `font-size:10px;color:#bbb;letter-spacing:2px;`;
+
+    cardMeta.appendChild(elemTag);
+    cardMeta.appendChild(counterTag);
+
+    card.appendChild(cardTitle);
+    card.appendChild(cardSub);
+    card.appendChild(cardDesc);
+    card.appendChild(cardMeta);
+    grid.appendChild(card);
+  });
+
+  const btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:16px;margin-top:24px;flex-shrink:0;';
+  const backBtn = _makeMenuBtn('BACK', () => {
+    try { sfx.menuTick(); } catch {}
+    _hideCampaignPreview();
+  });
+  btnRow.appendChild(backBtn);
+
+  _campaignEl.appendChild(h);
+  _campaignEl.appendChild(sub);
+  _campaignEl.appendChild(grid);
+  _campaignEl.appendChild(btnRow);
+  document.body.appendChild(_campaignEl);
+
+  _campaignEl._keyHandler = (e) => {
+    if (e.code === 'Escape' || e.code === 'Backspace') {
+      e.stopPropagation();
+      _hideCampaignPreview();
+    }
+  };
+  document.addEventListener('keydown', _campaignEl._keyHandler);
+}
+
+function _hideCampaignPreview() {
+  if (_campaignEl) {
+    _campaignEl.style.display = 'none';
+    if (_campaignEl._keyHandler) {
+      document.removeEventListener('keydown', _campaignEl._keyHandler);
+      _campaignEl._keyHandler = null;
+    }
+  }
 }
 
 // ── Controls overlay — interactive remapper ───────────────────────────────

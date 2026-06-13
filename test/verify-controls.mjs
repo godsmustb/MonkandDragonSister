@@ -33,14 +33,16 @@ async function peakJumpY(page, code) {
   await sleep(900); // clear the ~0.7s jump cooldown
   await page.evaluate(() => { window.__game.p1.pos.y = 0; });
   await page.keyboard.down(code);
+  // Hold + poll over a generous window (~1.4s) so a heavily-throttled headless
+  // sim (e.g. when several browsers run at once) still manifests the hop.
   let peak = 0;
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 18; i++) {
     const y = await page.evaluate(() => window.__game.p1.pos.y);
     if (y > peak) peak = y;
-    await sleep(60);
+    await sleep(80);
   }
   await page.keyboard.up(code);
-  await sleep(700); // let it land before the next measurement
+  await sleep(800); // let it land before the next measurement
   return peak;
 }
 

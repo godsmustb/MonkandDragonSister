@@ -290,6 +290,44 @@ export function setupDebugAPI() {
       saveBindings();
     },
 
+    // ── Global leaderboard API ────────────────────────────────────────────────
+    /**
+     * Player display name stored in localStorage (mds_player_name).
+     * Read/write. Setting '' clears to prompt on next submission.
+     */
+    get playerName() {
+      try { return localStorage.getItem('mds_player_name') || ''; } catch { return ''; }
+    },
+    set playerName(n) {
+      try { localStorage.setItem('mds_player_name', String(n).trim().slice(0, 16)); } catch {}
+    },
+
+    /**
+     * Submit a score to the leaderboard for the given stage (1-3 or 9 for Endless).
+     * Resolves with the top-15 array (global if online, local otherwise).
+     * Silent on all errors — safe to call from E2E (python server = local fallback).
+     * @param {number} stage
+     * @param {number} score
+     * @returns {Promise<Array>}
+     */
+    submitScore(stage, score) {
+      return import('./game/leaderboard.js')
+        .then(lb => lb.submitScore(stage, score))
+        .catch(() => []);
+    },
+
+    /**
+     * Fetch the leaderboard for a given stage (1-3 or 9 for Endless).
+     * Resolves with the top-15 array (global if online, local otherwise).
+     * @param {number} stage
+     * @returns {Promise<Array>}
+     */
+    getLeaderboard(stage) {
+      return import('./game/leaderboard.js')
+        .then(lb => lb.fetchLeaderboard(stage))
+        .catch(() => []);
+    },
+
     // ── Touch API (for test harness) ──────────────────────────────────────
     /** Whether touch controls are active on this device/session */
     get isTouch() { return IS_TOUCH; },

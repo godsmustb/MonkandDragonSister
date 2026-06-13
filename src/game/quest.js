@@ -436,6 +436,9 @@ export function questComplete() {
 
   // Wire complete-screen buttons (safe to call multiple times — idempotent)
   _wireCompleteButtons();
+
+  // Submit score to leaderboard (stage 1) — fully async, silent on failure
+  _submitQuestScore(1, 'QUEST I COMPLETE — Stage 1');
 }
 
 // ── Level 2 complete ──────────────────────────────────────────────────────────
@@ -467,6 +470,9 @@ export function questCompleteL2() {
 
   // Wire complete-screen buttons
   _wireCompleteButtons();
+
+  // Submit score to leaderboard (stage 2) — fully async, silent on failure
+  _submitQuestScore(2, 'QUEST II COMPLETE — Stage 2');
 }
 
 // ── Level 3 complete ──────────────────────────────────────────────────────────
@@ -498,6 +504,25 @@ export function questCompleteL3() {
 
   // Wire complete-screen buttons
   _wireCompleteButtons();
+
+  // Submit score to leaderboard (stage 3) — fully async, silent on failure
+  _submitQuestScore(3, 'QUEST III COMPLETE — Stage 3');
+}
+
+// ── Score submission helper ────────────────────────────────────────────────────
+// Called after each quest completes. Fully async and silent on any failure
+// (leaderboard module may not load on python server — that's fine).
+function _submitQuestScore(stage, title) {
+  const score = (gameState && gameState.score) || 0;
+  import('./leaderboard.js').then(async lb => {
+    // Prompt name if not yet stored; always silent
+    await lb.promptPlayerName().catch(() => {});
+    const entries = await lb.submitScore(stage, score).catch(() => null);
+    if (entries && entries.length > 0) {
+      // Show the stage leaderboard overlay (on top of complete screen)
+      lb.showStageLeaderboard(stage, score, entries, title);
+    }
+  }).catch(() => {});
 }
 
 function _wireCompleteButtons() {

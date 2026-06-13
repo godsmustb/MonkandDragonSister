@@ -20,7 +20,7 @@ let _selectedIndex = 0;
 let _menuVisible   = false;
 let _pauseVisible  = false;
 
-const MENU_ITEMS = ['START GAME', 'CAMPAIGN', 'CONTROLS', 'QUALITY', 'AUDIO'];
+const MENU_ITEMS = ['START GAME', 'CAMPAIGN', 'HIGH SCORES', 'CONTROLS', 'QUALITY', 'AUDIO'];
 
 // Quality label reflects ctx.quality ('high' = bloom+ACES composer, 'low' = direct).
 function _qualityLabel() {
@@ -189,20 +189,26 @@ function _activateItem(idx) {
     try { sfx.menuSelect(); } catch {}
     showCampaignPreview();
   } else if (idx === 2) {
+    // HIGH SCORES — global/local leaderboard overlay
+    try { sfx.menuSelect(); } catch {}
+    import('../game/leaderboard.js').then(lb => {
+      lb.showLeaderboardOverlay();
+    }).catch(() => {});
+  } else if (idx === 3) {
     try { sfx.menuSelect(); } catch {}
     showControls();
-  } else if (idx === 3) {
+  } else if (idx === 4) {
     // QUALITY — toggle high/low, persist + rebuild composer, refresh label.
     try { sfx.menuTick(); } catch {}
     const next = (ctx.quality === 'low') ? 'high' : 'low';
     if (typeof window.__applyQuality === 'function') window.__applyQuality(next);
     const els = _menuEl && _menuEl._itemEls;
-    if (els && els[3]) els[3].textContent = _qualityLabel();
-  } else if (idx === 4) {
+    if (els && els[4]) els[4].textContent = _qualityLabel();
+  } else if (idx === 5) {
     // AUDIO — toggle mute
     try { toggleMute(); sfx.menuTick(); } catch {}
     const els = _menuEl && _menuEl._itemEls;
-    if (els && els[4]) els[4].textContent = _audioItemLabel();
+    if (els && els[5]) els[5].textContent = _audioItemLabel();
   }
 }
 

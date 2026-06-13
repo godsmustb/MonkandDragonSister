@@ -100,17 +100,37 @@ function _showArcadeLeaderboard() {
   const score = (ctx.gameState && ctx.gameState.score) || 0;
   const cycle = (ctx.gameState && ctx.gameState.endlessCycle) || 0;
 
-  // Record this run's score and get the updated table
+  // Record locally immediately (preserves existing behaviour)
   const table = recordScore(score);
+
+  // Attempt global submit + show enriched overlay; fall back to local overlay on any error.
+  import('./leaderboard.js').then(async lb => {
+    // Prompt for name if not yet set (silent no-op if already stored)
+    await lb.promptPlayerName().catch(() => {});
+    // Submit to global board (stage 9 = Endless); returns top entries
+    const entries = await lb.submitScore(9, score).catch(() => null);
+    if (entries && entries.length > 0) {
+      // Show the global leaderboard overlay (it overlays on top of #arcade-leaderboard)
+      lb.showStageLeaderboard(9, score, entries, 'ENDLESS MODE — BEST SCORES', () => {
+        // After the user closes the leaderboard overlay, the #arcade-leaderboard
+        // buttons (PLAY AGAIN / MAIN MENU) are still built below for convenience.
+      });
+    }
+    // Always also build the existing #arcade-leaderboard UI beneath (for PLAY AGAIN btn)
+    _buildLocalArcadeUI(score, cycle, table);
+  }).catch(() => {
+    // leaderboard.js failed to import (should never happen, but be safe)
+    _buildLocalArcadeUI(score, cycle, table);
+  });
+}
+
+function _buildLocalArcadeUI(score, cycle, table) {
   const top5  = table.slice(0, 5);
   const rank1Score = top5.length > 0 ? top5[0].score : score;
-
-  // Find if this run appears in the top 5
   const thisRunIdx = top5.findIndex(e => e.score === score && e.cycle === cycle);
 
   const overlay = document.getElementById('arcade-leaderboard');
   if (!overlay) {
-    // Fallback: normal game-over screen
     _showGameOverScreen();
     return;
   }
@@ -174,6 +194,9 @@ function _showArcadeLeaderboard() {
 
   const btnAgain = _makeArcadeBtn('PLAY AGAIN', () => {
     overlay.style.display = 'none';
+    // Also close the global leaderboard overlay if it is open
+    const lb = document.getElementById('stage-lb-overlay');
+    if (lb && lb.parentNode) lb.parentNode.removeChild(lb);
     // Restart endless fresh — reset lives + score then call startEndless
     ctx.gameState.lives = MAX_LIVES;
     ctx.gameState.score = 0;

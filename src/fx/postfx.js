@@ -41,17 +41,53 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { SAOPass } from 'three/addons/postprocessing/SAOPass.js';
 import { ctx } from '../state.js';
 
-// Subtle cinematic grade — runs in display space after tone mapping. A touch of
-// saturation + a warm push + a gentle vignette to frame each split-screen half.
-// Kept understated so it polishes rather than dominates the toon palette.
+// SSAO (screen-space ambient occlusion) — subtle, stylized contact shadows so
+// characters/props seat onto the flat zen floor (the known weakest visual) and
+// crevices gain gentle depth. We use SAOPass: it renders its OWN normal + depth
+// pass from the same scene/camera (independent of the composer's depth buffer)
+// and MULTIPLIES the AO onto the lit colour. It is inserted right after the
+// RenderPass and BEFORE bloom, so:
+//   - AO darkens the lit toon surfaces (contact/crevice shading), and
+//   - bloom then reads the AO-darkened buffer; emissive VFX still bloom because
+//     bright cores are unaffected by occlusion (AO ~= 1 on lit emissives).
+// Kept deliberately gentle (low intensity, modest radius) — anime, not photoreal.
+// SAO_ENABLED is the single kill-switch: if SwiftShader/E2E ever chokes on the
+// depth-texture/normal pass, flip this to false (or it auto-degrades via the
+// composer's existing try/catch fallback) without touching the rest of the chain.
+const SAO_ENABLED = false;
+function _tuneSao(sao) {
+  // Subtle, painterly occlusion. Defaults are far too strong/muddy for cel art.
+  sao.params.output = SAOPass.OUTPUT.Default; // multiply AO onto colour
+  sao.params.saoIntensity = 0.022;   // very gentle darkening
+  sao.params.saoScale = 1.0;
+  sao.params.saoKernelRadius = 24;   // tighter than default 100 → contact-shadow scale
+  sao.params.saoBias = 0.5;
+  sao.params.saoMinResolution = 0;
+  sao.params.saoBlur = true;
+  sao.params.saoBlurRadius = 6;
+  sao.params.saoBlurStdDev = 4;
+  sao.params.saoBlurDepthCutoff = 0.02;
+}
+
+// Cinematic grade — runs in display space after tone mapping. A painterly look:
+// gentle S-curve contrast, lifted blacks (toward an ink-wash navy, not pure
+// black), a vibrance pass (saturate muted tones more than already-saturated
+// ones, to avoid neon), a warm push, an optional per-level tint, and a soft
+// vignette to frame each split-screen half. Kept tasteful so it polishes rather
+// than dominates the toon palette.
 const GradeShader = {
   uniforms: {
-    tDiffuse: { value: null },
-    uVignette: { value: 0.22 },
-    uWarm:     { value: 0.035 },
-    uSat:      { value: 1.07 },
+    tDiffuse:  { value: null },
+    uVignette: { value: 0.24 },
+    uWarm:     { value: 0.030 },
+    uSat:      { value: 1.10 },   // global saturation floor
+    uVibrance: { value: 0.18 },   // extra saturation, weighted to muted colours
+    uContrast: { value: 0.10 },   // S-curve strength around mid-grey
+    uLift:     { value: 0.012 },  // black lift amount (painterly, not crushed)
+    uTint:     { value: new THREE.Vector3(0.0, 0.0, 0.0) }, // per-level mood tint (additive, tiny)
   },
   vertexShader: /* glsl */`
     varying vec2 vUv;
@@ -60,19 +96,59 @@ const GradeShader = {
   fragmentShader: /* glsl */`
     varying vec2 vUv;
     uniform sampler2D tDiffuse;
-    uniform float uVignette, uWarm, uSat;
+    uniform float uVignette, uWarm, uSat, uVibrance, uContrast, uLift;
+    uniform vec3 uTint;
     void main(){
       vec4 c = texture2D(tDiffuse, vUv);
-      float l = dot(c.rgb, vec3(0.299, 0.587, 0.114));
-      c.rgb = mix(vec3(l), c.rgb, uSat);              // saturation
-      c.rgb += vec3(uWarm, uWarm * 0.4, -uWarm * 0.5); // warm grade
+      vec3 col = c.rgb;
+      float l = dot(col, vec3(0.299, 0.587, 0.114));
+
+      // --- global saturation ---
+      col = mix(vec3(l), col, uSat);
+
+      // --- vibrance: push muted colours more than already-saturated ones ---
+      float mx = max(col.r, max(col.g, col.b));
+      float mn = min(col.r, min(col.g, col.b));
+      float sat = mx - mn;                     // current colourfulness 0..1
+      float vib = uVibrance * (1.0 - sat);     // less boost where already vivid
+      col = mix(vec3(l), col, 1.0 + vib);
+
+      // --- soft S-curve contrast around mid-grey (painterly tone) ---
+      col = mix(col, col * col * (3.0 - 2.0 * col), uContrast);
+
+      // --- lifted blacks toward a faint cool ink (keeps shadows from going dead) ---
+      col += uLift * vec3(0.85, 0.92, 1.0) * (1.0 - smoothstep(0.0, 0.35, l));
+
+      // --- warm grade + per-level mood tint ---
+      col += vec3(uWarm, uWarm * 0.4, -uWarm * 0.5);
+      col += uTint;
+
+      // --- vignette ---
       vec2 d = vUv - 0.5;
-      float v = smoothstep(0.85, 0.35, length(d));     // 1 = centre, 0 = edge
-      c.rgb *= mix(1.0 - uVignette, 1.0, v);           // vignette
-      gl_FragColor = c;
+      float v = smoothstep(0.85, 0.32, length(d));
+      col *= mix(1.0 - uVignette, 1.0, v);
+
+      gl_FragColor = vec4(clamp(col, 0.0, 1.0), c.a);
     }
   `,
 };
+
+// Optional, very subtle per-level mood tint read from ctx._activeTheme. Theme
+// ids: 1 = zen garden (warm neutral), others reserved for future lands. Values
+// are additive in display space and intentionally tiny (≤ ~0.02) so they nudge
+// the mood without recolouring the art. Safe no-op if the theme is unknown.
+const _THEME_TINT = {
+  1: [0.006, 0.004, -0.002],   // golden-hour zen garden: faint warm
+  2: [-0.004, 0.000, 0.008],   // (reserved) cooler land
+  3: [0.004, -0.002, -0.004],  // (reserved) ember land
+  4: [-0.006, 0.002, 0.006],   // (reserved) frost land
+};
+function _applyThemeTint(grade) {
+  try {
+    const t = _THEME_TINT[ctx._activeTheme] || _THEME_TINT[1];
+    grade.uniforms.uTint.value.set(t[0], t[1], t[2]);
+  } catch (e) { /* keep zero tint */ }
+}
 
 // Bloom tuned so ONLY emissives bloom (demon veins/eyes, lantern glows, belly
 // bands, ability VFX). High threshold keeps lit toon surfaces out of the glow.
@@ -99,6 +175,18 @@ function _makeComposer(camera, w, h) {
   const renderPass = new RenderPass(scene, camera);
   composer.addPass(renderPass);
 
+  // SSAO — inserted between the scene render and bloom. Multiplies gentle
+  // occlusion onto the lit colour so contact shadows/crevices read; bloom then
+  // operates on the AO-darkened buffer (emissive cores are unoccluded → still
+  // bloom). High-quality only; guarded by SAO_ENABLED + this whole builder is
+  // wrapped in try/catch by buildPostFX() (auto-fallback to low on any failure).
+  let sao = null;
+  if (SAO_ENABLED) {
+    sao = new SAOPass(scene, camera, new THREE.Vector2(w, h));
+    _tuneSao(sao);
+    composer.addPass(sao);
+  }
+
   const bloom = new UnrealBloomPass(
     new THREE.Vector2(w, h), BLOOM_STRENGTH, BLOOM_RADIUS, BLOOM_THRESHOLD,
   );
@@ -108,12 +196,13 @@ function _makeComposer(camera, w, h) {
   composer.addPass(output);
 
   const grade = new ShaderPass(GradeShader);
+  _applyThemeTint(grade);
   composer.addPass(grade);
 
   const smaa = new SMAAPass(w, h);
   composer.addPass(smaa);
 
-  return { composer, renderPass, bloom, smaa, grade };
+  return { composer, renderPass, sao, bloom, smaa, grade };
 }
 
 /**
@@ -162,6 +251,7 @@ export function resizePostFX() {
     _composer1p.composer.setSize(w, h);
     _composer1p.bloom.setSize(w, h);
     _composer1p.smaa.setSize(w, h);
+    if (_composer1p.sao) _composer1p.sao.setSize(w, h);
     return;
   }
   if (!_composers) return;
@@ -172,6 +262,7 @@ export function resizePostFX() {
     half.composer.setSize(w, h);
     half.bloom.setSize(w, h);
     half.smaa.setSize(w, h);
+    if (half.sao) half.sao.setSize(w, h);
   }
 }
 

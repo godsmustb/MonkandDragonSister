@@ -23,8 +23,8 @@ export const DEMON_TABLE = {
   shadowling: { element: 'neutral', hp: 28,  atk: 9,  speed: 3.0, ranged: 'none', attackRange: 0,  projSpeed: 0,  scale: 1.0, height: 0.9 },
   frostimp:   { element: 'ice',     hp: 44,  atk: 11, speed: 2.6, ranged: 'lob',  attackRange: 16, projSpeed: 9,  scale: 1.0, height: 1.0 },
   tidewraith: { element: 'water',   hp: 56,  atk: 13, speed: 2.4, ranged: 'bolt', attackRange: 20, projSpeed: 12, scale: 1.0, height: 1.5 },
-  venomoni:   { element: 'poison',  hp: 260, atk: 18, speed: 2.0, ranged: 'none', attackRange: 0,  projSpeed: 0,  scale: 2.2, height: 2.3 },
-  infernolord:{ element: 'fire',    hp: 400, atk: 22, speed: 2.3, ranged: 'ember',attackRange: 26, projSpeed: 10, scale: 2.6, height: 3.4 },
+  venomoni:   { element: 'poison',  hp: 520, atk: 18, speed: 2.0, ranged: 'none', attackRange: 0,  projSpeed: 0,  scale: 2.2, height: 2.3 }, // boss HP doubled (was 260)
+  infernolord:{ element: 'fire',    hp: 800, atk: 22, speed: 2.3, ranged: 'ember',attackRange: 26, projSpeed: 10, scale: 2.6, height: 3.4 }, // boss HP doubled (was 400)
 };
 
 // Which demon type each wave spawns.

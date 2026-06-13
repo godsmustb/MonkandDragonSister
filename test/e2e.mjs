@@ -298,7 +298,7 @@ try {
   check('Wave 5 has the demon lord (+ maybe adds)', s.spirits.length >= 1, `${s.spirits.length} entities, elements: ${s.spirits.map(x => x.element).join(',')}`);
   check('Wave 5 final boss is fire element (Inferno Demon Lord)', s.spirits.some(x => x.element === 'fire'), s.spirits.map(x => x.element).join(','));
   const lordEntity = s.spirits.find(x => x.element === 'fire');
-  check('Final boss has high HP (~400)', lordEntity && lordEntity.maxHp >= 350, lordEntity ? `maxHp=${lordEntity.maxHp}` : 'no fire boss');
+  check('Final boss has high HP (doubled, ~800)', lordEntity && lordEntity.maxHp >= 700, lordEntity ? `maxHp=${lordEntity.maxHp}` : 'no fire boss');
   const bossBarVisibleW5 = await page.evaluate(() => {
     const el = document.getElementById('boss-hp-bar');
     return el && el.style.display === 'block';

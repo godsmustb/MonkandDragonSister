@@ -592,18 +592,17 @@ body,#game-container{
 
 /* Wave start banner — full-width letterbox flash */
 #wave-banner{
-  position:fixed;top:50%;left:0;right:0;
+  position:fixed;top:50%;left:0;right:0;height:200px;
   transform:translateY(-50%);
   z-index:60;pointer-events:none;
   display:none;
-  flex-direction:column;align-items:center;
+  flex-direction:column;align-items:center;justify-content:center;
+  /* Soft feathered backdrop so the gold title reads over a bright scene.
+     Replaces the old hard black "letterbox" bars that rendered as two stray
+     black lines slicing across the middle of the screen. */
+  background:radial-gradient(ellipse 58% 65% at 50% 50%, rgba(0,0,0,0.55), rgba(0,0,0,0.30) 45%, transparent 72%);
 }
-.wave-banner-letter{
-  position:absolute;left:0;right:0;
-  height:32px;background:rgba(0,0,0,0.82);
-}
-.wave-banner-letter.top{top:-32px;}
-.wave-banner-letter.bot{bottom:-32px;}
+.wave-banner-letter{ display:none; } /* removed — was the source of the black lines */
 .wave-banner-title{
   font-family:Georgia,serif;
   font-size:clamp(18px,3vw,28px);

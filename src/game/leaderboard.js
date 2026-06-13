@@ -435,7 +435,7 @@ export function showLeaderboardOverlay(onClose) {
  * @param {string}  title    overlay heading
  * @param {Function} onClose optional callback
  */
-export function showStageLeaderboard(stage, score, entries, title, onClose) {
+export function showStageLeaderboard(stage, score, entries, title, onClose, onNext) {
   const existing = document.getElementById('stage-lb-overlay');
   if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
 
@@ -541,15 +541,22 @@ export function showStageLeaderboard(stage, score, entries, title, onClose) {
     if (typeof onClose === 'function') onClose();
   }
 
-  function _makeBtn(label, fn) {
+  function _makeBtn(label, fn, primary) {
     const btn = document.createElement('div');
     btn.className = 'mds-btn';
     btn.textContent = label;
-    btn.style.cssText = 'font-size:clamp(13px,1.6vw,17px);';
+    btn.style.cssText = 'font-size:clamp(13px,1.6vw,17px);'
+      + (primary ? 'color:#ffdd55;border-color:rgba(200,160,0,0.7);background:rgba(200,160,0,0.12);' : '');
     btn.addEventListener('click', fn);
     return btn;
   }
 
+  // If a next level exists, offer it as the PRIMARY action right on this overlay —
+  // the leaderboard sits on top of the complete screen (higher z-index), so without
+  // this the complete screen's own NEXT LEVEL button is unreachable.
+  if (typeof onNext === 'function') {
+    btnRow.appendChild(_makeBtn('NEXT LEVEL ▶', () => { _close(); onNext(); }, true));
+  }
   btnRow.appendChild(_makeBtn('CLOSE', _close));
   overlay.appendChild(btnRow);
   document.body.appendChild(overlay);

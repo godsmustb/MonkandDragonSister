@@ -539,13 +539,17 @@ export function questCompleteL3() {
 // (leaderboard module may not load on python server — that's fine).
 function _submitQuestScore(stage, title) {
   const score = (gameState && gameState.score) || 0;
+  // Stages 1 & 2 have a next campaign level (→2, →3); stage 3 is the last.
+  const onNext = (stage === 1 || stage === 2) ? () => startLevel(stage + 1) : null;
   import('./leaderboard.js').then(async lb => {
     // Prompt name if not yet stored; always silent
     await lb.promptPlayerName().catch(() => {});
     const entries = await lb.submitScore(stage, score).catch(() => null);
     if (entries && entries.length > 0) {
-      // Show the stage leaderboard overlay (on top of complete screen)
-      lb.showStageLeaderboard(stage, score, entries, title);
+      // Show the stage leaderboard overlay (on top of complete screen). Because it
+      // covers the complete screen's NEXT LEVEL button, pass onNext so the overlay
+      // itself can advance the campaign.
+      lb.showStageLeaderboard(stage, score, entries, title, null, onNext);
     }
   }).catch(() => {});
 }

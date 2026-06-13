@@ -194,6 +194,10 @@ function _activateItem(idx) {
     // START GAME. Mobile/touch → straight to 1-Player character select (no
     // split-screen on phones). Desktop → the 1P/2P mode chooser.
     try { sfx.menuSelect(); } catch {}
+    // Hide the main menu so ITS keyboard handler (which checks _menuVisible) stops
+    // intercepting arrows/Enter — otherwise the hidden menu behind the overlay eats
+    // the keys and the visible mode/character buttons can't be navigated.
+    hideMenu();
     if (IS_TOUCH) { ctx.mode = '1p'; _showCharSelect(); }
     else _showModeSelect();
   } else if (idx === 1) {
@@ -302,9 +306,49 @@ function _applyModeSetup() {
   }
 }
 
+// ── Keyboard navigation for the sub-select screens (mode / character) ─────────
+// Reads `el._navButtons` (ordered list of clickable buttons) and `el._navOnEscape`.
+// Arrow keys / WASD move a focus ring; Enter/Space activates (fires the button's
+// own click handler); Esc/Backspace runs onEscape. Re-installable (call on every
+// show — including the cached-element early-return path). Stored as `el._keyHandler`
+// so the existing `_hide*` removal code keeps working.
+function _installNav(el) {
+  if (el._keyHandler) document.removeEventListener('keydown', el._keyHandler);
+  let focus = 0;
+  const apply = () => {
+    const buttons = el._navButtons || [];
+    buttons.forEach((b, i) => {
+      b.style.outline = (i === focus) ? '2px solid var(--gold-bright)' : '';
+      b.style.outlineOffset = (i === focus) ? '3px' : '';
+    });
+  };
+  const move = (d) => {
+    const n = (el._navButtons || []).length;
+    if (!n) return;
+    focus = (focus + d + n) % n;
+    apply();
+    try { sfx.menuTick(); } catch {}
+  };
+  const handler = (e) => {
+    if (['ArrowLeft', 'ArrowUp', 'KeyA', 'KeyW'].includes(e.code)) { e.preventDefault(); move(-1); }
+    else if (['ArrowRight', 'ArrowDown', 'KeyD', 'KeyS'].includes(e.code)) { e.preventDefault(); move(1); }
+    else if (['Enter', 'Space', 'NumpadEnter'].includes(e.code)) {
+      e.preventDefault();
+      const b = (el._navButtons || [])[focus];
+      if (b) b.click();
+    } else if (e.code === 'Escape' || e.code === 'Backspace') {
+      e.preventDefault();
+      if (el._navOnEscape) el._navOnEscape();
+    }
+  };
+  el._keyHandler = handler;
+  document.addEventListener('keydown', handler);
+  apply();
+}
+
 // ── Mode select screen ────────────────────────────────────────────────────
 function _showModeSelect() {
-  if (_modeEl) { _modeEl.style.display = 'flex'; return; }
+  if (_modeEl) { _modeEl.style.display = 'flex'; _installNav(_modeEl); return; }
   _modeEl = document.createElement('div');
   _modeEl.id = 'mode-select';
   _modeEl.className = 'mds-scrim';
@@ -332,6 +376,7 @@ function _showModeSelect() {
   const btnBack = _makeMenuBtn('BACK', () => {
     try { sfx.menuTick(); } catch {}
     _hideModeSelect();
+    showMenu();
   });
 
   btnRow.appendChild(btn1P);
@@ -342,10 +387,10 @@ function _showModeSelect() {
   _modeEl.appendChild(btnBack);
   document.body.appendChild(_modeEl);
 
-  _modeEl._keyHandler = (e) => {
-    if (e.code === 'Escape' || e.code === 'Backspace') { _hideModeSelect(); }
-  };
-  document.addEventListener('keydown', _modeEl._keyHandler);
+  // Keyboard navigation: 1 PLAYER ↔ 2 PLAYERS ↔ BACK; Enter activates; Esc backs out.
+  _modeEl._navButtons = [btn1P, btn2P, btnBack];
+  _modeEl._navOnEscape = () => { _hideModeSelect(); showMenu(); };
+  _installNav(_modeEl);
 }
 
 function _hideModeSelect() {
@@ -360,7 +405,7 @@ function _hideModeSelect() {
 
 // ── Character select screen ───────────────────────────────────────────────
 function _showCharSelect() {
-  if (_charEl) { _charEl.style.display = 'flex'; _charEl._refresh && _charEl._refresh(); return; }
+  if (_charEl) { _charEl.style.display = 'flex'; _charEl._refresh && _charEl._refresh(); _installNav(_charEl); return; }
   _charEl = document.createElement('div');
   _charEl.id = 'char-select';
   _charEl.className = 'mds-scrim';
@@ -468,12 +513,17 @@ function _showCharSelect() {
   _refreshCharButtons();
   _refreshPartnerButtons();
 
-  _charEl._keyHandler = (e) => {
-    if (e.code === 'Escape' || e.code === 'Backspace') {
-      _hideCharSelect(); _showModeSelect();
-    }
+  // Keyboard navigation: THE MONK ↔ THE DRAGON SISTER ↔ (SOLO ↔ AI PARTNER) ↔
+  // BEGIN ↔ BACK. Enter selects/activates the focused button; Esc backs out.
+  const navBtns = [btnMonk, btnSister];
+  if (!IS_TOUCH) navBtns.push(btnSolo, btnAI);
+  navBtns.push(btnBegin, btnBack);
+  _charEl._navButtons = navBtns;
+  _charEl._navOnEscape = () => {
+    _hideCharSelect();
+    if (IS_TOUCH) showMenu(); else _showModeSelect();
   };
-  document.addEventListener('keydown', _charEl._keyHandler);
+  _installNav(_charEl);
 }
 
 function _hideCharSelect() {

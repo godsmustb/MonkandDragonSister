@@ -23,6 +23,7 @@ import { updateCamera as updateCameraV2, toggleLockOn, clearLockTargets, camExtr
 import { buildPostFX, renderPostFX, resizePostFX, postFxEnabled, disposePostFX } from './fx/postfx.js';
 import { setQuality } from './state.js';
 import { loadBindings, matchAction } from './game/bindings.js';
+import { updatePowerLabels } from './ui/powerlabel.js';
 
 // ---- Wire up lazy cross-module references ----
 setDealDamageToPlayer(dealDamageToPlayer);
@@ -145,6 +146,9 @@ function updateGame(dt) {
   updateParticles(dt);
   updateRelicDrops(dt);
   updateFxEffects(dt);
+
+  // Update world-space XP/Level power labels under each character
+  updatePowerLabels([gameState.p1, gameState.p2]);
 }
 
 // ---- Input ----

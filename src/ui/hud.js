@@ -613,6 +613,7 @@ export function updateHUD() {
   _updateRelicIcons();
   _updateAdvantageChips(p1, p2);
   _updateKOOverlays(p1, p2);
+  updateScoreHUD();
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -951,6 +952,36 @@ export function updateBossBar(boss, show) {
     if (boss._type === 'infernolord' && phase >= 3) col = '#66ccff'; // ice shift
     nameEl.style.color = col;
   }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// SCORE HUD — top-center display (build-once/update-only)
+// ────────────────────────────────────────────────────────────────────────────
+let _scoreEl = null;
+let _lastScore = -1;
+
+export function updateScoreHUD() {
+  if (!_scoreEl) _scoreEl = document.getElementById('score-hud');
+  if (!_scoreEl) return;
+  const gs = ctx.gameState;
+  if (!gs) return;
+
+  // Only show during an active game (not MENU)
+  const active = gs.state !== 'MENU';
+  _scoreEl.style.display = active ? 'block' : 'none';
+  if (!active) return;
+
+  const score = gs.score || 0;
+  if (score === _lastScore) return;
+  _lastScore = score;
+
+  const fmt = score.toLocaleString();
+  _scoreEl.textContent = (gs._endless ? '∞ ' : '') + 'SCORE  ' + fmt;
+
+  // Pop animation on change
+  _scoreEl.classList.remove('score-pop');
+  void _scoreEl.offsetWidth; // force reflow
+  _scoreEl.classList.add('score-pop');
 }
 
 // ────────────────────────────────────────────────────────────────────────────

@@ -13,6 +13,23 @@ export function setDealDamageToPlayer(fn) { dealDamageToPlayer = fn; }
 export let showDamageNumber = null;
 export function setShowDamageNumber(fn) { showDamageNumber = fn; }
 
+// Kill score values per demon type (mirrors SCORE_KILL in quest.js — kept local to avoid circular dep)
+const _SCORE_KILL = {
+  shadowling: 25, frostimp: 50, tidewraith: 75, venomoni: 600, infernolord: 1500,
+};
+
+/** Add score to gameState.score with endless-cycle multiplier. */
+function _addScore(base) {
+  const gs = ctx.gameState;
+  if (!gs) return;
+  const mult = 1 + 0.5 * (gs.endlessCycle || 0);
+  gs.score = (gs.score || 0) + Math.round(base * mult);
+  // Defer HUD update to avoid import at top level
+  Promise.resolve().then(() => {
+    import('../ui/hud.js').then(m => m.updateScoreHUD()).catch(() => {});
+  });
+}
+
 // Scratch vectors — reused in hot loops
 const _v1 = new THREE.Vector3();
 
@@ -284,6 +301,9 @@ export class Spirit {
 
   die() {
     this.alive = false;
+    // Award score for this kill
+    const pts = _SCORE_KILL[this._type] || 25;
+    _addScore(pts);
     const tint = DEMON_DEATH_TINT[this.element] || ELEMENT_COLORS[this.element];
     spawnDeathParticles(this.pos, tint);
     // Enhanced per-type death dissolve

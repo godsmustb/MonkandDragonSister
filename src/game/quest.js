@@ -28,11 +28,14 @@ export const gameState = {
   // Pass 12: Endless mode
   _endless: false,
   endlessCycle: 0,
+  // Score system
+  score: 0,
 };
 
 export function startIntro() {
   gameState.state = 'INTRO';
   gameState.wave = 0;
+  gameState.score = 0;
   const introEl = document.getElementById('intro-screen');
   if (introEl) introEl.style.display = 'flex';
 }

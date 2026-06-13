@@ -95,6 +95,88 @@ body{background:#000;overflow:hidden;font-family:Georgia,serif;}
 }
 /* Each lotus icon chip is created by lives.js */
 
+/* Score HUD — top-center, below lives */
+#score-hud{
+  position:fixed;top:36px;left:50%;transform:translateX(-50%);
+  z-index:30;pointer-events:none;
+  font-family:Georgia,serif;
+  font-size:13px;letter-spacing:3px;
+  color:#f0d882;
+  text-shadow:0 0 10px rgba(200,160,0,0.7);
+  background:rgba(10,8,6,0.52);
+  border:1px solid rgba(200,160,0,0.25);
+  border-radius:14px;
+  padding:2px 14px;
+  white-space:nowrap;
+  display:none;
+}
+/* Score pop animation when it updates */
+@keyframes scorePop{
+  0%{transform:translateX(-50%) scale(1.22);color:#fff;}
+  60%{transform:translateX(-50%) scale(1);}
+  100%{color:#f0d882;}
+}
+#score-hud.score-pop{animation:scorePop 0.35s ease-out forwards;}
+
+/* Arcade leaderboard overlay */
+#arcade-leaderboard{
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  background:rgba(0,0,0,0.92);
+  z-index:210;
+  display:none;
+  flex-direction:column;
+  align-items:center;justify-content:center;
+  font-family:Georgia,serif;
+  animation:goFadeIn 0.6s ease-out forwards;
+}
+#arcade-leaderboard .arcade-title{
+  font-size:clamp(16px,2.5vw,24px);
+  color:#f0d882;letter-spacing:5px;
+  text-shadow:0 0 20px rgba(200,160,0,0.8);
+  margin-bottom:4px;
+}
+#arcade-leaderboard .arcade-catchphrase{
+  font-size:clamp(22px,3.5vw,36px);
+  color:#ff6633;letter-spacing:4px;
+  text-shadow:0 0 30px rgba(255,100,0,0.8);
+  margin-bottom:24px;
+  font-style:italic;
+}
+#arcade-leaderboard .arcade-table{
+  border-collapse:collapse;
+  margin-bottom:28px;
+  min-width:min(420px,85vw);
+}
+#arcade-leaderboard .arcade-table th{
+  font-family:'Segoe UI',system-ui,sans-serif;
+  font-size:9px;letter-spacing:3px;color:#888;
+  padding:4px 18px;text-align:center;
+  border-bottom:1px solid rgba(200,160,0,0.25);
+}
+#arcade-leaderboard .arcade-table td{
+  font-family:Georgia,serif;
+  font-size:15px;color:#ccc;
+  padding:6px 18px;text-align:center;
+  border-bottom:1px solid rgba(200,160,0,0.1);
+}
+#arcade-leaderboard .arcade-table tr.this-run td{
+  color:#f0d882;
+  text-shadow:0 0 10px rgba(200,160,0,0.7);
+}
+#arcade-leaderboard .arcade-table td.rank{
+  color:#888;font-size:12px;
+}
+#arcade-leaderboard .new-high{
+  font-size:clamp(13px,1.8vw,18px);
+  color:#ff6633;letter-spacing:4px;
+  text-shadow:0 0 16px rgba(255,100,0,0.7);
+  margin-bottom:20px;
+  animation:ultPulse 0.8s ease-in-out infinite;
+}
+#arcade-leaderboard .arcade-btns{
+  display:flex;gap:18px;flex-wrap:wrap;justify-content:center;
+}
+
 /* Boss HP bar */
 #boss-hp-bar{
   position:absolute;
@@ -766,6 +848,12 @@ body{background:#000;overflow:hidden;font-family:Georgia,serif;}
     <!-- Controls "?" chip P2 -->
     <div class="controls-chip" id="controls-chip-p2" title="Controls">?</div>
   </div>
+
+  <!-- Score HUD (top-center, below lives) -->
+  <div id="score-hud">SCORE 0</div>
+
+  <!-- Arcade leaderboard (endless game-over only) -->
+  <div id="arcade-leaderboard"></div>
 
   <!-- Damage numbers layer (full viewport) -->
   <div id="damage-container"></div>

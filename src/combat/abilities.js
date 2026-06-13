@@ -29,8 +29,21 @@ export function knockback(spirit, fromPos, force) {
   const dir = new THREE.Vector3().subVectors(spirit.pos, fromPos).normalize();
   dir.y = 0;
   spirit.pos.addScaledVector(dir, force);
-  spirit.pos.x = THREE.MathUtils.clamp(spirit.pos.x, -ARENA_SIZE + 2, ARENA_SIZE - 2);
-  spirit.pos.z = THREE.MathUtils.clamp(spirit.pos.z, -ARENA_SIZE + 2, ARENA_SIZE - 2);
+  clampToArena(spirit.pos);
+}
+
+// Keep entities on the CIRCULAR ground disc (radius ARENA_SIZE), not a square box.
+// A square clamp lets characters walk to the diagonal corners (e.g. 58,58 ≈ 82
+// units from centre) which are OFF the radius-60 ground disc, so they appear to
+// float in the void beyond the edge ("standing in air"). This clamps XZ to a radius.
+const ARENA_RADIUS = ARENA_SIZE - 4;
+export function clampToArena(pos) {
+  const r2 = pos.x * pos.x + pos.z * pos.z;
+  if (r2 > ARENA_RADIUS * ARENA_RADIUS) {
+    const r = Math.sqrt(r2) || 1;
+    pos.x = (pos.x / r) * ARENA_RADIUS;
+    pos.z = (pos.z / r) * ARENA_RADIUS;
+  }
 }
 
 // ---- Pass 14 tuning constants (block / parry / meters) ----
@@ -262,6 +275,8 @@ export class Player {
     showToast(`P${this.id} Level ${this.level}! ATK ${oldAtk}→${this.atk}`);
     triggerLevelUpFlash(this);
     try { sfx.levelUp(); } catch {}
+    // Award score for leveling up (level × 200, flat — no endless multiplier on XP gates)
+    try { ctx.gameState.score = (ctx.gameState.score || 0) + this.level * 200; } catch (_) {}
     updateHUD();
   }
 
@@ -424,8 +439,7 @@ export class Player {
     }
     const moveVec = _v3;
 
-    this.pos.x = THREE.MathUtils.clamp(this.pos.x, -ARENA_SIZE + 2, ARENA_SIZE - 2);
-    this.pos.z = THREE.MathUtils.clamp(this.pos.z, -ARENA_SIZE + 2, ARENA_SIZE - 2);
+    clampToArena(this.pos);
 
     // Pass 13: jump physics — only pin y=0 when not airborne
     if (this._airborne) {
@@ -812,8 +826,7 @@ export class Player {
         updateWeaponTrail(lungeTrail, tp, 0.02, li === 6);
       }
       this.pos.addScaledVector(dir, dashDist);
-      this.pos.x = THREE.MathUtils.clamp(this.pos.x, -ARENA_SIZE + 2, ARENA_SIZE - 2);
-      this.pos.z = THREE.MathUtils.clamp(this.pos.z, -ARENA_SIZE + 2, ARENA_SIZE - 2);
+      clampToArena(this.pos);
       ctx.gameState.spirits.forEach(s => {
         if (s.alive && this.pos.distanceTo(s.pos) < 3) s.takeDamage(this.atk * 2, 'fire');
       });
@@ -888,8 +901,7 @@ export class Player {
     const dashDir = this.facing.clone().multiplyScalar(-4);
     dashDir.y = 0;
     this.pos.add(dashDir);
-    this.pos.x = THREE.MathUtils.clamp(this.pos.x, -ARENA_SIZE + 2, ARENA_SIZE - 2);
-    this.pos.z = THREE.MathUtils.clamp(this.pos.z, -ARENA_SIZE + 2, ARENA_SIZE - 2);
+    clampToArena(this.pos);
   }
 
   // Pass 13: Jump — brief airborne hop with i-frames at takeoff
@@ -1017,8 +1029,7 @@ export class Player {
     }
     const moveVec = _v3;
 
-    this.pos.x = THREE.MathUtils.clamp(this.pos.x, -ARENA_SIZE + 2, ARENA_SIZE - 2);
-    this.pos.z = THREE.MathUtils.clamp(this.pos.z, -ARENA_SIZE + 2, ARENA_SIZE - 2);
+    clampToArena(this.pos);
     this.pos.y = 0;
 
     const cm = this.currentMesh();

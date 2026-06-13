@@ -4,6 +4,31 @@ import { updateHUD, showToast } from '../ui/hud.js';
 import { clearAllFx } from '../combat/projectiles.js';
 import { sfx } from '../audio/audio.js';
 
+// ── Leaderboard helpers (localStorage) ────────────────────────────────────
+const LS_KEY = 'mds_highscores';
+
+/** Load the sorted high-score list (up to 10 entries). Returns [] on any error. */
+export function loadHighScores() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr;
+  } catch (_) { return []; }
+}
+
+/** Push a new score entry, keep top 10 sorted desc. Returns updated list. */
+export function recordScore(score) {
+  const list = loadHighScores();
+  const cycle = (ctx.gameState && ctx.gameState.endlessCycle) || 0;
+  list.push({ score, cycle, date: new Date().toLocaleDateString() });
+  list.sort((a, b) => b.score - a.score);
+  const trimmed = list.slice(0, 10);
+  try { localStorage.setItem(LS_KEY, JSON.stringify(trimmed)); } catch (_) {}
+  return trimmed;
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────
 export const MAX_LIVES       = 3;
 export const KO_REVIVE_WINDOW = 10;   // seconds partner has to revive
@@ -63,7 +88,131 @@ export function triggerGameOver() {
   // Stop all spirits from acting
   ctx.gameState.spirits.forEach(s => { s.alive = false; });
 
-  _showGameOverScreen();
+  if (ctx.gameState._endless) {
+    _showArcadeLeaderboard();
+  } else {
+    _showGameOverScreen();
+  }
+}
+
+// ── Arcade Leaderboard (endless-only game-over) ────────────────────────────
+function _showArcadeLeaderboard() {
+  const score = (ctx.gameState && ctx.gameState.score) || 0;
+  const cycle = (ctx.gameState && ctx.gameState.endlessCycle) || 0;
+
+  // Record this run's score and get the updated table
+  const table = recordScore(score);
+  const top5  = table.slice(0, 5);
+  const rank1Score = top5.length > 0 ? top5[0].score : score;
+
+  // Find if this run appears in the top 5
+  const thisRunIdx = top5.findIndex(e => e.score === score && e.cycle === cycle);
+
+  const overlay = document.getElementById('arcade-leaderboard');
+  if (!overlay) {
+    // Fallback: normal game-over screen
+    _showGameOverScreen();
+    return;
+  }
+
+  // Build content
+  overlay.innerHTML = '';
+  overlay.style.display = 'flex';
+
+  const title = document.createElement('div');
+  title.className = 'arcade-title';
+  title.textContent = 'ENDLESS MODE — BEST SCORES';
+  overlay.appendChild(title);
+
+  const catchPhrase = document.createElement('div');
+  catchPhrase.className = 'arcade-catchphrase';
+  catchPhrase.textContent = 'CAN YOU BEAT #1?  ' + rank1Score.toLocaleString();
+  overlay.appendChild(catchPhrase);
+
+  if (thisRunIdx >= 0) {
+    const newHigh = document.createElement('div');
+    newHigh.className = 'new-high';
+    newHigh.textContent = thisRunIdx === 0 ? '★  NEW HIGH SCORE!  ★' : '★  TOP 5!  ★';
+    overlay.appendChild(newHigh);
+  }
+
+  // Table
+  const table_ = document.createElement('table');
+  table_.className = 'arcade-table';
+  const thead = document.createElement('thead');
+  const hrow  = document.createElement('tr');
+  ['#', 'SCORE', 'CYCLE', 'DATE'].forEach(h => {
+    const th = document.createElement('th'); th.textContent = h; hrow.appendChild(th);
+  });
+  thead.appendChild(hrow);
+  table_.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  top5.forEach((entry, i) => {
+    const tr = document.createElement('tr');
+    if (i === thisRunIdx) tr.className = 'this-run';
+    const tdRank  = document.createElement('td'); tdRank.className = 'rank';
+    tdRank.textContent = '#' + (i + 1);
+    const tdScore = document.createElement('td');
+    tdScore.textContent = entry.score.toLocaleString() + (i === thisRunIdx ? ' ◀' : '');
+    const tdCycle = document.createElement('td');
+    tdCycle.textContent = 'Cyc ' + entry.cycle;
+    const tdDate  = document.createElement('td');
+    tdDate.style.fontSize = '11px';
+    tdDate.style.color = '#777';
+    tdDate.textContent = entry.date || '—';
+    tr.appendChild(tdRank); tr.appendChild(tdScore);
+    tr.appendChild(tdCycle); tr.appendChild(tdDate);
+    tbody.appendChild(tr);
+  });
+  table_.appendChild(tbody);
+  overlay.appendChild(table_);
+
+  // Buttons
+  const btnRow = document.createElement('div');
+  btnRow.className = 'arcade-btns';
+
+  const btnAgain = _makeArcadeBtn('PLAY AGAIN', () => {
+    overlay.style.display = 'none';
+    // Restart endless fresh — reset lives + score then call startEndless
+    ctx.gameState.lives = MAX_LIVES;
+    ctx.gameState.score = 0;
+    initLives(); // re-draw lives HUD
+    import('./quest.js').then(m => m.startEndless()).catch(() => { location.reload(); });
+  });
+
+  const btnMenu = _makeArcadeBtn('MAIN MENU', () => {
+    location.reload();
+  });
+
+  btnRow.appendChild(btnAgain);
+  btnRow.appendChild(btnMenu);
+  overlay.appendChild(btnRow);
+}
+
+function _makeArcadeBtn(label, fn) {
+  const btn = document.createElement('div');
+  btn.textContent = label;
+  btn.style.cssText = `
+    font-family:Georgia,serif;font-size:clamp(13px,1.6vw,17px);
+    letter-spacing:4px;color:#888;cursor:pointer;
+    padding:10px 24px;border:1px solid rgba(200,160,0,0.4);
+    border-radius:4px;
+    transition:color 0.15s,border-color 0.15s,background 0.15s;
+    user-select:none;
+  `;
+  btn.addEventListener('mouseenter', () => {
+    btn.style.color = '#ffdd55';
+    btn.style.borderColor = 'rgba(200,160,0,0.8)';
+    btn.style.background = 'rgba(200,160,0,0.08)';
+  });
+  btn.addEventListener('mouseleave', () => {
+    btn.style.color = '#888';
+    btn.style.borderColor = 'rgba(200,160,0,0.4)';
+    btn.style.background = 'transparent';
+  });
+  btn.addEventListener('click', fn);
+  return btn;
 }
 
 function _showGameOverScreen() {

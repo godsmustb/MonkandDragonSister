@@ -420,21 +420,21 @@ function _showCharSelect() {
   _charEl.appendChild(actionRow);
   document.body.appendChild(_charEl);
 
+  // Set a persistent _selected flag + style. mouseleave honors _selected so the
+  // gold highlight survives the cursor leaving the button.
+  function _styleSelectable(btn, selected) {
+    btn._selected = selected;
+    btn.style.color = selected ? '#ffdd55' : '#888';
+    btn.style.borderColor = selected ? 'rgba(200,160,0,0.7)' : 'rgba(200,160,0,0.4)';
+    btn.style.background = selected ? 'rgba(200,160,0,0.12)' : 'transparent';
+  }
   function _refreshCharButtons() {
-    btnMonk.style.color = _selectedChar === 'monk' ? '#ffdd55' : '#888';
-    btnMonk.style.borderColor = _selectedChar === 'monk' ? 'rgba(200,160,0,0.6)' : 'rgba(200,160,0,0.4)';
-    btnMonk.style.background = _selectedChar === 'monk' ? 'rgba(200,160,0,0.08)' : 'transparent';
-    btnSister.style.color = _selectedChar === 'sister' ? '#ffdd55' : '#888';
-    btnSister.style.borderColor = _selectedChar === 'sister' ? 'rgba(200,160,0,0.6)' : 'rgba(200,160,0,0.4)';
-    btnSister.style.background = _selectedChar === 'sister' ? 'rgba(200,160,0,0.08)' : 'transparent';
+    _styleSelectable(btnMonk, _selectedChar === 'monk');
+    _styleSelectable(btnSister, _selectedChar === 'sister');
   }
   function _refreshPartnerButtons() {
-    btnSolo.style.color = !_aiPartnerFlag ? '#ffdd55' : '#888';
-    btnSolo.style.borderColor = !_aiPartnerFlag ? 'rgba(200,160,0,0.6)' : 'rgba(200,160,0,0.4)';
-    btnSolo.style.background = !_aiPartnerFlag ? 'rgba(200,160,0,0.08)' : 'transparent';
-    btnAI.style.color = _aiPartnerFlag ? '#ffdd55' : '#888';
-    btnAI.style.borderColor = _aiPartnerFlag ? 'rgba(200,160,0,0.6)' : 'rgba(200,160,0,0.4)';
-    btnAI.style.background = _aiPartnerFlag ? 'rgba(200,160,0,0.08)' : 'transparent';
+    _styleSelectable(btnSolo, !_aiPartnerFlag);
+    _styleSelectable(btnAI, _aiPartnerFlag);
   }
 
   // Store refresh function for re-open
@@ -477,9 +477,17 @@ function _makeMenuBtn(label, fn) {
     try { initAudioOnGesture(); sfx.menuTick(); } catch {}
   });
   btn.addEventListener('mouseleave', () => {
-    btn.style.color = '#888';
-    btn.style.borderColor = 'rgba(200,160,0,0.4)';
-    btn.style.background = 'transparent';
+    // Respect a persistent selected state (toggle buttons like character/partner)
+    // so leaving the button doesn't wipe the gold "selected" highlight.
+    if (btn._selected) {
+      btn.style.color = '#ffdd55';
+      btn.style.borderColor = 'rgba(200,160,0,0.7)';
+      btn.style.background = 'rgba(200,160,0,0.12)';
+    } else {
+      btn.style.color = '#888';
+      btn.style.borderColor = 'rgba(200,160,0,0.4)';
+      btn.style.background = 'transparent';
+    }
   });
   btn.addEventListener('click', fn);
   return btn;

@@ -197,6 +197,7 @@ window.addEventListener('keydown', (e) => {
   // KO gate: skip action calls for a downed player (movement is already gated in update())
   if (act1 && !p1.isKO) {
     if (act1 === 'attack')  p1.attack();
+    if (act1 === 'heavy')   p1.heavyAttack();
     if (act1 === 'shield')  p1.chiShield();
     if (act1 === 'dodge')   p1.dodge();
     if (act1 === 'heal')    p1.healingPulse();
@@ -207,6 +208,7 @@ window.addEventListener('keydown', (e) => {
 
   if (act2 && !p2.isKO) {
     if (act2 === 'attack')    p2.attack();
+    if (act2 === 'heavy')     p2.heavyAttack();
     if (act2 === 'transform') p2.cycleForm();
     if (act2 === 'dodge')     p2.dodge();
     if (act2 === 'special')   p2.special();

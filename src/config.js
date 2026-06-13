@@ -63,7 +63,7 @@ export const FORM_DATA = {
 export const PREVENT_KEYS = new Set([
   'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
   'Numpad8', 'Numpad4', 'Numpad5', 'Numpad6', 'Numpad7', 'Numpad9', 'Numpad0',
-  'Numpad2',
+  'Numpad2', 'Numpad1', 'Numpad3',
   'Enter', 'NumpadEnter',
-  'KeyI', 'KeyJ', 'KeyK', 'KeyL', 'KeyF', 'KeyQ', 'KeyE', 'KeyC',
+  'KeyI', 'KeyJ', 'KeyK', 'KeyL', 'KeyF', 'KeyQ', 'KeyE', 'KeyC', 'KeyU', 'KeyG',
 ]);

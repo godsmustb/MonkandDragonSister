@@ -40,6 +40,7 @@ export function setupDebugAPI() {
         pos: { x: p.pos.x, y: p.pos.y, z: p.pos.z },
         hp: p.hp, maxHp: p.maxHp, level: p.level, xp: p.xp,
         isKO: p.isKO,
+        resonance: p.resonance || 0, guard: p.guard != null ? p.guard : 100, blocking: !!p.blocking,
         hasLockTarget: !!(camExtra.p1 && camExtra.p1.lockTarget && camExtra.p1.lockTarget.alive),
       };
     },
@@ -52,6 +53,7 @@ export function setupDebugAPI() {
         hp: p.hp, maxHp: p.maxHp, level: p.level, xp: p.xp,
         form: p.form, unlocked: p.unlockedForms.slice(),
         isKO: p.isKO,
+        resonance: p.resonance || 0, guard: p.guard != null ? p.guard : 100, blocking: !!p.blocking,
         hasLockTarget: !!(camExtra.p2 && camExtra.p2.lockTarget && camExtra.p2.lockTarget.alive),
       };
     },
@@ -134,6 +136,18 @@ export function setupDebugAPI() {
       p.hp = 0;
       p.isKO = true;
       p._koTimer = 0; // immediately expired
+    },
+
+    // ── Pass 14: Combat depth ────────────────────────────────────────────
+    /** Trigger a heavy attack for player 1 or 2 (E2E hook). */
+    heavy(playerNum) {
+      const p = playerNum === 1 ? ctx.gameState.p1 : ctx.gameState.p2;
+      if (p && p.heavyAttack) p.heavyAttack();
+    },
+    /** Set the held block stance for player 1 or 2 (E2E hook). */
+    setBlocking(playerNum, on) {
+      const p = playerNum === 1 ? ctx.gameState.p1 : ctx.gameState.p2;
+      if (p && p.setBlocking) p.setBlocking(!!on);
     },
 
     // ── Camera / lock-on ────────────────────────────────────────────────

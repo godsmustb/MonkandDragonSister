@@ -344,6 +344,58 @@ body{background:#000;overflow:hidden;font-family:Georgia,serif;}
   opacity:0.35;filter:grayscale(0.8);
   border-color:rgba(100,90,70,0.4);
 }
+/* Pass 14: offensive vs defensive ability tint */
+.ability-icon.kind-attack{
+  border-color:rgba(220,120,60,0.7);
+  box-shadow:0 2px 8px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,140,80,0.12);
+}
+.ability-icon.kind-defend{
+  border-color:rgba(90,150,230,0.7);
+  box-shadow:0 2px 8px rgba(0,0,0,0.6),inset 0 1px 0 rgba(120,180,255,0.12);
+}
+.ability-icon.active-stance{
+  border-color:#9cd0ff;
+  box-shadow:0 0 10px rgba(140,190,255,0.85),inset 0 0 6px rgba(140,190,255,0.3);
+}
+
+/* Pass 14: GUARD + RESONANCE meters */
+.meter-strip{
+  display:flex;flex-direction:column;gap:3px;align-items:flex-end;
+  margin-bottom:3px;pointer-events:none;
+}
+.meter{
+  display:flex;align-items:center;gap:5px;justify-content:flex-end;
+}
+.meter-label{
+  font-family:'Segoe UI',system-ui,sans-serif;
+  font-size:7px;letter-spacing:1px;
+  color:rgba(180,160,120,0.75);
+  min-width:54px;text-align:right;
+}
+.meter-track{
+  width:96px;height:6px;
+  background:rgba(10,8,6,0.78);
+  border:1px solid rgba(200,160,0,0.35);
+  border-radius:3px;overflow:hidden;
+}
+.meter-fill{
+  height:100%;width:100%;
+  transition:width 0.12s linear;
+  border-radius:2px;
+}
+.meter.guard .meter-fill{
+  background:linear-gradient(90deg,#3a6fb0,#88bbff);
+}
+.meter.reson .meter-fill{
+  background:linear-gradient(90deg,#a8780a,#ffd24b);
+  width:0%;
+}
+.meter.reson.full .meter-fill{
+  box-shadow:0 0 8px rgba(255,210,75,0.9);
+}
+.meter.guard.broken .meter-fill{
+  background:linear-gradient(90deg,#7a1a1a,#ff5555);
+}
 
 /* ════════════════════════════════════════════════════════════════════
    FEEDBACK — Damage numbers, heal, toasts, wave banners, KO overlay
@@ -637,6 +689,10 @@ body{background:#000;overflow:hidden;font-family:Georgia,serif;}
 
     <!-- Bottom-right: Ability cluster P1 -->
     <div class="ability-cluster" id="abilities-cluster-p1">
+      <div class="meter-strip" id="meter-strip-p1">
+        <div class="meter guard"><span class="meter-label">GUARD</span><div class="meter-track"><div class="meter-fill" id="guard-fill-p1"></div></div></div>
+        <div class="meter reson"><span class="meter-label">RESONANCE</span><div class="meter-track"><div class="meter-fill" id="reson-fill-p1"></div></div></div>
+      </div>
       <div class="ability-row" id="abilities-p1"></div>
     </div>
 
@@ -698,6 +754,10 @@ body{background:#000;overflow:hidden;font-family:Georgia,serif;}
 
     <!-- Bottom-right: Ability cluster P2 -->
     <div class="ability-cluster" id="abilities-cluster-p2">
+      <div class="meter-strip" id="meter-strip-p2">
+        <div class="meter guard"><span class="meter-label">GUARD</span><div class="meter-track"><div class="meter-fill" id="guard-fill-p2"></div></div></div>
+        <div class="meter reson"><span class="meter-label">RESONANCE</span><div class="meter-track"><div class="meter-fill" id="reson-fill-p2"></div></div></div>
+      </div>
       <!-- Form selector diamonds (above the icons) -->
       <div class="form-strip" id="form-strip-p2"></div>
       <div class="ability-row" id="abilities-p2"></div>

@@ -294,6 +294,32 @@ function _drawGlyph(canvas, type, color) {
       }
       c.beginPath(); c.arc(h,h,s*0.12,0,Math.PI*2); c.fill();
       break;
+    case 'heavy': // heavy attack — downward slam chevron + impact
+      c.lineWidth=2.4;
+      c.beginPath();
+      c.moveTo(s*0.28,s*0.22); c.lineTo(h,s*0.5); c.lineTo(s*0.72,s*0.22);
+      c.stroke();
+      c.beginPath();
+      c.moveTo(s*0.32,s*0.42); c.lineTo(h,s*0.66); c.lineTo(s*0.68,s*0.42);
+      c.stroke();
+      // impact burst dots
+      c.lineWidth=1.4;
+      c.beginPath();c.moveTo(s*0.18,s*0.74);c.lineTo(s*0.28,s*0.8);c.stroke();
+      c.beginPath();c.moveTo(s*0.82,s*0.74);c.lineTo(s*0.72,s*0.8);c.stroke();
+      break;
+    case 'block': // block/parry — shield with vertical guard line
+      c.lineWidth=2;
+      c.beginPath();
+      c.moveTo(h,s*0.16);
+      c.lineTo(s*0.74,s*0.3);
+      c.lineTo(s*0.7,s*0.62);
+      c.lineTo(h,s*0.84);
+      c.lineTo(s*0.3,s*0.62);
+      c.lineTo(s*0.26,s*0.3);
+      c.closePath(); c.stroke();
+      c.lineWidth=1.5;
+      c.beginPath(); c.moveTo(h,s*0.3); c.lineTo(h,s*0.68); c.stroke();
+      break;
     default:
       c.font = `${s*0.55}px Georgia`;
       c.textAlign='center'; c.textBaseline='middle';
@@ -363,6 +389,14 @@ function _buildHUD() {
   _buildAbilityRow('p2');
   _buildFormStrip();
 
+  // Pass 14: meter element cache (GUARD + RESONANCE)
+  _hud.meters = {
+    p1: { guard: document.getElementById('guard-fill-p1'), reson: document.getElementById('reson-fill-p1'),
+          guardWrap: document.querySelector('#meter-strip-p1 .meter.guard'), resonWrap: document.querySelector('#meter-strip-p1 .meter.reson') },
+    p2: { guard: document.getElementById('guard-fill-p2'), reson: document.getElementById('reson-fill-p2'),
+          guardWrap: document.querySelector('#meter-strip-p2 .meter.guard'), resonWrap: document.querySelector('#meter-strip-p2 .meter.reson') },
+  };
+
   // Objective icons
   _drawObjIcon(document.getElementById('obj-icon-p1'), 0, 0);
   _drawObjIcon(document.getElementById('obj-icon-p2'), 0, 0);
@@ -374,17 +408,23 @@ function _buildHUD() {
 // ────────────────────────────────────────────────────────────────────────────
 // ABILITY ROW BUILD
 // ────────────────────────────────────────────────────────────────────────────
+// Pass 14: each ability carries a `kind` ('attack' | 'defend') so the HUD can
+// tint offensive vs defensive abilities.
 const _P1_SPEC = [
-  { glyph: 'staff',   key: 'I/Spc', maxCd: 0.3,  cdProp: '_attackCd',  label: 'Attack'  },
-  { glyph: 'shield',  key: 'J',     maxCd: 8,    cdProp: '_shieldCd',  label: 'Shield'  },
-  { glyph: 'boot',    key: 'K',     maxCd: 2,    cdProp: '_dodgeCd',   label: 'Dodge'   },
-  { glyph: 'lotus',   key: 'L',     maxCd: 10,   cdProp: '_healCd',    label: 'Heal'    },
+  { glyph: 'staff',   key: 'I/Spc', maxCd: 0.3,  cdProp: '_attackCd',  label: 'Attack',  kind: 'attack' },
+  { glyph: 'heavy',   key: 'U',     maxCd: 1.6,  cdProp: '_heavyCd',   label: 'Heavy',   kind: 'attack' },
+  { glyph: 'block',   key: 'G',     maxCd: 0,    cdProp: null,         label: 'Block',   kind: 'defend' },
+  { glyph: 'shield',  key: 'J',     maxCd: 8,    cdProp: '_shieldCd',  label: 'Shield',  kind: 'defend' },
+  { glyph: 'boot',    key: 'K',     maxCd: 2,    cdProp: '_dodgeCd',   label: 'Dodge',   kind: 'defend' },
+  { glyph: 'lotus',   key: 'L',     maxCd: 10,   cdProp: '_healCd',    label: 'Heal',    kind: 'defend' },
 ];
 const _P2_SPEC = [
-  { glyph: 'claw',    key: 'Ent',   maxCd: 0.35, cdProp: '_attackCd',    label: 'Attack'    },
-  { glyph: 'yinyang', key: 'Num4',  maxCd: 1,    cdProp: '_transformCd', label: 'Transform' },
-  { glyph: 'boot',    key: 'Num5',  maxCd: 2,    cdProp: '_dodgeCd',     label: 'Dodge'     },
-  { glyph: 'star',    key: 'Num6',  maxCd: 8,    cdProp: '_specialCd',   label: 'Special'   },
+  { glyph: 'claw',    key: 'Ent',   maxCd: 0.35, cdProp: '_attackCd',    label: 'Attack',    kind: 'attack' },
+  { glyph: 'heavy',   key: 'Num3',  maxCd: 1.6,  cdProp: '_heavyCd',     label: 'Heavy',     kind: 'attack' },
+  { glyph: 'star',    key: 'Num6',  maxCd: 8,    cdProp: '_specialCd',   label: 'Breath',    kind: 'attack' },
+  { glyph: 'block',   key: 'Num1',  maxCd: 0,    cdProp: null,           label: 'Block',     kind: 'defend' },
+  { glyph: 'yinyang', key: 'Num4',  maxCd: 1,    cdProp: '_transformCd', label: 'Transform', kind: 'defend' },
+  { glyph: 'boot',    key: 'Num5',  maxCd: 2,    cdProp: '_dodgeCd',     label: 'Dodge',     kind: 'defend' },
 ];
 
 function _buildAbilityRow(pid) {
@@ -395,13 +435,14 @@ function _buildAbilityRow(pid) {
 
   const icons = spec.map(a => {
     const wrap = document.createElement('div');
-    wrap.className = 'ability-icon';
+    wrap.className = 'ability-icon' + (a.kind ? ' kind-' + a.kind : '');
 
-    // Canvas glyph
+    // Canvas glyph — offensive warm, defensive cool tint
     const gc = document.createElement('canvas');
     gc.width = 28; gc.height = 28;
     gc.style.cssText = 'width:28px;height:28px;display:block;';
-    _drawGlyph(gc, a.glyph, '#e8c86a');
+    const glyphCol = a.kind === 'defend' ? '#9cc4ff' : '#f0a868';
+    _drawGlyph(gc, a.glyph, glyphCol);
     wrap.appendChild(gc);
 
     // Cooldown conic overlay
@@ -447,8 +488,8 @@ function _buildFormStrip() {
 // CONTROLS CHIP HOVER TOOLTIP
 // ────────────────────────────────────────────────────────────────────────────
 function _wireControlsChips() {
-  const P1_CONTROLS = 'WASD: Move | I/Spc: Attack | J: Shield | K: Dodge | L: Heal | C: Jump | F: Lock-on';
-  const P2_CONTROLS = 'Arrows: Move | Ent/8: Attack | Num4: Transform | Num5: Dodge | Num6: Special | Num2: Jump | 0: Lock-on';
+  const P1_CONTROLS = 'WASD: Move | I/Spc: Attack | U: Heavy | G: Block/Parry | J: Shield | K: Dodge | L: Heal | C: Jump | F: Lock-on';
+  const P2_CONTROLS = 'Arrows: Move | Ent/8: Attack | Num3: Heavy | Num1: Block/Parry | Num4: Transform | Num5: Dodge | Num6: Special | Num2: Jump | 0: Lock-on';
 
   [['controls-chip-p1', P1_CONTROLS],['controls-chip-p2', P2_CONTROLS]].forEach(([id, txt]) => {
     const chip = document.getElementById(id);
@@ -537,9 +578,31 @@ export function updateHUD() {
   _updatePlayerPlate('p2', p2);
   _updateFormStrip(p2);
   _updateAbilityIcons(p1, p2);
+  _updateMeters(p1, p2);
   _updateRelicIcons();
   _updateAdvantageChips(p1, p2);
   _updateKOOverlays(p1, p2);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// PASS 14: GUARD + RESONANCE METERS
+// ────────────────────────────────────────────────────────────────────────────
+function _updateMeters(p1, p2) {
+  if (!_hud.meters) return;
+  _updateMeterFor('p1', p1);
+  _updateMeterFor('p2', p2);
+}
+
+function _updateMeterFor(pid, player) {
+  const m = _hud.meters[pid];
+  if (!m) return;
+  const guard = Math.max(0, Math.min(100, player.guard != null ? player.guard : 100));
+  const reson = Math.max(0, Math.min(100, player.resonance || 0));
+  if (m.guard) m.guard.style.width = guard + '%';
+  if (m.reson) m.reson.style.width = reson + '%';
+  // Visual state flags
+  if (m.guardWrap) m.guardWrap.classList.toggle('broken', guard <= 0);
+  if (m.resonWrap) m.resonWrap.classList.toggle('full', reson >= 100);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -606,15 +669,12 @@ function _updatePlayerPlate(pid, player) {
         ring.style.borderColor = pal.accent;
         ring.style.boxShadow   = `0 0 6px ${pal.accent}88, inset 0 0 4px ${pal.accent}33`;
       }
-      // Also retint transform icon glyph if built
-      if (_hud.p2Icons && _hud.p2Icons[1]) {
-        const gc = _hud.p2Icons[1].glyphCanvas;
-        _drawGlyph(gc, 'yinyang', pal.accent);
-      }
-      // Retint star (special) icon with element color
-      if (_hud.p2Icons && _hud.p2Icons[3]) {
-        const gc = _hud.p2Icons[3].glyphCanvas;
-        _drawGlyph(gc, 'star', pal.accent);
+      // Retint transform + breath glyphs by element (find by glyph, indices vary).
+      if (_hud.p2Icons) {
+        _hud.p2Icons.forEach(({ glyphCanvas, spec }) => {
+          if (spec.glyph === 'yinyang') _drawGlyph(glyphCanvas, 'yinyang', pal.accent);
+          else if (spec.glyph === 'star') _drawGlyph(glyphCanvas, 'star', pal.accent);
+        });
       }
     }
   }
@@ -652,16 +712,21 @@ function _updateFormStrip(p2) {
 // ────────────────────────────────────────────────────────────────────────────
 function _updateAbilityIcons(p1, p2) {
   if (!_hud.p1Icons || !_hud.p2Icons) return;
-  _hud.p1Icons.forEach(({ cdConic, spec }) => {
-    const cd   = Math.max(0, p1[spec.cdProp] || 0);
-    const pct  = Math.min(100, cd / spec.maxCd * 100);
-    _setCdConic(cdConic, pct);
-  });
-  _hud.p2Icons.forEach(({ cdConic, spec }) => {
-    const cd  = Math.max(0, p2[spec.cdProp] || 0);
-    const pct = Math.min(100, cd / spec.maxCd * 100);
-    _setCdConic(cdConic, pct);
-  });
+  const apply = (icons, player) => {
+    icons.forEach(({ cdConic, iconEl, spec }) => {
+      // Pass 14: block has no cooldown — show an "active" ring while held.
+      if (!spec.cdProp || !spec.maxCd) {
+        _setCdConic(cdConic, 0);
+        if (spec.glyph === 'block' && iconEl) iconEl.classList.toggle('active-stance', !!player.blocking);
+        return;
+      }
+      const cd  = Math.max(0, player[spec.cdProp] || 0);
+      const pct = Math.min(100, cd / spec.maxCd * 100);
+      _setCdConic(cdConic, pct);
+    });
+  };
+  apply(_hud.p1Icons, p1);
+  apply(_hud.p2Icons, p2);
 }
 
 // ────────────────────────────────────────────────────────────────────────────

@@ -1056,6 +1056,60 @@ export function spawnShieldImpactRipple(pos) {
 }
 
 // =====================================================================
+//  PASS 14 — COMBAT DEPTH VFX (heavy attack, block, parry)
+// =====================================================================
+
+/**
+ * Heavy attack swing — weighty arc slam. Bigger ground shock + burst flash,
+ * element/player-tinted. Pos is the hero's world position.
+ */
+export function spawnHeavySwingFx(pos, color) {
+  const col = color != null ? color : 0xffd24b;
+  // Forward-facing shock ring on the ground
+  _spawnGroundRing(pos, col, 0.35, 3.4);
+  // Bright impact burst slightly above the ground
+  const up = pos.clone(); up.y = 0.9;
+  _spawnBurstFlash(up, col, 1.4, 0.28);
+  // Short light pillar for heft
+  _spawnLightPillar(pos.clone(), col, 3.0, 0.35);
+}
+
+/**
+ * Block stance shimmer — soft guard arc in front of the hero each time a hit
+ * is reduced. Lighter than the chi-shield ripple.
+ */
+export function spawnBlockSpark(pos, color) {
+  const col = color != null ? color : 0x88bbff;
+  const up = pos.clone(); up.y = 1.0;
+  _spawnBurstFlash(up, col, 0.55, 0.16);
+  _spawnGroundRing(pos, col, 0.2, 1.1);
+}
+
+/**
+ * Perfect-parry flash — bright white/gold pop + expanding ring + radial sparks.
+ * The signature "TING!" moment.
+ */
+export function spawnParryFlash(pos, color) {
+  const col = color != null ? color : 0xffffff;
+  const up = pos.clone(); up.y = 1.0;
+  _spawnBurstFlash(up, 0xffffff, 1.6, 0.22);
+  _spawnGroundRing(pos, col, 0.3, 2.6);
+  // Radial spark shards
+  const scene = ctx.scene;
+  for (let i = 0; i < 10; i++) {
+    const m = new THREE.Mesh(GEO.sphere4,
+      new THREE.MeshBasicMaterial({ color: i % 2 ? 0xffffff : col, transparent: true, opacity: 1,
+        blending: THREE.AdditiveBlending, depthWrite: false }));
+    m.scale.setScalar(0.12);
+    m.position.copy(up);
+    scene.add(m);
+    const angle = (i / 10) * Math.PI * 2 + Math.random() * 0.3;
+    const speed = 5 + Math.random() * 4;
+    _particles.push({ mesh: m, vel: new THREE.Vector3(Math.cos(angle) * speed, 2 + Math.random() * 3, Math.sin(angle) * speed), life: 0.4, maxLife: 0.4, type: 'parry' });
+  }
+}
+
+// =====================================================================
 //  MEDITATION AURA — orbiting lotus sprites
 // =====================================================================
 export function spawnMeditationLotus(playerPos, onTick) {

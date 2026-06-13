@@ -18,6 +18,7 @@ import {
   spawnHitSparks, spawnPlayerHitShards,
   buildChiShieldMesh, spawnShieldImpactRipple,
   spawnMeditationLotus,
+  spawnHeavySwingFx, spawnBlockSpark, spawnParryFlash,
 } from './projectiles.js';
 import { updateHUD } from '../ui/hud.js';
 import { showToast } from '../ui/hud.js';
@@ -31,13 +32,60 @@ export function knockback(spirit, fromPos, force) {
   spirit.pos.z = THREE.MathUtils.clamp(spirit.pos.z, -ARENA_SIZE + 2, ARENA_SIZE - 2);
 }
 
+// ---- Pass 14 tuning constants (block / parry / meters) ----
+export const BLOCK_REDUCTION = 0.30;   // blocked hits deal 30% of incoming
+export const GUARD_DRAIN_PER_HIT = 22; // guard cost per blocked hit (of 100)
+export const GUARD_REGEN = 18;         // guard regen per second (out of combat)
+export const PARRY_WINDOW = 0.2;       // seconds after pressing block that a hit is a perfect parry
+export const PARRY_RESONANCE = 35;     // resonance granted on a perfect parry
+export const HIT_RESONANCE = 4;        // resonance per landed light hit
+export const HEAVY_RESONANCE = 10;     // resonance per landed heavy hit
+
 // ---- dealDamageToPlayer ----
 export function dealDamageToPlayer(player, amount, element) {
   if (player.inactive) return;  // Pass 12: inactive partner is invulnerable
   if (player._iframes > 0) return;
   if (player.shieldActive) return;
   if (player.isKO) return;
-  const mitigated = Math.max(1, amount - player.def * 0.3);
+
+  // Pass 14: PERFECT PARRY — block pressed within PARRY_WINDOW before the hit lands.
+  if (player.blocking && (player._parryTimer || 0) > 0) {
+    player._parryTimer = 0;
+    player.resonance = Math.min(100, (player.resonance || 0) + PARRY_RESONANCE);
+    ctx.game._hitstop = Math.max(ctx.game._hitstop || 0, 0.10);
+    ctx.camState['p' + player.id].shake = 0.18;
+    spawnParryFlash(player.pos.clone(), 0xffffff);
+    try { sfx.shieldBlock(); } catch {}
+    // Stagger/knockback the attacker(s) in front of the parrying hero.
+    ctx.gameState.spirits.forEach(s => {
+      if (!s.alive) return;
+      if (player.pos.distanceTo(s.pos) < 4) {
+        knockback(s, player.pos, 4);
+        s._aiState = 'recover';
+        s._aiTimer = Math.max(s._aiTimer || 0, 1.2);
+      }
+    });
+    if (window.__game) window.__game.lastPlayerDamage = { amount: 0, mult: 1, attackerElement: element, targetElement: 'neutral', parried: true };
+    updateHUD();
+    return; // hit fully negated
+  }
+
+  // Pass 14: BLOCK — held stance. Reduce damage while guard remains.
+  let amt = amount;
+  if (player.blocking) {
+    if ((player.guard || 0) > 0) {
+      amt = amount * BLOCK_REDUCTION;
+      player.guard = Math.max(0, (player.guard || 0) - GUARD_DRAIN_PER_HIT);
+      player._lastCombatTime = performance.now() / 1000;
+      spawnBlockSpark(player.pos.clone(), 0x88bbff);
+      try { sfx.shieldBlock(); } catch {}
+    } else {
+      // Guard broken — full damage + brief stun.
+      player._stunTimer = Math.max(player._stunTimer || 0, 0.6);
+    }
+  }
+
+  const mitigated = Math.max(1, amt - player.def * 0.3);
   player.hp -= mitigated;
   player._lastHitTime = performance.now() / 1000;
   if (player._meditating) {
@@ -105,6 +153,15 @@ export class Player {
 
     this._specialCd = 0;
     this._transformCd = 0;
+
+    // Pass 14: Combat depth — heavy attack, block/parry, resource meters
+    this._heavyCd = 0;
+    this.blocking = false;       // held block stance
+    this._parryTimer = 0;        // >0 for PARRY_WINDOW after pressing block
+    this._stunTimer = 0;         // brief stun (guard break)
+    this.guard = 100;            // GUARD meter 0..100 (depletes on block, regens out of combat)
+    this.resonance = 0;          // RESONANCE meter 0..100 (builds from hits/heavy/parry)
+    this._lastCombatTime = -999; // last time guard was drained or a hit dealt
 
     this._koTimer = 0;
     this.isKO = false;
@@ -271,8 +328,14 @@ export class Player {
     if (this._specialCd > 0) this._specialCd -= dt;
     if (this._transformCd > 0) this._transformCd -= dt;
     if (this._jumpCd > 0) this._jumpCd -= dt;
+    if (this._heavyCd > 0) this._heavyCd -= dt;
+    if (this._parryTimer > 0) this._parryTimer -= dt;
+    if (this._stunTimer > 0) this._stunTimer -= dt;
     if (this._iframes > 0) this._iframes -= dt;
     if (this._comboTimer > 0) this._comboTimer -= dt; else this._comboCount = 0;
+
+    // Pass 14: block stance + guard/resonance meters
+    this._updateGuardBlock(dt);
     if (this._attackAnimActive) {
       this._attackAnim += dt * 5;
       if (this._attackAnim > 1) { this._attackAnim = 0; this._attackAnimActive = false; }
@@ -306,7 +369,10 @@ export class Player {
       return;
     }
 
-    const speed = 5.5 * (1 + (this.level - 1) * 0.05);
+    // Pass 14: block slows movement; stun freezes it.
+    let speed = 5.5 * (1 + (this.level - 1) * 0.05);
+    if (this._stunTimer > 0) speed = 0;
+    else if (this.blocking) speed *= 0.45;
     let mx = 0, mz = 0;
 
     // Pass 12: AI partner movement — if flagged, ignore keyboard and drive by AI
@@ -441,9 +507,16 @@ export class Player {
 
   attack() {
     if (this.isKO) return; // defense-in-depth KO gate
+    if (this._stunTimer > 0) return; // Pass 14: stunned (guard break)
     if (this._attackCd > 0) return;
     if (this.id === 1) this._monkAttack();
     else this._sisterAttack();
+  }
+
+  // Pass 14: grant resonance + mark in-combat (gates guard regen).
+  _gainResonance(amount) {
+    this.resonance = Math.min(100, (this.resonance || 0) + amount);
+    this._lastCombatTime = performance.now() / 1000;
   }
 
   _monkAttack() {
@@ -487,6 +560,7 @@ export class Player {
       }
     });
 
+    if (hit) this._gainResonance(HIT_RESONANCE); // Pass 14
     if (!hit) ctx.game._hitstop = 0;
   }
 
@@ -529,6 +603,101 @@ export class Player {
     ctx.impactLight.color.setHex(ELEMENT_COLORS[this.getElement()]);
     ctx.impactLight.intensity = 1.5;
     _fxTimers.push(setTimeout(() => { ctx.impactLight.intensity = 0; }, 100));
+
+    // Pass 14: building resonance on attack commitment (projectile hits decoupled).
+    this._gainResonance(HIT_RESONANCE);
+  }
+
+  // =====================================================================
+  //  PASS 14 — HEAVY ATTACK
+  // =====================================================================
+  /**
+   * Heavy attack — slower wind-up, ~2.2x the light hit's damage, applies
+   * knockback + brief stagger, longer cooldown, bigger VFX. Both heroes.
+   */
+  heavyAttack() {
+    if (this.isKO) return;
+    if (this.inactive) return;
+    if (this._stunTimer > 0) return;
+    if (this._heavyCd > 0) return;
+    this._heavyCd = 1.6;
+    this._attackCd = Math.max(this._attackCd, 0.5); // can't light-spam right after
+    this._attackAnimActive = true;
+    this._attackAnim = 0;
+
+    const pid = 'p' + this.id;
+    const element = this.id === 1 ? 'neutral' : this.getElement();
+    // Light hit damage baseline = atk (with sister elem bonus); heavy = 2.2x.
+    const lightBase = this.id === 1 ? this.atk : Math.round(this.atk * this._relicBonuses.elemDmg);
+    const dmg = Math.round(lightBase * 2.2);
+    const range = 3.6;
+
+    // Weighty feedback: hitstop + screen shake + impact light.
+    ctx.game._hitstop = Math.max(ctx.game._hitstop || 0, 0.10);
+    ctx.camState[pid].shake = 0.22;
+    ctx.impactLight.color.setHex(ELEMENT_COLORS[element] || 0xffaa00);
+    ctx.impactLight.intensity = 2.5;
+    _fxTimers.push(setTimeout(() => { ctx.impactLight.intensity = 0; }, 180));
+
+    spawnHeavySwingFx(this.pos.clone(), ELEMENT_COLORS[element] || 0xffd24b);
+    if (this.id === 1) {
+      try { sfx.monkSwing(3, true); } catch {}
+    } else {
+      try { sfx.sisterPalm(); } catch {}
+    }
+
+    let hit = false;
+    ctx.gameState.spirits.forEach(s => {
+      if (!s.alive) return;
+      if (this.pos.distanceTo(s.pos) < range) {
+        const mult = s.takeDamage(dmg, element);
+        spawnHitSparks(s.pos.clone(), element === 'neutral' ? 'neutral' : element, mult >= 2);
+        knockback(s, this.pos, 6);
+        // Brief stagger: drop into recover so it can't immediately strike back.
+        s._aiState = 'recover';
+        s._aiTimer = Math.max(s._aiTimer || 0, 1.0);
+        hit = true;
+      }
+    });
+
+    if (hit) this._gainResonance(HEAVY_RESONANCE);
+    else ctx.game._hitstop = Math.min(ctx.game._hitstop, 0.05);
+  }
+
+  // =====================================================================
+  //  PASS 14 — BLOCK / PARRY + METER UPDATE (per-frame)
+  // =====================================================================
+  _updateGuardBlock(dt) {
+    // Determine intent: held block input (human) or forced (debug/test).
+    let wantBlock = false;
+    if (this._forceBlock) {
+      wantBlock = true;
+    } else if (!this._isAiPartner) {
+      const who = this.id === 1 ? 'p1' : 'p2';
+      wantBlock = isDown(who, 'block');
+    }
+    // Can't block while stunned or KO.
+    if (this._stunTimer > 0 || this.isKO) wantBlock = false;
+
+    // Rising edge → open parry window.
+    if (wantBlock && !this.blocking) {
+      this._parryTimer = PARRY_WINDOW;
+    }
+    this.blocking = wantBlock;
+
+    // Guard meter: drains via dealDamageToPlayer; regen when out of combat
+    // and not actively blocking.
+    const sinceCombat = (performance.now() / 1000) - (this._lastCombatTime || -999);
+    if (!this.blocking && sinceCombat > 1.2 && this.guard < 100) {
+      this.guard = Math.min(100, this.guard + GUARD_REGEN * dt);
+    }
+  }
+
+  /** Pass 14 / debug: directly set the held block stance (E2E hook). */
+  setBlocking(on) {
+    this._forceBlock = !!on;
+    if (on && !this.blocking) this._parryTimer = PARRY_WINDOW;
+    if (this._stunTimer <= 0 && !this.isKO) this.blocking = !!on;
   }
 
   special() {

@@ -19,20 +19,28 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader'] });
 
 // Press a key and report the peak p1.pos.y observed over a short window.
+// NOTE: window.__game.p1 is a read-only SNAPSHOT (its .pos is a live ref, but
+// jump state like _airborne/_jumpCd is NOT writable through it). So instead of
+// poking private fields, we WAIT for the hero to be grounded (pos.y settled)
+// and for the jump cooldown to clear before each measurement.
 async function peakJumpY(page, code) {
-  // Fully ground the hero first (clear any in-flight jump + cooldown) so we
-  // measure ONLY the effect of `code`, not residual airtime from a prior jump.
-  await page.evaluate(() => {
-    const p = window.__game.p1;
-    p.pos.y = 0; p._airborne = false; p._jumpVel = 0; p._jumpCd = 0;
-  });
-  await page.keyboard.press(code);
+  // wait until grounded (pos.y stays ~0) so a prior jump can't bleed in
+  for (let i = 0; i < 25; i++) {
+    const y = await page.evaluate(() => window.__game.p1.pos.y);
+    if (y < 0.02) break;
+    await sleep(80);
+  }
+  await sleep(900); // clear the ~0.7s jump cooldown
+  await page.evaluate(() => { window.__game.p1.pos.y = 0; });
+  await page.keyboard.down(code);
   let peak = 0;
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 8; i++) {
     const y = await page.evaluate(() => window.__game.p1.pos.y);
     if (y > peak) peak = y;
     await sleep(60);
   }
+  await page.keyboard.up(code);
+  await sleep(700); // let it land before the next measurement
   return peak;
 }
 

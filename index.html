@@ -927,14 +927,29 @@ body,#game-container{
   <!-- Complete Screen -->
   <div id="complete-screen">
     <h2>&#10022; QUEST COMPLETE &#10022;</h2>
-    <p style="color:#c8a000;font-style:italic;">"The Initial Compassion"</p>
-    <p>Years of training under falling blossoms. The monk's staff had tasted shadow-blood, the sister's dragon roar had shaken heaven itself. From grief came resolve. From compassion, legend.</p>
-    <p>Shadowling, Frost Imp, Tide Wraith, Venom Oni — each fell in turn. And at the last, the <strong>Inferno Demon Lord</strong> spread his burning wings over the garden. Only when the sea answered fire did his magma heart cool to ash. The demon lord has fallen.</p>
-    <p>The garden is cleansed. All four dragon forms now flow freely — fire and ice, poison and rain. The path to mastery stretches ever onward.</p>
-    <p class="coming-soon">Quest 2: Coming Soon…</p>
-    <p style="color:#888;font-size:11px;margin-top:16px;">The garden is now your sandbox. All forms unlocked.</p>
+
+    <!-- Level 1 complete content (default visible) -->
+    <div id="complete-l1-section">
+      <p style="color:#c8a000;font-style:italic;">"The Initial Compassion"</p>
+      <p>Years of training under falling blossoms. The monk's staff had tasted shadow-blood, the sister's dragon roar had shaken heaven itself. From grief came resolve. From compassion, legend.</p>
+      <p>Shadowling, Frost Imp, Tide Wraith, Venom Oni — each fell in turn. And at the last, the <strong>Inferno Demon Lord</strong> spread his burning wings over the garden. Only when the sea answered fire did his magma heart cool to ash. The demon lord has fallen.</p>
+      <p>The garden is cleansed. All four dragon forms now flow freely — fire and ice, poison and rain. The path to mastery stretches ever onward.</p>
+      <p style="color:#888;font-size:11px;margin-top:16px;">The garden is now your sandbox. All forms unlocked.</p>
+    </div>
+
+    <!-- Level 2 complete content (hidden until L2 cleared) -->
+    <div id="complete-l2-section" style="display:none;">
+      <p style="color:#88ddff;font-style:italic;">"The Frozen Summit"</p>
+      <p>High above the clouds, where frost splits stone and breath turns to ice, the monk and his sister faced warlords clad in frozen iron. The Fire Dragon's roar melted their armour. The monk's chi shield shattered glaciers.</p>
+      <p>The <strong>Glacial Inferno Lord</strong> descended from the summit peak — ice-heart beating with ancient fire. When his frozen shell cracked open and magma poured forth, only the Water Dragon's tide could extinguish him. The peaks are silent. The snow falls clean.</p>
+      <p>The Glacial Peaks are freed. All dragon forms ring true — the bond between monk and sister grows stronger still.</p>
+      <p class="coming-soon">Quest 3: The Poison Wastes — Coming Soon…</p>
+      <p style="color:#888;font-size:11px;margin-top:16px;">All forms unlocked. The path continues.</p>
+    </div>
+
     <p class="trial-mode-label">TRIAL MODE &mdash; More levels releasing soon</p>
     <div id="complete-btns">
+      <div class="complete-btn" id="btn-next-level">NEXT LEVEL &#9654;</div>
       <div class="complete-btn" id="btn-endless">CONTINUE &mdash; ENDLESS WAVE MODE</div>
       <div class="complete-btn" id="btn-campaign">VIEW CAMPAIGN LANDS</div>
       <div class="complete-btn" id="btn-restart">RESTART LEVEL 1</div>

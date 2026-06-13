@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { ctx } from '../state.js';
 import { clearAllFx, _fxTimers, _fxEffects, spawnGoldCelebration } from '../combat/projectiles.js';
 import { sfx } from '../audio/audio.js';
-import { spawnSpirits, spawnBoss, spawnDemonLord } from '../combat/spirits.js';
+import { spawnSpirits, spawnBoss, spawnDemonLord, spawnBossScaled, spawnDemonLordScaled } from '../combat/spirits.js';
 import { spawnRelicDrop } from './progression.js';
 import { updateHUD, updateObjective, showToast, showWaveBanner, updateBossBar } from '../ui/hud.js';
 import {
@@ -26,6 +26,8 @@ export const gameState = {
   _completed: false,
   _waveClearGranted: false,
   _paused: false,
+  // Campaign level (1 = Quest 1, 2 = Quest 2, etc.)
+  level: 1,
   // Pass 12: Endless mode
   _endless: false,
   endlessCycle: 0,
@@ -36,6 +38,59 @@ export const gameState = {
   // Non-endless waves always keep 56 so clampToArena is unaffected.
   arenaRadius: 56,
 };
+
+// ── Start a specific campaign level ──────────────────────────────────────────
+// Resets per-run state and kicks off wave 1 of that level.
+// Players keep their forms/XP from a prior level run.
+export function startLevel(n) {
+  // Validate
+  if (n !== 1 && n !== 2) return;
+
+  // Hide complete screen (may be showing from previous level)
+  const completeEl = document.getElementById('complete-screen');
+  if (completeEl) completeEl.style.display = 'none';
+
+  gameState.level = n;
+  gameState._completed = false;
+  gameState._waveClearing = false;
+  gameState._waveClearGranted = false;
+  gameState._endless = false;
+  gameState.arenaRadius = SD_FULL_RADIUS;
+
+  // Clear any lingering effects/spirits
+  clearAllFx();
+  gameState.spirits.forEach(s => s.cleanup && s.cleanup());
+  gameState.spirits = [];
+
+  // Clear camera lock targets
+  try {
+    import('../game/camera.js').then(m => m.clearLockTargets()).catch(() => {});
+  } catch (_) {}
+
+  // Reset player positions
+  [gameState.p1, gameState.p2].forEach((p, i) => {
+    if (p) {
+      p.pos.set(i === 0 ? -3 : 3, 0, 5);
+      p._falling = false; p._fallVel = 0;
+      const cm = p.currentMesh && p.currentMesh();
+      if (cm) cm.position.copy(p.pos);
+    }
+  });
+
+  if (n === 2) {
+    // Level 2 starts with intro-like banner then wave 1
+    showToast('QUEST II — THE GLACIAL PEAKS. Face the frost warlords!', 3200);
+    import('../ui/hud.js').then(m => {
+      m.showBanner('QUEST II', 'THE GLACIAL PEAKS — Frost Warlords Await', '#88ddff');
+    }).catch(() => {});
+    _fxTimers.push(setTimeout(() => startWave(1), 2000));
+  } else {
+    startWave(1);
+  }
+
+  updateObjective();
+  updateHUD();
+}
 
 export function startIntro() {
   gameState.state = 'INTRO';
@@ -91,30 +146,89 @@ export function startWave(n) {
   } catch (_) {}
 
 
-  if (n === 1) {
-    spawnSpirits('neutral', 3, 'shadowling');
-    showWaveBanner('WAVE1');
-    showToast('Wave 1: Shadowlings approach! Use Space/I to attack.');
-  } else if (n === 2) {
-    spawnSpirits('ice', 4, 'frostimp');
-    showWaveBanner('WAVE2');
-    showToast('Wave 2: Frost Imps! Fire counters Ice! They lob icicles — dodge! ▲');
-  } else if (n === 3) {
-    spawnSpirits('water', 4, 'tidewraith');
-    showWaveBanner('WAVE3');
-    showToast('Wave 3: Tide Wraiths! Poison counters Water! Shield deflects bolts!');
-  } else if (n === 4) {
-    spawnBoss();
-    showWaveBanner('WAVE4');
-    showToast('WAVE 4 — MINI-BOSS: VENOM ONI! Ice counters Poison! ▲');
-  } else if (n === 5) {
-    spawnDemonLord();
-    showWaveBanner('WAVE5');
-    showToast('WAVE 5 — FINAL BOSS: INFERNO DEMON LORD! Only WATER punishes him! ▲');
+  if (gameState.level === 2) {
+    // ── LEVEL 2: The Glacial Peaks — ice-dominant, Fire dragon is the key ──
+    // dIndex(land=2, wave=n) → D values: W1=6, W2=7, W3=8, W4=9, W5=10
+    const D2 = dIndex(2, n);
+    if (n === 1) {
+      // W1: 5 Frost Imps — pure ice opening
+      spawnSpirits('ice', 5, 'frostimp');
+      _applyL2Scaling(D2);
+      showWaveBanner('L2WAVE1');
+      showToast('Glacial Peaks — Wave 1: Frost Imps surge! Fire dragon counters ice!');
+    } else if (n === 2) {
+      // W2: 4 Frost Imps + 3 Shadowlings — mixed pressure
+      spawnSpirits('ice', 4, 'frostimp');
+      spawnSpirits('neutral', 3, 'shadowling');
+      _applyL2Scaling(D2);
+      showWaveBanner('L2WAVE2');
+      showToast('Wave 2: Frost Imps and shadow scouts — keep Fire form ready!');
+    } else if (n === 3) {
+      // W3: 3 Tide Wraiths + 3 Frost Imps — elemental mix, Poison good vs water
+      spawnSpirits('water', 3, 'tidewraith');
+      spawnSpirits('ice', 3, 'frostimp');
+      _applyL2Scaling(D2);
+      showWaveBanner('L2WAVE3');
+      showToast('Wave 3: Tide Wraiths join the frost! Swap forms — Poison vs Water, Fire vs Ice!');
+    } else if (n === 4) {
+      // W4: Scaled Venom Oni + 3 Frost Imp adds — tougher mini-boss
+      spawnBossScaled(D2);
+      spawnSpirits('ice', 3, 'frostimp');
+      _applyL2ScalingAdds(D2);
+      showWaveBanner('L2WAVE4');
+      showToast('WAVE 4 — FROST WARLORD (Scaled Venom Oni)! Ice counters Poison! Watch the adds! ▲');
+    } else if (n === 5) {
+      // W5: Scaled Inferno Demon Lord — starts ICE element, Fire dragon punishes it
+      spawnDemonLordScaled(D2);
+      showWaveBanner('L2WAVE5');
+      showToast('WAVE 5 — GLACIAL INFERNO LORD! Fire dragon DESTROYS his ice heart! ▲');
+    }
+  } else {
+    // ── LEVEL 1 (unchanged) ──
+    if (n === 1) {
+      spawnSpirits('neutral', 3, 'shadowling');
+      showWaveBanner('WAVE1');
+      showToast('Wave 1: Shadowlings approach! Use Space/I to attack.');
+    } else if (n === 2) {
+      spawnSpirits('ice', 4, 'frostimp');
+      showWaveBanner('WAVE2');
+      showToast('Wave 2: Frost Imps! Fire counters Ice! They lob icicles — dodge! ▲');
+    } else if (n === 3) {
+      spawnSpirits('water', 4, 'tidewraith');
+      showWaveBanner('WAVE3');
+      showToast('Wave 3: Tide Wraiths! Poison counters Water! Shield deflects bolts!');
+    } else if (n === 4) {
+      spawnBoss();
+      showWaveBanner('WAVE4');
+      showToast('WAVE 4 — MINI-BOSS: VENOM ONI! Ice counters Poison! ▲');
+    } else if (n === 5) {
+      spawnDemonLord();
+      showWaveBanner('WAVE5');
+      showToast('WAVE 5 — FINAL BOSS: INFERNO DEMON LORD! Only WATER punishes him! ▲');
+    }
   }
 
   updateObjective();
   updateHUD();
+}
+
+// Apply Level-2 campaign scaling to ALL spirits just spawned (including boss).
+function _applyL2Scaling(D) {
+  gameState.spirits.forEach(s => {
+    s.maxHp = Math.max(1, Math.round(scaleHp(s.maxHp, D)));
+    s.hp    = s.maxHp;
+    s.atk   = Math.max(1, Math.round(scaleAtk(s.atk, D)));
+  });
+}
+
+// Apply Level-2 campaign scaling to NON-BOSS spirits only (adds spawned alongside a boss).
+function _applyL2ScalingAdds(D) {
+  gameState.spirits.forEach(s => {
+    if (s._isBoss) return; // boss is pre-scaled in spawnBossScaled / spawnDemonLordScaled
+    s.maxHp = Math.max(1, Math.round(scaleHp(s.maxHp, D)));
+    s.hp    = s.maxHp;
+    s.atk   = Math.max(1, Math.round(scaleAtk(s.atk, D)));
+  });
 }
 
 export function checkWaveComplete() {
@@ -138,39 +252,69 @@ export function checkWaveComplete() {
   const wave = gameState.wave;
   // XP retuned for 5 waves so the boss kill lands ~L5-6 (XP_TO_LEVEL: L5=520, L6=700).
   // Cumulative: 130,290,470,690 → ~L5 entering wave 5; final wave grants the rest.
-  const waveXP = [0, 130, 160, 180, 220, 300];
-  const xpAmt = waveXP[Math.min(wave, waveXP.length - 1)];
+  // Level 2 grants slightly more XP to push players to L7-8 by the end.
+  const waveXP   = [0, 130, 160, 180, 220, 300];
+  const waveXPL2 = [0, 160, 190, 210, 260, 380]; // Level 2 — harder waves, bigger payouts
+  const xpTable  = gameState.level === 2 ? waveXPL2 : waveXP;
+  const xpAmt    = xpTable[Math.min(wave, xpTable.length - 1)];
 
   gameState.p1.gainXP(xpAmt);
   gameState.p2.gainXP(xpAmt);
 
   const outerTid = setTimeout(() => {
-    if (wave === 1) {
-      gameState.p2.unlockForm('fire');
-      showToast('Sister awakens — FIRE DRAGON unlocked! Press Num4 to transform!');
-      _fxTimers.push(setTimeout(() => startWave(2), 3000));
-    } else if (wave === 2) {
-      gameState.p2.unlockForm('poison');
-      spawnRelicDrop('Prayer Beads', new THREE.Vector3(0, 0, 0));
-      showToast('POISON DRAGON unlocked! Prayer Beads relic dropped.');
-      // Pass 16 — T2 SHIKAI awakening: unlocks the ULTIMATE for both heroes.
-      // Staggered cinematic flashes so each named banner reads cleanly.
-      if (gameState.p1 && gameState.p1.grantShikai) gameState.p1.grantShikai();
-      _fxTimers.push(setTimeout(() => { if (gameState.p2 && gameState.p2.grantShikai) gameState.p2.grantShikai(); }, 2400));
-      _fxTimers.push(setTimeout(() => startWave(3), 3000));
-    } else if (wave === 3) {
-      gameState.p2.unlockForm('ice');
-      spawnRelicDrop('Dragon Pearl', new THREE.Vector3(2, 0, 0));
-      showToast('ICE DRAGON unlocked! Dragon Pearl relic dropped.');
-      _fxTimers.push(setTimeout(() => startWave(4), 3000));
-    } else if (wave === 4) {
-      gameState.p2.unlockForm('water');
-      spawnRelicDrop('Saffron Robe', new THREE.Vector3(0, 0, -15));
-      showToast('WATER DRAGON unlocked! The final trial awaits — the sea answers fire.');
-      _fxTimers.push(setTimeout(() => startWave(5), 3500));
-    } else if (wave === 5) {
-      showToast('The Inferno Demon Lord has fallen. Victory!');
-      questComplete();
+    if (gameState.level === 2) {
+      // ── Level 2 wave transitions ──
+      // Players already have all four dragon forms from Level 1.
+      // Drop better relics as rewards for harder waves.
+      if (wave === 1) {
+        showToast('Wave 1 cleared! The frost thickens…');
+        import('../ui/hud.js').then(m => m.showBanner('WAVE I CLEAR', 'The peaks grow colder…', '#88ddff')).catch(() => {});
+        _fxTimers.push(setTimeout(() => startWave(2), 3000));
+      } else if (wave === 2) {
+        spawnRelicDrop('Prayer Beads', new THREE.Vector3(0, 0, 0));
+        showToast('Wave 2 cleared! Frost Relic dropped — the peaks hunger for more.');
+        _fxTimers.push(setTimeout(() => startWave(3), 3000));
+      } else if (wave === 3) {
+        spawnRelicDrop('Dragon Pearl', new THREE.Vector3(2, 0, 0));
+        showToast('Wave 3 cleared! Dragon Pearl found in the ice. The Warlord awakens…');
+        _fxTimers.push(setTimeout(() => startWave(4), 3500));
+      } else if (wave === 4) {
+        spawnRelicDrop('Saffron Robe', new THREE.Vector3(0, 0, -15));
+        showToast('Frost Warlord defeated! Saffron Robe recovered. The Glacial Inferno Lord descends!');
+        _fxTimers.push(setTimeout(() => startWave(5), 3500));
+      } else if (wave === 5) {
+        showToast('The Glacial Inferno Lord has fallen. The Glacial Peaks are freed!');
+        questCompleteL2();
+      }
+    } else {
+      // ── Level 1 wave transitions (UNCHANGED) ──
+      if (wave === 1) {
+        gameState.p2.unlockForm('fire');
+        showToast('Sister awakens — FIRE DRAGON unlocked! Press Num4 to transform!');
+        _fxTimers.push(setTimeout(() => startWave(2), 3000));
+      } else if (wave === 2) {
+        gameState.p2.unlockForm('poison');
+        spawnRelicDrop('Prayer Beads', new THREE.Vector3(0, 0, 0));
+        showToast('POISON DRAGON unlocked! Prayer Beads relic dropped.');
+        // Pass 16 — T2 SHIKAI awakening: unlocks the ULTIMATE for both heroes.
+        // Staggered cinematic flashes so each named banner reads cleanly.
+        if (gameState.p1 && gameState.p1.grantShikai) gameState.p1.grantShikai();
+        _fxTimers.push(setTimeout(() => { if (gameState.p2 && gameState.p2.grantShikai) gameState.p2.grantShikai(); }, 2400));
+        _fxTimers.push(setTimeout(() => startWave(3), 3000));
+      } else if (wave === 3) {
+        gameState.p2.unlockForm('ice');
+        spawnRelicDrop('Dragon Pearl', new THREE.Vector3(2, 0, 0));
+        showToast('ICE DRAGON unlocked! Dragon Pearl relic dropped.');
+        _fxTimers.push(setTimeout(() => startWave(4), 3000));
+      } else if (wave === 4) {
+        gameState.p2.unlockForm('water');
+        spawnRelicDrop('Saffron Robe', new THREE.Vector3(0, 0, -15));
+        showToast('WATER DRAGON unlocked! The final trial awaits — the sea answers fire.');
+        _fxTimers.push(setTimeout(() => startWave(5), 3500));
+      } else if (wave === 5) {
+        showToast('The Inferno Demon Lord has fallen. Victory!');
+        questComplete();
+      }
     }
   }, 1500);
   _fxTimers.push(outerTid);
@@ -181,6 +325,7 @@ export function questComplete() {
   gameState._completed = true;
   clearAllFx();
   gameState.state = 'COMPLETE';
+  gameState.level = 1; // ensure level is recorded as 1 when showing complete screen
   document.getElementById('complete-screen').style.display = 'block';
   spawnGoldCelebration();
   try { sfx.questComplete(); } catch {}
@@ -191,15 +336,53 @@ export function questComplete() {
   gameState.p2.unlockForm('water');
   updateHUD();
 
+  // Show the Level 1 complete screen (show Next Level button, hide L2 complete elements)
+  const btnNext = document.getElementById('btn-next-level');
+  if (btnNext) btnNext.style.display = '';   // show "NEXT LEVEL ▶"
+  const l2CompleteSection = document.getElementById('complete-l2-section');
+  if (l2CompleteSection) l2CompleteSection.style.display = 'none';
+  const l1Section = document.getElementById('complete-l1-section');
+  if (l1Section) l1Section.style.display = '';
+
   // Wire complete-screen buttons (safe to call multiple times — idempotent)
   _wireCompleteButtons();
 }
 
+// ── Level 2 complete ──────────────────────────────────────────────────────────
+export function questCompleteL2() {
+  if (gameState._completed) return;
+  gameState._completed = true;
+  clearAllFx();
+  gameState.state = 'COMPLETE';
+  gameState.level = 2;
+  document.getElementById('complete-screen').style.display = 'block';
+  spawnGoldCelebration();
+  try { sfx.questComplete(); } catch {}
+  // Ensure all forms stay unlocked
+  gameState.p2.unlockForm('fire');
+  gameState.p2.unlockForm('ice');
+  gameState.p2.unlockForm('poison');
+  gameState.p2.unlockForm('water');
+  updateHUD();
+
+  // Show the Level 2 complete screen (hide Next Level / L1 text, show L2 section)
+  const btnNext = document.getElementById('btn-next-level');
+  if (btnNext) btnNext.style.display = 'none';  // no Level 3 yet
+  const l2CompleteSection = document.getElementById('complete-l2-section');
+  if (l2CompleteSection) l2CompleteSection.style.display = '';
+  const l1Section = document.getElementById('complete-l1-section');
+  if (l1Section) l1Section.style.display = 'none';
+
+  // Wire complete-screen buttons
+  _wireCompleteButtons();
+}
+
 function _wireCompleteButtons() {
-  const btnEndless  = document.getElementById('btn-endless');
-  const btnRestart  = document.getElementById('btn-restart');
-  const btnMainMenu = document.getElementById('btn-mainmenu');
-  const btnCampaign = document.getElementById('btn-campaign');
+  const btnEndless   = document.getElementById('btn-endless');
+  const btnRestart   = document.getElementById('btn-restart');
+  const btnMainMenu  = document.getElementById('btn-mainmenu');
+  const btnCampaign  = document.getElementById('btn-campaign');
+  const btnNextLevel = document.getElementById('btn-next-level');
   if (btnEndless && !btnEndless._wired) {
     btnEndless._wired = true;
     btnEndless.addEventListener('click', () => startEndless());
@@ -219,11 +402,17 @@ function _wireCompleteButtons() {
       import('../ui/menu.js').then(m => m.showCampaignPreview(true)).catch(() => {});
     });
   }
+  // Level 2 transition button
+  if (btnNextLevel && !btnNextLevel._wired) {
+    btnNextLevel._wired = true;
+    btnNextLevel.addEventListener('click', () => startLevel(2));
+  }
 }
 
 // ── Restart Quest (Wave 1 in same mode) ───────────────────────────────────
 // Uses location.reload() for a clean reset — matches the existing QUIT TO MENU pattern.
 // Mode/char selection persists across reload via sessionStorage.
+// Note: always restarts Level 1 (the initial quest).
 export function restartQuest() {
   // Persist the current mode settings so after reload they are restored
   try {

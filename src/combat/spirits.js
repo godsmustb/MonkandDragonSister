@@ -6,6 +6,7 @@ import { getElementMult } from '../config.js';
 import { spawnDeathParticles, _fxTimers, spawnDemonDeathDissolve } from './projectiles.js';
 import { initMeleeAI, updateMeleeAI, xzDist } from './ai.js';
 import { DEMON_BUILDERS, DEMON_DEATH_TINT } from './demons.js';
+import { scaleHp, scaleAtk } from '../game/campaign.js';
 
 // Forward-declare: set by abilities.js after it imports us (avoids circular dep).
 export let dealDamageToPlayer = null;
@@ -959,4 +960,164 @@ export function spawnBoss() {
 export function spawnDemonLord() {
   const lord = new DemonLord(new THREE.Vector3(0, 0, -16));
   ctx.gameState.spirits.push(lord);
+}
+
+// ── Level 2 scaled boss spawners (campaign D index pre-applied) ──
+/**
+ * Spawn a Venom Oni scaled to dIndex D (Level 2 usage: D=9).
+ * Base HP=260 @ D=9 → ~549.  Base ATK=18 @ D=9 → ~30.
+ * Phase 2 transition stays at 60% of the SCALED maxHp.
+ * Extra adds (ice imps) are spawned by quest.js alongside this.
+ */
+export function spawnBossScaled(D) {
+  const boss = new BossSpirit(new THREE.Vector3(0, 0, -15));
+  // Override name to distinguish from L1
+  document.getElementById('boss-name').textContent = 'FROST WARLORD';
+  // Apply campaign scaling
+  boss.maxHp = Math.max(1, Math.round(scaleHp(boss.maxHp, D)));
+  boss.hp    = boss.maxHp;
+  boss.atk   = Math.max(1, Math.round(scaleAtk(boss.atk, D)));
+  // Extra menace: phase 2 transition is 55% (slightly easier for a harder fight overall)
+  // is handled naturally — we just reduce spawnAddTimer to spawn adds sooner
+  boss.spawnAddTimer = 6; // adds spawn sooner in L2
+  // Increase speed slightly for extra pressure
+  boss._baseSpeed *= 1.1;
+  boss.speed = boss._baseSpeed;
+  ctx.gameState.spirits.push(boss);
+}
+
+/**
+ * Spawn an Inferno Demon Lord scaled to dIndex D (Level 2 usage: D=10).
+ * Base HP=400 @ D=10 → ~868.  Base ATK=22 @ D=10 → ~38.
+ * ELEMENT CHANGE: spawns with 'ice' element from the start (Level 2 theme).
+ * Fire dragon is immediately effective (counter at 2×) from phase 1 onward.
+ * Phase 2 at 65% HP (earlier than L1's 70%).
+ * Phase 3 at 30% HP — shifts to FIRE element so WATER dragon counters again.
+ * An extra add wave of Frost Imps spawns at phase 2.
+ */
+export function spawnDemonLordScaled(D) {
+  const lord = new DemonLordL2(new THREE.Vector3(0, 0, -16), D);
+  ctx.gameState.spirits.push(lord);
+}
+
+// ── Level 2 Final Boss: Glacial Inferno Lord ─────────────────────────────────
+// Extends DemonLord with:
+//  • Starts as ICE element (Fire dragon is optimal from the start)
+//  • Phase 2 at 65% HP (earlier); Phase 3 at 30% HP (shifts back to FIRE → Water counters)
+//  • Extra add wave at phase 2 (3 Frost Imps)
+//  • Faster ember storm + denser ground AOEs
+//  • Scaled HP/ATK via campaign D index
+class DemonLordL2 extends DemonLord {
+  constructor(pos, D) {
+    super(pos);
+    // Override name
+    document.getElementById('boss-name').textContent = 'GLACIAL INFERNO LORD';
+    // Apply campaign scaling
+    this.maxHp = Math.max(1, Math.round(scaleHp(this.maxHp, D)));
+    this.hp    = this.maxHp;
+    this.atk   = Math.max(1, Math.round(scaleAtk(this.atk, D)));
+    // Start as ICE — Fire dragon is immediately the counter
+    this.element = 'ice';
+    if (this._light) this._light.color.setHex(0x66ccff);
+    // Tighter cadences for harder feel
+    this._enrageAt = 90;       // enrages at 90s (L1 is 120s)
+    this._enrageAtkMult = 1.5; // +50% ATK (L1 is +40%)
+    this.attackCooldown = 3.0; // faster (L1 is 3.5)
+    this._emberTimer = 3;      // more frequent embers (L1 is 4)
+    this._flameWaveTimer = 5;  // more frequent waves (L1 is 7)
+  }
+
+  // Override phase thresholds and add the extra ice-add spawn at P2
+  _checkPhase(players) {
+    if (this.phase === 1 && this.hp <= this.maxHp * 0.65) this._enterPhase2L2();
+    else if (this.phase === 2 && this.hp <= this.maxHp * 0.30) this._enterPhase3L2();
+  }
+
+  _enterPhase2L2() {
+    this.phase = 2;
+    this._baseSpeed *= 1.25; this.speed = this._baseSpeed;
+    this.attackCooldown = 2.4;
+    this.spawnAddTimer = 3; // adds come fast
+    this.mesh.scale.multiplyScalar(1.06);
+    if (ctx.impactLight) {
+      ctx.impactLight.color.setHex(0x66ccff); ctx.impactLight.intensity = 3;
+      _fxTimers.push(setTimeout(() => { if (ctx.impactLight) ctx.impactLight.intensity = 0; }, 1200));
+    }
+    ctx.camState.p1.shake = 0.40; ctx.camState.p2.shake = 0.40;
+    // Spawn 3 Frost Imp adds to punish players
+    for (let i = 0; i < 3; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const pos = new THREE.Vector3(Math.cos(angle) * 14, 1, Math.sin(angle) * 14);
+      const add = new Spirit(null, pos, 2, 'frostimp');
+      ctx.gameState.spirits.push(add);
+    }
+    import('../ui/hud.js').then(m => {
+      m.showBanner('GLACIAL LORD: FROST STORM', 'Ice adds — the peaks crack open! Fire wins!', '#88ddff');
+    }).catch(() => {});
+  }
+
+  _enterPhase3L2() {
+    this.phase = 3;
+    // Shift element BACK to fire — now WATER dragon is the best counter
+    this.element = 'fire';
+    if (this._light) this._light.color.setHex(0xff3300);
+    this._baseSpeed *= 1.15; this.speed = this._baseSpeed;
+    this.attackCooldown = 1.9;
+    if (ctx.impactLight) {
+      ctx.impactLight.color.setHex(0xff3300); ctx.impactLight.intensity = 4;
+      _fxTimers.push(setTimeout(() => { if (ctx.impactLight) ctx.impactLight.intensity = 0; }, 1400));
+    }
+    ctx.camState.p1.shake = 0.50; ctx.camState.p2.shake = 0.50;
+    import('../ui/hud.js').then(m => {
+      m.showBanner('GLACIAL LORD: MAGMA REBIRTH', 'Element shifts to FIRE — swap to WATER dragon!', '#ff5522');
+    }).catch(() => {});
+  }
+
+  // L2 uses a richer attack bag at every phase
+  _attackBag() {
+    const bag = [
+      { name: 'melee_slam',   weight: 3 },
+      { name: 'fire_barrage', weight: 3 }, // re-used but does ice/fire damage based on element
+    ];
+    if (this.phase >= 2) {
+      bag.push({ name: 'ground_aoe',    weight: 3 });
+      bag.push({ name: 'gap_closer_l2', weight: 2 }); // new: aggressive lunge
+    }
+    if (this.phase >= 3) {
+      bag.push({ name: 'ground_aoe',    weight: 2 });
+      bag.push({ name: 'element_burst', weight: 2 });
+    }
+    return bag;
+  }
+
+  _doAttack(name, players) {
+    if (name === 'gap_closer_l2') {
+      this._gapCloserL2(players);
+    } else {
+      super._doAttack(name, players);
+    }
+  }
+
+  // Quick lunge — same as Venom Oni's gap closer, re-implemented here
+  _gapCloserL2(players) {
+    let target = null, best = Infinity;
+    players.forEach(p => {
+      if (p.inactive || p.isKO) return;
+      const dx = p.pos.x - this.pos.x, dz = p.pos.z - this.pos.z;
+      const d = Math.sqrt(dx*dx + dz*dz);
+      if (d < best) { best = d; target = p; }
+    });
+    if (!target) return;
+    const dx = target.pos.x - this.pos.x, dz = target.pos.z - this.pos.z;
+    const len = Math.sqrt(dx*dx + dz*dz) || 1;
+    const dash = Math.min(len - 2, 10);
+    if (dash > 0) {
+      this.pos.x += (dx / len) * dash;
+      this.pos.z += (dz / len) * dash;
+      this.pos.x = THREE.MathUtils.clamp(this.pos.x, -20, 20);
+      this.pos.z = THREE.MathUtils.clamp(this.pos.z, -20, 20);
+      spawnDeathParticles(new THREE.Vector3(this.pos.x, 0.3, this.pos.z), 0x66ccff);
+      ctx.camState.p1.shake = 0.25; ctx.camState.p2.shake = 0.25;
+    }
+  }
 }

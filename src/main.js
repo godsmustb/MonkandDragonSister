@@ -391,10 +391,10 @@ function animate() {
     updateObjective();
     _updateLivesHUD();
     updateTouchOverlay();
-    // Boss bar: show during wave 4 and 5
+    // Boss bar: show during wave 4 and 5 (both Level 1 and Level 2)
     const _ws = gameState.state;
     if (_ws === 'WAVE4' || _ws === 'WAVE5') {
-      const boss = gameState.spirits.find(s => s.alive && (s._type === 'venomoni' || s._type === 'infernolord'));
+      const boss = gameState.spirits.find(s => s.alive && s._isBoss);
       updateBossBar(boss, !!boss);
     } else {
       updateBossBar(null, false);

@@ -9,7 +9,7 @@
 // SUDDEN DEATH ADDITIONS: arenaRadius, suddenDeathElapsed, startEndless()
 import { ctx } from './state.js';
 import { IS_TOUCH } from './ui/touch.js';
-import { endIntro, startEndless as _startEndless } from './game/quest.js';
+import { endIntro, startEndless as _startEndless, startLevel as _startLevel } from './game/quest.js';
 import { startGame as menuStartGame } from './ui/menu.js';
 import { consumeLife as _consumeLife, loadHighScores, recordScore as _recordScore } from './game/lives.js';
 import { toggleLockOn, camExtra } from './game/camera.js';
@@ -30,6 +30,7 @@ export function setupDebugAPI() {
     get state()   { return ctx.gameState.state; },
     get wave()    { return ctx.gameState.wave; },
     get lives()   { return ctx.gameState.lives != null ? ctx.gameState.lives : 3; },
+    get level()   { return ctx.gameState.level != null ? ctx.gameState.level : 1; },
 
     get spirits() {
       return ctx.gameState.spirits.filter(s => s.alive).map(s => ({
@@ -95,6 +96,15 @@ export function setupDebugAPI() {
      * Note: players must already be initialised (after startGame() / skipIntro()).
      */
     startEndless() { _startEndless(); },
+
+    /**
+     * Start a specific campaign level (1 or 2).
+     * Players must already be initialised (after startGame() / skipIntro()).
+     * Level 2 assumes all dragon forms are already unlocked; call unlockAll() first
+     * if testing from wave 1 without completing Level 1.
+     * @param {number} n - 1 or 2
+     */
+    startLevel(n) { _startLevel(n); },
 
     // Score system
     get score() { return ctx.gameState.score || 0; },

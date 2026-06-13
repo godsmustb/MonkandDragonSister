@@ -63,6 +63,12 @@ const WAVE_BANNER_DATA = {
   WAVE3: { title: 'WAVE III', sub: 'Tide Wraiths — Water element' },
   WAVE4: { title: 'WAVE IV',  sub: 'Venom Oni — Mini-boss' },
   WAVE5: { title: 'WAVE V',   sub: 'Inferno Demon Lord — Final Boss' },
+  // Level 2 wave banners
+  L2WAVE1: { title: 'WAVE I',   sub: 'Frost Imps — Glacial Peaks' },
+  L2WAVE2: { title: 'WAVE II',  sub: 'Frost & Shadow mixed assault' },
+  L2WAVE3: { title: 'WAVE III', sub: 'Ice & Water combined force' },
+  L2WAVE4: { title: 'WAVE IV',  sub: 'Frost Warlord — Scaled Mini-boss' },
+  L2WAVE5: { title: 'WAVE V',   sub: 'Glacial Inferno Lord — Final Boss' },
 };
 
 export function showWaveBanner(state) {
@@ -908,16 +914,30 @@ export function updateObjective() {
   const alive  = spirits.filter(s => s.alive).length;
   const total  = spirits.length;
 
+  const level = ctx.gameState && ctx.gameState.level != null ? ctx.gameState.level : 1;
   let txt = '';
   if (!state || state === 'MENU')       txt = '';
   else if (state === 'INTRO')           txt = 'Awaiting the storm…';
-  else if (state === 'WAVE1')           txt = `Wave 1 — Shadowlings  ${alive}/${total}`;
-  else if (state === 'WAVE2')           txt = `Wave 2 — Frost Imps  ${alive}/${total}`;
-  else if (state === 'WAVE3')           txt = `Wave 3 — Tide Wraiths  ${alive}/${total}`;
-  else if (state === 'WAVE4')           txt = 'Wave 4 — Venom Oni (mini-boss)';
-  else if (state === 'WAVE5')           txt = 'Wave 5 — Inferno Demon Lord';
+  else if (state === 'COMPLETE' && level === 2) txt = 'Glacial Peaks Freed!';
   else if (state === 'COMPLETE')        txt = 'Garden Cleansed!';
   else if (state === 'GAMEOVER')        txt = 'Game Over';
+  else if (level === 2) {
+    // Level 2 objective text
+    if (state === 'WAVE1')      txt = `Glacial W1 — Frost Imps  ${alive}/${total}`;
+    else if (state === 'WAVE2') txt = `Glacial W2 — Mixed Assault  ${alive}/${total}`;
+    else if (state === 'WAVE3') txt = `Glacial W3 — Ice & Water  ${alive}/${total}`;
+    else if (state === 'WAVE4') txt = 'Glacial W4 — Frost Warlord';
+    else if (state === 'WAVE5') txt = 'Glacial W5 — Glacial Inferno Lord';
+    else                        txt = state;
+  } else {
+    // Level 1 objective text (UNCHANGED)
+    if (state === 'WAVE1')      txt = `Wave 1 — Shadowlings  ${alive}/${total}`;
+    else if (state === 'WAVE2') txt = `Wave 2 — Frost Imps  ${alive}/${total}`;
+    else if (state === 'WAVE3') txt = `Wave 3 — Tide Wraiths  ${alive}/${total}`;
+    else if (state === 'WAVE4') txt = 'Wave 4 — Venom Oni (mini-boss)';
+    else if (state === 'WAVE5') txt = 'Wave 5 — Inferno Demon Lord';
+    else                        txt = state;
+  }
 
   ['p1','p2'].forEach(pid => {
     const txtEl = document.getElementById('obj-text-' + pid);
@@ -966,11 +986,24 @@ export function updateBossBar(boss, show) {
   if (phaseEl) phaseEl.textContent = roman + (boss.enraged ? ' • ENRAGED' : '');
 
   // Name (Pass 16: phase 3 of the lord tints toward its shifted element)
+  // Level 2 bosses set their own name via document.getElementById at spawn time;
+  // we only tint by phase here rather than overwriting the set name.
   if (nameEl && boss._type) {
-    const names = { venomoni: 'Venom Oni — Mini-boss', infernolord: 'Inferno Demon Lord' };
-    nameEl.textContent = names[boss._type] || boss._type;
-    let col = phase >= 2 ? '#ff44ff' : '#ff8844';
-    if (boss._type === 'infernolord' && phase >= 3) col = '#66ccff'; // ice shift
+    const gs = ctx.gameState;
+    const isL2 = gs && gs.level === 2;
+    if (!isL2) {
+      // Level 1: use the canonical names
+      const names = { venomoni: 'Venom Oni — Mini-boss', infernolord: 'Inferno Demon Lord' };
+      nameEl.textContent = names[boss._type] || boss._type;
+    }
+    // Tint: venomoni phases use purple→bright-purple; infernolord uses fire→ice
+    let col;
+    if (boss._type === 'venomoni') {
+      col = phase >= 2 ? '#ff44ff' : '#ff8844';
+    } else {
+      // infernolord / DemonLordL2 — color follows current element
+      col = boss.element === 'ice' ? '#66ccff' : (phase >= 2 ? '#ff5522' : '#ff8844');
+    }
     nameEl.style.color = col;
   }
 }

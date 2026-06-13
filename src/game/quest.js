@@ -135,6 +135,10 @@ export function startWave(n) {
   gameState.state = 'WAVE' + n;
   gameState._waveClearing = false;
   gameState._waveClearGranted = false;
+  // Analytics: wave_reached (fail-silent dynamic import — python server has no PHP)
+  import('./analytics.js').then(m => m.track('wave_reached', {
+    stage: gameState.level, wave: n,
+  })).catch(() => {});
   // Non-endless waves always use the full arena radius.
   // Endless uses startEndless() which sets arenaRadius via resetSuddenDeath.
   if (!gameState._endless) {
@@ -437,6 +441,10 @@ export function questComplete() {
   // Wire complete-screen buttons (safe to call multiple times — idempotent)
   _wireCompleteButtons();
 
+  // Analytics: level_complete (fail-silent)
+  import('./analytics.js').then(m => m.track('level_complete', {
+    stage: 1, score: gameState.score,
+  })).catch(() => {});
   // Submit score to leaderboard (stage 1) — fully async, silent on failure
   _submitQuestScore(1, 'QUEST I COMPLETE — Stage 1');
 }
@@ -471,6 +479,10 @@ export function questCompleteL2() {
   // Wire complete-screen buttons
   _wireCompleteButtons();
 
+  // Analytics: level_complete (fail-silent)
+  import('./analytics.js').then(m => m.track('level_complete', {
+    stage: 2, score: gameState.score,
+  })).catch(() => {});
   // Submit score to leaderboard (stage 2) — fully async, silent on failure
   _submitQuestScore(2, 'QUEST II COMPLETE — Stage 2');
 }
@@ -505,6 +517,10 @@ export function questCompleteL3() {
   // Wire complete-screen buttons
   _wireCompleteButtons();
 
+  // Analytics: level_complete (fail-silent)
+  import('./analytics.js').then(m => m.track('level_complete', {
+    stage: 3, score: gameState.score,
+  })).catch(() => {});
   // Submit score to leaderboard (stage 3) — fully async, silent on failure
   _submitQuestScore(3, 'QUEST III COMPLETE — Stage 3');
 }

@@ -138,6 +138,12 @@ export function dealDamageToPlayer(player, amount, element) {
     player.hp = 0;
     player.isKO = true;
     try { sfx.playerKO(); } catch {}
+    // Analytics: player_death (fail-silent dynamic import)
+    import('../game/analytics.js').then(m => m.track('player_death', {
+      stage:   ctx.gameState.level || 1,
+      wave:    ctx.gameState.wave  || 0,
+      endless: !!ctx.gameState._endless,
+    })).catch(() => {});
     if (ctx.gameState._endless) {
       // Endless = SUDDEN DEATH: a single KO ends the run immediately — no revive,
       // no life spent. (Regular play keeps the 3-lives / 10s-revive system.)

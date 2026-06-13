@@ -328,6 +328,25 @@ export function setupDebugAPI() {
         .catch(() => []);
     },
 
+    // ── Analytics debug API ──────────────────────────────────────────────────
+    // Silent — safe to call from E2E (python server = analytics POST will 404, no error).
+    analytics: {
+      /** The anonymous device ID stored in localStorage (mds_device_id). */
+      get deviceId() {
+        return import('./game/analytics.js')
+          .then(m => m.getDeviceId())
+          .catch(() => null);
+      },
+      /**
+       * Fire an analytics event programmatically.
+       * @param {string} type  - whitelisted event type
+       * @param {Object} props - optional payload
+       */
+      track(type, props = {}) {
+        import('./game/analytics.js').then(m => m.track(type, props)).catch(() => {});
+      },
+    },
+
     // ── Touch API (for test harness) ──────────────────────────────────────
     /** Whether touch controls are active on this device/session */
     get isTouch() { return IS_TOUCH; },

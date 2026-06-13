@@ -10,3 +10,6 @@ deploy.config.json
 
 # Leaderboard runtime data (server-generated)
 api/data/scores.json
+
+# Analytics runtime data (server-generated, never commit player data)
+api/data/analytics.jsonl

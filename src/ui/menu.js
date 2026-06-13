@@ -111,8 +111,19 @@ export function buildMenu() {
   // Store for highlight updates
   _menuEl._itemEls = _itemEls;
 
+  // Privacy notice — unobtrusive footer
+  const privacyNote = document.createElement('p');
+  privacyNote.id = 'analytics-notice';
+  privacyNote.textContent = 'Anonymous gameplay stats help improve the game.';
+  privacyNote.style.cssText = `
+    position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
+    font-size:10px;color:rgba(150,130,80,0.55);letter-spacing:1px;
+    pointer-events:none;white-space:nowrap;
+  `;
+
   _menuEl.appendChild(titleWrap);
   _menuEl.appendChild(itemsWrap);
+  _menuEl.appendChild(privacyNote);
   document.body.appendChild(_menuEl);
 
   // Keyboard navigation

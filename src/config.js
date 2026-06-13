@@ -69,6 +69,15 @@ export const IS_TOUCH = (typeof window !== 'undefined') && !!(
   window.matchMedia && window.matchMedia('(pointer:coarse)').matches
 );
 
+// Whether the server-side APIs (leaderboard, analytics PHP) should be called.
+// FALSE on localhost / 127.x / file:// — those have no PHP, and POSTing there
+// makes the browser log a 501 "Failed to load resource" console error that JS
+// catch() cannot suppress. On a real deployed domain this is TRUE and the APIs
+// work; locally the clients fall back to localStorage. Keeps the test gate clean.
+export const API_ENABLED = (typeof window !== 'undefined') && !!window.location &&
+  window.location.protocol !== 'file:' &&
+  !/^(localhost|127\.|0\.0\.0\.0|\[?::1\]?$)/i.test(window.location.hostname || '');
+
 export const PREVENT_KEYS = new Set([
   'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
   'Numpad8', 'Numpad4', 'Numpad5', 'Numpad6', 'Numpad7', 'Numpad9', 'Numpad0',

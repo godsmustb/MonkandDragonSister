@@ -4,6 +4,7 @@
 // All network calls are try/catch + short timeout — ZERO console errors on failure.
 
 import { recordScore as localRecord, loadHighScores as localLoad } from './lives.js';
+import { API_ENABLED } from '../config.js';
 
 const API_URL = './api/leaderboard.php';
 const LS_NAME_KEY = 'mds_player_name';
@@ -27,6 +28,9 @@ export function setPlayerName(n) {
 
 // ── Fetch with timeout (returns null on any failure) ───────────────────────
 async function _fetchWithTimeout(url, opts) {
+  // Skip the network on localhost / file:// (no PHP) so we never trigger a 501
+  // console error; callers fall back to localStorage. Live domain → enabled.
+  if (!API_ENABLED) return null;
   const ctrl = new AbortController();
   const tid = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   try {

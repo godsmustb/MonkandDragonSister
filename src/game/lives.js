@@ -84,6 +84,13 @@ export function triggerGameOver() {
   ctx.gameState.state = 'GAMEOVER';
   clearAllFx();
   try { sfx.gameOver(); } catch {}
+  // Analytics: game_over (fail-silent dynamic import)
+  import('./analytics.js').then(m => m.track('game_over', {
+    stage:   ctx.gameState.level || 1,
+    wave:    ctx.gameState.wave  || 0,
+    score:   ctx.gameState.score || 0,
+    endless: !!ctx.gameState._endless,
+  })).catch(() => {});
 
   // Stop all spirits from acting
   ctx.gameState.spirits.forEach(s => { s.alive = false; });

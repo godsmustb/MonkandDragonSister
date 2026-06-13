@@ -4,3 +4,9 @@ test/results.json
 
 # Claude Code agent worktrees (temp)
 .claude/worktrees/
+
+# FTP deploy secrets (never commit)
+deploy.config.json
+
+# Leaderboard runtime data (server-generated)
+api/data/scores.json

@@ -1,0 +1,12 @@
+{
+  "name": "monk-dragon-sister",
+  "private": true,
+  "type": "module",
+  "description": "The Monk & The Dragon Sister — browser game. This package.json exists for the FTP deploy tooling only; the game itself is static (index.html + src/ + vendor/).",
+  "scripts": {
+    "deploy": "node deploy.mjs"
+  },
+  "dependencies": {
+    "basic-ftp": "^5.3.1"
+  }
+}

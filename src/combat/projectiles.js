@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { ctx } from '../state.js';
 import { ELEMENT_COLORS, ARENA_SIZE } from '../config.js';
 import { sfx } from '../audio/audio.js';
+import { resetJuice } from '../game/juice.js';
 
 // ---- Module-scope registries ----
 export const _projectiles = [];
@@ -49,6 +50,9 @@ export function clearAllFx() {
   _fxTimers.length = 0;
   _fxEffects.forEach(fx => { if (fx.cleanup) fx.cleanup(); });
   _fxEffects.length = 0;
+  // JUICE: a wave transition / restart must also drop any in-flight hitstop or
+  // slow-mo so time-scale resets to exactly 1 (no stuck-slow across waves).
+  try { resetJuice(); } catch {}
 }
 
 export function updateFxEffects(dt) {
@@ -100,7 +104,8 @@ export function updateParticles(dt) {
     if (p.gravity !== false) p.vel.y -= 9.8 * dt;
     p.mesh.position.addScaledVector(p.vel, dt);
     p.life -= dt;
-    p.mesh.material.opacity = Math.max(0, p.life / p.maxLife);
+    p.mesh.material.opacity = Math.max(0, p.life / p.maxLife) * (p._opaScale != null ? p._opaScale : 1);
+    if (p._grow) p.mesh.scale.setScalar(p._baseScale + p._grow * (1 - p.life / p.maxLife));
     if (p.spin) p.mesh.rotation.x += dt * p.spin;
     if (p.life <= 0) {
       ctx.scene.remove(p.mesh);
@@ -108,6 +113,112 @@ export function updateParticles(dt) {
     }
   }
 }
+
+// =====================================================================
+//  JUICE — MOVEMENT DUST (pooled via _particles)
+// =====================================================================
+// Small ground-tinted puffs under a player while running, with a bigger
+// burst on dodge. Pooled through _particles (no per-frame allocation churn:
+// each puff is one short-lived mesh, identical to spark/death particles).
+const _DUST_COL = 0xbfae8e;  // warm zen-garden dust tone
+
+/**
+ * Spawn a single subtle dust puff at a moving player's feet. Throttle the
+ * CALLER (e.g. an accumulator) — this just emits one puff.
+ */
+export function spawnMovementDust(pos) {
+  const scene = ctx.scene;
+  const m = new THREE.Mesh(GEO.sphere4,
+    new THREE.MeshBasicMaterial({ color: _DUST_COL, transparent: true, opacity: 0.5,
+      depthWrite: false }));
+  const base = 0.10 + Math.random() * 0.06;
+  m.scale.setScalar(base);
+  m.position.set(pos.x + (Math.random() - 0.5) * 0.4, 0.06, pos.z + (Math.random() - 0.5) * 0.4);
+  scene.add(m);
+  const ang = Math.random() * Math.PI * 2;
+  const sp = 0.4 + Math.random() * 0.5;
+  _particles.push({
+    mesh: m, vel: new THREE.Vector3(Math.cos(ang) * sp, 0.6 + Math.random() * 0.4, Math.sin(ang) * sp),
+    life: 0.4, maxLife: 0.4, type: 'dust', gravity: false,
+    _opaScale: 0.5, _baseScale: base, _grow: 0.18,
+  });
+}
+
+/** Bigger ring of dust on dodge/dash kick-off. */
+export function spawnDodgeDust(pos) {
+  const scene = ctx.scene;
+  const N = 7;
+  for (let i = 0; i < N; i++) {
+    const m = new THREE.Mesh(GEO.sphere4,
+      new THREE.MeshBasicMaterial({ color: _DUST_COL, transparent: true, opacity: 0.6,
+        depthWrite: false }));
+    const base = 0.12 + Math.random() * 0.08;
+    m.scale.setScalar(base);
+    m.position.set(pos.x, 0.06, pos.z);
+    scene.add(m);
+    const ang = (i / N) * Math.PI * 2 + Math.random() * 0.4;
+    const sp = 1.8 + Math.random() * 1.6;
+    _particles.push({
+      mesh: m, vel: new THREE.Vector3(Math.cos(ang) * sp, 0.9 + Math.random() * 0.7, Math.sin(ang) * sp),
+      life: 0.5, maxLife: 0.5, type: 'dust', gravity: false,
+      _opaScale: 0.6, _baseScale: base, _grow: 0.3,
+    });
+  }
+}
+
+// =====================================================================
+//  JUICE — ENEMY HIT-FLASH (dt-driven, pooled via _fxEffects)
+// =====================================================================
+// Briefly flash a spirit/demon/boss's body material toward white on damage,
+// decaying over ~0.12s. Caches the base emissive (or color, for materials
+// without emissive) and restores it — never leaks across material instances.
+// Re-using the same _body re-arms the SAME fx entry (no stacking / no double
+// restore). dt-driven through _fxEffects so it respects hitstop/slow-mo and is
+// cleared by clearAllFx() on wave transitions.
+const _hitFlashMap = new WeakMap(); // material -> fx entry (re-arm guard)
+
+export function spawnHitFlash(material, duration = 0.12) {
+  if (!material) return;
+  const useEmissive = material.emissive !== undefined && material.emissive !== null;
+
+  // Re-arm an existing flash on this material rather than stacking.
+  const existing = _hitFlashMap.get(material);
+  if (existing && existing.timer > 0) {
+    existing.timer = duration;
+    existing._dur = duration;
+    return;
+  }
+
+  // Cache the true base value ONCE so repeated flashes restore correctly.
+  let base;
+  if (useEmissive) {
+    base = material.emissive.clone();
+  } else if (material.color !== undefined) {
+    base = material.color.clone();
+  } else {
+    return; // nothing to flash
+  }
+
+  const entry = {
+    timer: duration,
+    _dur: duration,
+    tick: function (dt) {
+      const k = Math.max(0, this.timer / this._dur); // 1 → 0
+      // Lerp toward white by k, decaying back to the cached base value.
+      if (useEmissive) material.emissive.copy(base).lerp(_WHITE, k);
+      else material.color.copy(base).lerp(_WHITE, k);
+    },
+    cleanup: function () {
+      // Hard restore to the cached base (no drift).
+      if (useEmissive) material.emissive.copy(base);
+      else if (material.color !== undefined) material.color.copy(base);
+      _hitFlashMap.delete(material);
+    },
+  };
+  _hitFlashMap.set(material, entry);
+  _fxEffects.push(entry);
+}
+const _WHITE = new THREE.Color(1, 1, 1);
 
 // =====================================================================
 //  LEVEL-UP FLASH

@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import { ctx } from '../state.js';
 import { ELEMENT_COLORS, ARENA_SIZE, DEMON_TABLE, WAVE_DEMON } from '../config.js';
 import { getElementMult } from '../config.js';
-import { spawnDeathParticles, _fxTimers, spawnDemonDeathDissolve } from './projectiles.js';
+import { spawnDeathParticles, _fxTimers, spawnDemonDeathDissolve, spawnHitFlash } from './projectiles.js';
+import { triggerHitstop, triggerBossSlowmo } from '../game/juice.js';
 import { initMeleeAI, updateMeleeAI, xzDist } from './ai.js';
 import { DEMON_BUILDERS, DEMON_DEATH_TINT } from './demons.js';
 import { scaleHp, scaleAtk } from '../game/campaign.js';
@@ -91,8 +92,15 @@ export class Spirit {
     const cfg = DEMON_TABLE[this._type];
     if (cfg && cfg.scale && !this._isBoss) g.scale.setScalar(cfg.scale);
     this.mesh = g;
-    // _body: first part flagged as body, used for hit-flash emissive.
+    // _body: part flagged as body, used for the dt-driven hit-flash. toonMat()
+    // CACHES + SHARES material instances by colour, so two demons of the same
+    // type share one material. Clone this demon's body material so a hit-flash
+    // on one never bleeds onto its siblings (per-instance, no shared-state leak).
     this._body = this._parts.body || null;
+    if (this._body && this._body.material && !this._body.material._mdsHitClone) {
+      this._body.material = this._body.material.clone();
+      this._body.material._mdsHitClone = true;
+    }
   }
 
   _makeHpBar() {
@@ -300,12 +308,14 @@ export class Spirit {
 
     if (showDamageNumber) showDamageNumber(this.pos, finalDmg, attackerElement, mult);
 
-    if (this._body && this._body.material && this._body.material.emissive !== undefined) {
-      this._body.material.emissive = new THREE.Color(1, 1, 1);
-      const _self = this;
-      const tid = setTimeout(() => { if (_self._body && _self._body.material) _self._body.material.emissive = new THREE.Color(0, 0, 0); }, 100);
-      _fxTimers.push(tid);
-    }
+    // JUICE — dt-driven enemy hit-flash (pooled, restores base, no leak/setTimeout).
+    if (this._body && this._body.material) spawnHitFlash(this._body.material, 0.12);
+
+    // JUICE — HITSTOP on impactful hits: ANY hit on a boss freezes the beat.
+    // Heavy/finisher/special/ultimate hits on normal demons trigger hitstop
+    // explicitly from abilities.js. Light chip hits do NOT freeze. The juice
+    // manager clamps duration + gates a cooldown so freezes can't stack.
+    if (this._isBoss) triggerHitstop(0.07);
 
     if (this.hp <= 0) { this.die(); return mult; }
     return mult;
@@ -313,6 +323,9 @@ export class Spirit {
 
   die() {
     this.alive = false;
+    // JUICE — cinematic slow-mo on any boss death (venomoni / infernolord + L2/L3
+    // variants all set _isBoss). Ramps ctx.timeScale down then eases back to 1.
+    if (this._isBoss) triggerBossSlowmo();
     // Award score for this kill
     const pts = _SCORE_KILL[this._type] || 25;
     _addScore(pts);

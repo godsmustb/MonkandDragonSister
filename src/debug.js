@@ -73,6 +73,10 @@ export function setupDebugAPI() {
     lastDamage: null,
     lastPlayerDamage: null,
 
+    // JUICE: current simulation time-scale (1 = normal, ≈0 = hitstop freeze,
+    // ~0.35 = boss-death slow-mo). Read-only debug probe; additive.
+    get timeScale() { return ctx.timeScale != null ? ctx.timeScale : 1; },
+
     // Pass 7: true once AudioContext is created (first user gesture).
     // Headless test environment has WebAudio API but no audio output;
     // audioReady is set to true by audio.js after context creation.

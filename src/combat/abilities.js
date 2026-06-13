@@ -19,8 +19,9 @@ import {
   buildChiShieldMesh, spawnShieldImpactRipple,
   spawnMeditationLotus,
   spawnHeavySwingFx, spawnBlockSpark, spawnParryFlash,
-  spawnUltimateAura,
+  spawnUltimateAura, spawnDodgeDust,
 } from './projectiles.js';
+import { triggerHitstop } from '../game/juice.js';
 import { updateHUD } from '../ui/hud.js';
 import { showToast, showBanner, showPlayerToast } from '../ui/hud.js';
 import { addFovKick } from '../game/camera.js';
@@ -89,7 +90,7 @@ export function dealDamageToPlayer(player, amount, element) {
   if (player.blocking && (player._parryTimer || 0) > 0) {
     player._parryTimer = 0;
     player.resonance = Math.min(100, (player.resonance || 0) + PARRY_RESONANCE);
-    ctx.game._hitstop = Math.max(ctx.game._hitstop || 0, 0.10);
+    triggerHitstop(0.09); // perfect parry — signature freeze
     ctx.camState['p' + player.id].shake = 0.18;
     spawnParryFlash(player.pos.clone(), 0xffffff);
     try { sfx.shieldBlock(); } catch {}
@@ -623,8 +624,6 @@ export class Player {
       _fxTimers.push(setTimeout(() => { ctx.impactLight.intensity = 0; }, 150));
     }
 
-    ctx.game._hitstop = isFinisher ? 0.08 : 0.04;
-
     // Staff trail VFX
     const trail = spawnMonkStaffTrail(isFinisher);
     this._activeStaffTrail = trail;
@@ -644,7 +643,9 @@ export class Player {
     });
 
     if (hit) this._gainResonance(HIT_RESONANCE); // Pass 14
-    if (!hit) ctx.game._hitstop = 0;
+    // JUICE — hitstop only on a connecting 3-hit FINISHER (heavy beat). Light
+    // chip hits (combo 1-2) do not freeze. (Boss hits also freeze via takeDamage.)
+    if (hit && isFinisher) triggerHitstop(0.08);
   }
 
   _sisterAttack() {
@@ -715,8 +716,7 @@ export class Player {
     const dmg = Math.round(lightBase * 2.2 * this._ultMult()); // Pass 16 ult buff
     const range = 3.6;
 
-    // Weighty feedback: hitstop + screen shake + impact light.
-    ctx.game._hitstop = Math.max(ctx.game._hitstop || 0, 0.10);
+    // Weighty feedback: screen shake + impact light now; hitstop only on connect.
     ctx.camState[pid].shake = 0.22;
     ctx.impactLight.color.setHex(ELEMENT_COLORS[element] || 0xffaa00);
     ctx.impactLight.intensity = 2.5;
@@ -743,8 +743,8 @@ export class Player {
       }
     });
 
-    if (hit) this._gainResonance(HEAVY_RESONANCE);
-    else ctx.game._hitstop = Math.min(ctx.game._hitstop, 0.05);
+    // JUICE — heavy attack hitstop only when it connects (weighty impact freeze).
+    if (hit) { this._gainResonance(HEAVY_RESONANCE); triggerHitstop(0.09); }
   }
 
   // =====================================================================
@@ -876,19 +876,24 @@ export class Player {
       } else {
         clampToArena(this.pos);
       }
+      let _sHit = false;
       ctx.gameState.spirits.forEach(s => {
-        if (s.alive && this.pos.distanceTo(s.pos) < 3) s.takeDamage(this.atk * 2, 'fire');
+        if (s.alive && this.pos.distanceTo(s.pos) < 3) { s.takeDamage(this.atk * 2, 'fire'); _sHit = true; }
       });
+      if (_sHit) triggerHitstop(0.08); // JUICE — dragon special impact freeze
       showPlayerToast(this.id, 'Fire Dash!');
     } else if (form === 'ice') {
+      let _sHit = false;
       ctx.gameState.spirits.forEach(s => {
         if (!s.alive) return;
         if (this.pos.distanceTo(s.pos) < 6) {
           s.takeDamage(this.atk, 'ice');
           s._frozenTimer = 2;
           s.speed = 0;
+          _sHit = true;
         }
       });
+      if (_sHit) triggerHitstop(0.08); // JUICE — dragon special impact freeze
       spawnFrostNova(this.pos);
       showPlayerToast(this.id, 'Frost Nova!');
     } else if (form === 'poison') {
@@ -948,6 +953,7 @@ export class Player {
     this._dodgeTimer = 0.3;
     this._iframes = 0.3;
     addFovKick('p' + this.id, 5);
+    spawnDodgeDust(this.pos.clone()); // JUICE — dust kick-off burst
     const dashDir = this.facing.clone().multiplyScalar(-4);
     dashDir.y = 0;
     this.pos.add(dashDir);

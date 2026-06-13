@@ -26,6 +26,8 @@ import { loadBindings, matchAction } from './game/bindings.js';
 import { updatePowerLabels } from './ui/powerlabel.js';
 import { updateSuddenDeath } from './game/suddendeath.js';
 import { IS_TOUCH, initTouchControls, updateTouchOverlay } from './ui/touch.js';
+import { updateJuice } from './game/juice.js';
+import { spawnMovementDust } from './combat/projectiles.js';
 
 // ---- Wire up lazy cross-module references ----
 setDealDamageToPlayer(dealDamageToPlayer);
@@ -82,8 +84,16 @@ ctx.keys = keys;
 ctx.gameState = gameState;
 
 // ---- Game loop object ----
-const game = { _hitstop: 0, clock: new THREE.Clock(), _lastDt: 0.016 };
+const game = { clock: new THREE.Clock(), _lastDt: 0.016 };
 ctx.game = game;
+
+// ---- JUICE: global simulation time-scale (1 = normal). Driven by the juice
+// manager (src/game/juice.js) on REAL dt; multiplies the SIM substep dt only —
+// rendering + cosmetic world anims keep running at wall-clock speed. ----
+ctx.timeScale = 1;
+
+// Movement-dust emit throttle accumulators (per player; real-time spacing).
+const _dustAcc = { p1: {}, p2: {} };
 
 // ---- Resize ----
 function resize() {
@@ -107,6 +117,30 @@ function resize() {
   resizePostFX();
 }
 window.addEventListener('resize', resize);
+
+// ---- JUICE: movement-dust emitter (real-time throttled, pooled particles) ----
+// Emits a small ground puff under a player while it's moving along the ground.
+// Detects movement from the player's own per-frame XZ delta (cached on _dustAcc).
+function _emitMovementDust(who, p, frameDt) {
+  if (!p || p.inactive || p.isKO || p._airborne) return;
+  // In 1P mode only the active hero leaves dust.
+  if (ctx.mode === '1p') {
+    const activeIsMonk = ctx.soloChar !== 'sister';
+    if ((who === 'p1') !== activeIsMonk) return;
+  }
+  const acc = _dustAcc[who];
+  const lastX = acc.x, lastZ = acc.z;
+  acc.x = p.pos.x; acc.z = p.pos.z;
+  if (lastX === undefined) return; // first frame: just seed position
+  const moved = Math.hypot(p.pos.x - lastX, p.pos.z - lastZ);
+  // Speed gate (~ running). frameDt-normalised so it's framerate-independent.
+  const speed = frameDt > 0 ? moved / frameDt : 0;
+  acc.t = (acc.t || 0) + frameDt;
+  if (speed > 1.5 && acc.t >= 0.09) {
+    acc.t = 0;
+    try { spawnMovementDust(p.pos); } catch {}
+  }
+}
 
 // ---- Helper: get the active camera for 1P mode ----
 function _getActiveCam() {
@@ -288,11 +322,11 @@ function animate() {
   const frameDt = Math.min(game.clock.getDelta(), 0.2);
   game._lastDt = frameDt;
 
-  if (game._hitstop > 0) {
-    game._hitstop -= frameDt;
-    if (game._hitstop > 0) { renderFrame(); return; }
-    game._hitstop = 0;
-  }
+  // JUICE: advance the time-scale manager on REAL dt and read the scalar. This
+  // ALWAYS returns to exactly 1 once no effect is active (no drift / stuck-slow).
+  // Note: rendering + cosmetic world animation below stay on wall-clock frameDt;
+  // only the SIM substep accumulator is scaled (see below).
+  const timeScale = updateJuice(frameDt);
 
   // Environmental / cosmetic (always run, even in menu/pause)
   // Slow golden-hour drift; keep the sun around ~35° elevation, never overhead.
@@ -359,14 +393,24 @@ function animate() {
 
   // Skip simulation if in menu or gameover
   if (gameState.state !== 'MENU' && gameState.state !== 'GAMEOVER' && !isPaused()) {
-    // Fixed-timestep substepping
+    // Fixed-timestep substepping. JUICE: the SIM advances by (frameDt × timeScale)
+    // so hitstop (≈0) freezes the world and slow-mo (~0.35) eases it — while the
+    // render keeps running every rAF. timeScale ∈ [0,1] and frameDt is capped at
+    // 0.2s, so scaled time ≤ 0.2 → at most ~12 substeps (no substep explosion).
+    // At timeScale ≈ 0 the loop simply makes no progress (sim paused) and exits.
     const FIXED_STEP = 1 / 60;
-    let remaining = frameDt;
-    while (remaining > 0) {
+    let remaining = Math.min(frameDt * timeScale, 0.2);
+    while (remaining > 1e-6) {
       const step = Math.min(remaining, FIXED_STEP);
       updateGame(step);
       remaining -= step;
     }
+
+    // JUICE — pooled movement dust under running players (real-time throttle so
+    // it's framerate-independent and unaffected by the sim time-scale). Skips
+    // airborne / inactive / KO'd heroes.
+    _emitMovementDust('p1', gameState.p1, frameDt);
+    _emitMovementDust('p2', gameState.p2, frameDt);
   }
 
   if (!game._freezeCam) {

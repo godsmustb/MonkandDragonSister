@@ -12,6 +12,7 @@ import {
   scaleHp, scaleAtk, dIndex, recordWavePerf, resetDDA, getDDA,
 } from './campaign.js';
 import { resetSuddenDeath, SD_FULL_RADIUS } from './suddendeath.js';
+import { applyLevelTheme } from '../world/theme.js';
 // clearLockTargets imported lazily below to avoid circular dep at module load time
 
 export const gameState = {
@@ -57,6 +58,10 @@ export function startLevel(n) {
   gameState._waveClearGranted = false;
   gameState._endless = false;
   gameState.arenaRadius = SD_FULL_RADIUS;
+
+  // Re-palette the world for this level immediately so the intro banner already
+  // reads as the new place (L2 ice / L3 poison; L1 restores the Zen garden).
+  applyLevelTheme(n);
 
   // Clear any lingering effects/spirits
   clearAllFx();
@@ -135,6 +140,10 @@ export function startWave(n) {
   gameState.state = 'WAVE' + n;
   gameState._waveClearing = false;
   gameState._waveClearGranted = false;
+  // Ensure the world theme matches the active level. Idempotent + cheap; also
+  // covers the fresh-game path (endIntro → startWave(1) with level===1) so a new
+  // quest is guaranteed to be the default Zen garden.
+  applyLevelTheme(gameState.level);
   // Analytics: wave_reached (fail-silent dynamic import — python server has no PHP)
   import('./analytics.js').then(m => m.track('wave_reached', {
     stage: gameState.level, wave: n,

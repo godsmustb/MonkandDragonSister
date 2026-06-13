@@ -260,19 +260,28 @@ function makeRippleTexture() {
 export function buildWorld() {
   const scene = ctx.scene;
 
+  // Theme system: prepare the ref collectors so per-level re-paletting (theme.js)
+  // can tint ground/flora. (sky.js fills in sky/mountain/light refs.)
+  ctx.themeRefs = ctx.themeRefs || {};
+  ctx.themeRefs.cherryMats = [];
+  ctx.themeRefs.grassMats  = [];
+  ctx.themeRefs.flowerMats = [];
+
   // Ground — painted jade garden with raked-sand centre (Pass 4).
   // The painterly texture maps ONCE across the whole disc so the central
   // combat circle stays a single readable feature.
   const groundTex = makePaintedGroundTexture();
   const groundNormal = makeGroundNormalTexture();
+  const groundMat = new THREE.MeshToonMaterial({
+    color: 0xffffff, gradientMap: _getGradTex(),
+    map: groundTex,
+    normalMap: groundNormal,
+    normalScale: new THREE.Vector2(0.85, 0.85),
+  });
+  ctx.themeRefs.groundMat = groundMat;
   const ground = new THREE.Mesh(
     new THREE.CircleGeometry(ARENA_SIZE, 96),
-    new THREE.MeshToonMaterial({
-      color: 0xffffff, gradientMap: _getGradTex(),
-      map: groundTex,
-      normalMap: groundNormal,
-      normalScale: new THREE.Vector2(0.85, 0.85),
-    })
+    groundMat
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
@@ -486,9 +495,12 @@ function buildCherryTree(x, z, scale = 1, pink) {
         light * 0.13 + (Math.random() - 0.5) * 0.05
       ).getHex();
     }
+    const blobMat = toonMat(blobColor);
+    // Theme system: collect canopy materials so theme.js can frost/wither them.
+    if (ctx.themeRefs && ctx.themeRefs.cherryMats) ctx.themeRefs.cherryMats.push(blobMat);
     const blob = new THREE.Mesh(
       new THREE.SphereGeometry((1.2 + Math.random() * 0.6) * scale, 8, 6),
-      toonMat(blobColor)
+      blobMat
     );
     // Spread lower blobs wider; upper blobs cluster tighter near the crown top.
     blob.position.set(
@@ -545,6 +557,8 @@ function buildFlowerPatch(scene, flowerGeo, color, cx, cz, count, spread) {
     color, gradientMap: _getGradTex(), side: THREE.DoubleSide,
     emissive: new THREE.Color(color).multiplyScalar(0.12), // faint life, well under bloom threshold
   });
+  // Theme system: collect flower materials for per-level frosting/withering.
+  if (ctx.themeRefs && ctx.themeRefs.flowerMats) ctx.themeRefs.flowerMats.push(mat);
   const inst = new THREE.InstancedMesh(flowerGeo, mat, count);
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
@@ -607,6 +621,8 @@ export function buildGrassField() {
   const grassMat = new THREE.MeshToonMaterial({
     color: 0x5fa86b, gradientMap: _getGradTex(), side: THREE.DoubleSide,
   });
+  // Theme system: collect the shared grass material for per-level frosting/withering.
+  if (ctx.themeRefs && ctx.themeRefs.grassMats) ctx.themeRefs.grassMats.push(grassMat);
 
   const instA = new THREE.InstancedMesh(bladeGeoA, grassMat, COUNT);
   const instB = new THREE.InstancedMesh(bladeGeoB, grassMat, COUNT);
@@ -731,8 +747,25 @@ export function buildPetals() {
 
 export function resetPetal(p) {
   p.position.set((Math.random() - 0.5) * 80, 8 + Math.random() * 15, (Math.random() - 0.5) * 80);
-  p._vy = -(0.02 + Math.random() * 0.03);
-  p._vx = (Math.random() - 0.5) * 0.02;
-  p._vz = (Math.random() - 0.5) * 0.02;
-  p._spin = (Math.random() - 0.5) * 0.05;
+  // Drift behaviour varies by active theme (set on the petal by theme.js):
+  //   'petal' (L1) — cherry blossom flutter: gentle fall + lateral sway + spin.
+  //   'snow'  (L2) — snow: falls a touch faster & straighter, slow spin.
+  //   'spore' (L3) — toxic spores: slow, hanging drift with wider lateral wander.
+  const mode = p._driftMode || 'petal';
+  if (mode === 'snow') {
+    p._vy = -(0.03 + Math.random() * 0.035);
+    p._vx = (Math.random() - 0.5) * 0.012;
+    p._vz = (Math.random() - 0.5) * 0.012;
+    p._spin = (Math.random() - 0.5) * 0.02;
+  } else if (mode === 'spore') {
+    p._vy = -(0.008 + Math.random() * 0.016);
+    p._vx = (Math.random() - 0.5) * 0.03;
+    p._vz = (Math.random() - 0.5) * 0.03;
+    p._spin = (Math.random() - 0.5) * 0.03;
+  } else {
+    p._vy = -(0.02 + Math.random() * 0.03);
+    p._vx = (Math.random() - 0.5) * 0.02;
+    p._vz = (Math.random() - 0.5) * 0.02;
+    p._spin = (Math.random() - 0.5) * 0.05;
+  }
 }

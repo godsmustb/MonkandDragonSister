@@ -36,6 +36,10 @@ export const ctx = {
   grassTufts: [],
   pondRipple: null,
   sunGlow: null,
+  // Level-theme system (world/theme.js): captured material/light refs to re-palette
+  // per campaign level, and the active theme id. Populated during buildSky/world.
+  themeRefs: null,
+  _activeTheme: 1,
   // Pass 12 — game mode
   mode: '2p',           // '2p' | '1p'
   soloChar: null,       // null | 'monk' | 'sister'  (1p only)

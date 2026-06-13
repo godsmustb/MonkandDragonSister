@@ -38,6 +38,13 @@ export function buildSky() {
   dome.renderOrder = -10;
   scene.add(dome);
 
+  // Theme system: capture the sky-dome canvas + texture so theme.js can repaint
+  // the gradient per level (ice/poison) and restore it for level 1.
+  ctx.themeRefs = ctx.themeRefs || {};
+  ctx.themeRefs.skyCanvas  = skyCvs;
+  ctx.themeRefs.skyTexture = skyTex;
+  ctx.themeRefs.mountainMats = [];
+
   // ── Painterly mountain rings ─────────────────────────────────────────────
   // Three concentric rings of soft "Bob Ross" peaks. Each ring's merged cones
   // carry a VERTICAL canvas gradient (deep shadowed base → lighter mid → soft
@@ -140,6 +147,8 @@ function buildMountainRing(scene, opts) {
   const mesh = new THREE.Mesh(merged, mat);
   mesh.renderOrder = -9;
   scene.add(mesh);
+  // Theme system: collect each ring's material so theme.js can tint the peaks.
+  if (ctx.themeRefs && ctx.themeRefs.mountainMats) ctx.themeRefs.mountainMats.push(mat);
   return mesh;
 }
 
@@ -268,6 +277,9 @@ export function buildLighting() {
   // Hemisphere fill tuned to sky colours: warm peach sky / jade ground bounce.
   const hemi = new THREE.HemisphereLight(0xdfe9f5, 0x6e7a52, 0.55);
   scene.add(hemi);
+  // Theme system: capture the hemisphere fill so theme.js can shift it cool/toxic.
+  ctx.themeRefs = ctx.themeRefs || {};
+  ctx.themeRefs.hemi = hemi;
 
   // Warm golden-hour key sun (~35° elevation). Slightly warm tint.
   const sun = new THREE.DirectionalLight(0xfff0d6, 1.35);

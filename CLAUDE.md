@@ -12,7 +12,7 @@ Status: **post-v3, ~20+ passes committed on `master`.** Big additions since v3 (
 
 - **Double-click `play.bat`** → finds `py`/`python`, starts `python -m http.server 8321` (minimized window), opens `http://localhost:8321/index.html`.
 - Manual: `py -m http.server 8321` in the project root, then browse to `http://localhost:8321/index.html`.
-- **Must be served over http** — ES modules + CDN won't run from `file://`. First load fetches Three.js r160 from jsdelivr CDN (needs internet once).
+- **Must be served over http** — ES modules won't run from `file://`. **Three.js r160 is VENDORED locally** in `vendor/three/` (core + the postprocessing/shaders/utils addons used) and the importmap points there — **no CDN, works fully offline.** (Was jsDelivr; vendored to fix a deployed "stuck on LOADING" hang.)
 - Keep the minimized server window open while playing.
 
 ## How to test (the QA gate)
@@ -102,4 +102,4 @@ v1.0 weekend release (current) → v1.1 gamepad + key remap + accessibility → 
 - `play.bat` was broken by a `http.server --version` probe (no such flag, exits 2) — fixed; if it ever "does nothing," check Python is on PATH and you're opening the http URL not the file.
 - Numpad keys need NumLock ON.
 - **Touch detection:** use `IS_TOUCH` from `config.js` only — `'ontouchstart' in window` is true on desktop Chrome, and `navigator.maxTouchPoints` is 10 on desktop / 0 on emulated iPhone in Playwright (both useless). `matchMedia('(pointer:coarse)')` is the reliable signal.
-- **Deploy (Hostinger / static host):** upload `index.html` + `src/` only (NOT `test/node_modules`, `.git`, `play.bat`). Serve over HTTPS. First load fetches Three.js r160 from jsDelivr CDN (client-side; needs internet) — the boot splash failsafe shows a "could not load" message if the CDN is blocked. Linux is case-sensitive: any import-path case mismatch 404s only on the server. Mobile defaults to low quality + 1P.
+- **Deploy (Hostinger / static host):** upload `index.html` + `src/` + **`vendor/`** (the local Three.js — required) only (NOT `test/`, `.git`, `play.bat`, `docs/`). Serve over HTTPS. No CDN needed (Three.js is vendored). The boot splash now **auto-removes when the menu mounts AND shows any load error on-screen** (no more silent eternal LOADING). Linux is case-sensitive: any import-path case mismatch 404s only on the server. Cache-Control no-cache meta added — if a user is on a stale build, a hard refresh (Ctrl+Shift+R) loads the new files. Mobile defaults to low quality + 1P.

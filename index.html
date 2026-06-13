@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>The Monk & The Dragon Sister</title>
 <style>
@@ -734,15 +737,22 @@ body,#game-container{
   <div style="margin-top:20px;font-size:13px;color:#9a8050;letter-spacing:4px;">LOADING&hellip;</div>
 </div>
 <script>
-  // Failsafe: if the menu never mounts within 14s (e.g. the Three.js CDN is
-  // blocked/slow), replace "LOADING…" with an error instead of trapping the user.
-  setTimeout(function(){
-    var s = document.getElementById('boot-splash');
-    if (s && !document.getElementById('main-menu')) {
-      var lines = s.getElementsByTagName('div');
-      if (lines.length) lines[lines.length-1].innerHTML = 'Could not load the game.<br>Check your connection and reload.';
-    }
-  }, 14000);
+  // Robust boot failsafe (plain script — runs even if the ES modules never load).
+  (function(){
+    var splash = document.getElementById('boot-splash');
+    function msg(html, color){ if(!splash) return; var d=splash.getElementsByTagName('div'); if(d.length){ var el=d[d.length-1]; el.innerHTML=html; if(color) el.style.color=color; } }
+    // The instant the menu mounts, remove the splash — belt-and-suspenders in case
+    // main.js's own removal didn't run, so the user is never trapped on "LOADING…".
+    var poll = setInterval(function(){
+      if (document.getElementById('main-menu')) { clearInterval(poll); if (splash && splash.parentNode) splash.parentNode.removeChild(splash); }
+    }, 150);
+    // Surface any load/runtime error so a failure shows a message instead of a silent hang.
+    var shown = false;
+    function showErr(t){ if(shown) return; shown = true; msg('⚠ ' + String(t).slice(0,140) + '<br><span style="font-size:11px">Reload to retry.</span>', '#e0a060'); }
+    window.addEventListener('error', function(e){ showErr('Load error: ' + ((e && (e.message || (e.target && e.target.src))) || 'script error')); }, true);
+    window.addEventListener('unhandledrejection', function(){ showErr('Could not load a required library (CDN/module). Check your connection.'); });
+    setTimeout(function(){ if (!document.getElementById('main-menu') && !shown) msg('Still loading… if this persists, do a hard refresh (Ctrl+Shift+R) and check your internet — the game fetches Three.js on first load.', '#c8a060'); }, 12000);
+  })();
 </script>
 <div id="game-container">
   <canvas id="gameCanvas"></canvas>
@@ -972,7 +982,7 @@ body,#game-container{
 </div>
 
 <script type="importmap">
-{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+{"imports":{"three":"./vendor/three/build/three.module.js","three/addons/":"./vendor/three/addons/"}}
 </script>
 <script type="module" src="./src/main.js"></script>
 </body>

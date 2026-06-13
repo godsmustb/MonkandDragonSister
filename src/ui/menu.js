@@ -64,7 +64,7 @@ export function buildMenu() {
   `;
 
   const sub = document.createElement('p');
-  sub.textContent = 'Quest I — The Initial Trauma';
+  sub.textContent = 'Quest I — The Initial Compassion';
   sub.style.cssText = `
     font-size:clamp(13px,1.5vw,18px);color:#aaa;
     font-style:italic;letter-spacing:2px;

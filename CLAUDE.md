@@ -4,7 +4,7 @@
 
 ## What this is
 
-A **2-player local split-screen co-op 3D action game**, anime/cel-shaded, built in **Three.js** as a self-contained browser game. Setting: a Japanese Zen garden invaded by demons. P1 is **The Monk** (support/control — staff combos, chi shield, healing, meditation). P2 is **The Dragon Sister** (a human girl who transforms into 4 elemental dragons — Fire/Ice/Poison/Water). Quest 1 ("The Initial Trauma") is a 5-wave story arc ending in a 2-phase boss.
+A **2-player local split-screen co-op 3D action game**, anime/cel-shaded, built in **Three.js** as a self-contained browser game. Setting: a Japanese Zen garden invaded by demons. P1 is **The Monk** (support/control — staff combos, chi shield, healing, meditation). P2 is **The Dragon Sister** (a human girl who transforms into 4 elemental dragons — Fire/Ice/Poison/Water). Quest 1 ("The Initial Compassion") is a 5-wave story arc ending in a 2-phase boss.
 
 Status as of last session: **v3 Release Candidate**, all 8 engineering passes committed, **E2E 59–60/60 green** (one soft warning = a test-side relic-pickup timing flake, not a game bug). Targeted as the studio's first weekend release.
 

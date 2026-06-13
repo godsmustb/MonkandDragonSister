@@ -31,6 +31,7 @@ const ORBIT_DECAY    = 3.0;   // seconds before yawOffset decays to 0
 const AUTO_YAW_RATE  = 2.5;   // rad/s max yaw follow rate
 const LOCK_BREAK_DIST = 18;   // units: break lock if target XZ dist exceeds this
 const LOCK_AIM_BLEND = 0.60;  // fraction: blend auto-aim facing toward target (60%)
+const FIXED_CAM_YAW  = 0;     // world yaw the camera always rests at (0 = view from +Z looking −Z)
 
 // Scratch vectors — module-scope to avoid per-frame allocation.
 // Note: two players call updateCamera() sequentially each frame; these are
@@ -148,24 +149,15 @@ export function updateCamera(camId, player) {
   }
 
   // ── Compute target yaw ──
-  let targetYaw;
-  if (cx.lockTarget && cx.lockTarget.alive) {
-    // Lock-on: yaw toward target
-    _v1.subVectors(cx.lockTarget.pos, player.pos);
-    targetYaw = Math.atan2(_v1.x, _v1.z); // angle FROM player TO target
-    // Pull camera back behind player relative to that direction
-  } else {
-    // Auto-follow: ease toward behind movement heading
-    const movLen = (player._vel && player._vel.lengthSq) ? player._vel.lengthSq() : 0;
-    const faceYaw = Math.atan2(player.facing.x, player.facing.z);
-    // Smoothly ease autoYaw toward faceYaw
-    let diff = faceYaw - cx.autoYaw;
-    // Wrap diff to [-π, π]
-    while (diff > Math.PI)  diff -= Math.PI * 2;
-    while (diff < -Math.PI) diff += Math.PI * 2;
-    cx.autoYaw += diff * Math.min(1, AUTO_YAW_RATE * frameDt);
-    targetYaw = cx.autoYaw;
-  }
+  // FIXED-ANGLE CAMERA: the view no longer auto-rotates to sit behind the
+  // player's heading, and lock-on no longer swings it toward the target. A
+  // constant world yaw keeps the camera stable and always framing the player,
+  // so world-locked movement (W/↑ = −Z) always maps to the same screen
+  // direction (toward the top of the screen). Manual Q/E (P1) / Num7/9 (P2)
+  // orbit still applies via cx.yawOffset and decays back to this fixed angle,
+  // so the camera always returns to centre. Lock-on still aim-assists facing
+  // (below) — it just doesn't move the camera anymore.
+  const targetYaw = FIXED_CAM_YAW;
 
   const finalYaw = targetYaw + cx.yawOffset;
   const cosA = Math.cos(finalYaw), sinA = Math.sin(finalYaw);

@@ -16,6 +16,7 @@ import { toggleLockOn, camExtra } from './game/camera.js';
 import { saveBindings } from './game/bindings.js';
 import { getDDA, LANDS } from './game/campaign.js';
 import { getSuddenDeathElapsed } from './game/suddendeath.js';
+import { musicState } from './audio/audio.js';
 
 export function setupDebugAPI() {
   // Expose raw ctx for VFX testing / screenshot scripts
@@ -84,6 +85,14 @@ export function setupDebugAPI() {
 
     // Pass 12: endless mode cycle counter
     get endlessCycle() { return ctx.gameState.endlessCycle || 0; },
+
+    // ── Adaptive music (additive, read-only) ──────────────────────────────────
+    // Smoothed 0..1 threat intensity driving the music layers. 0 when the
+    // AudioContext was never started (headless E2E) — safe to read any time.
+    get musicIntensity() { try { return musicState().intensity; } catch { return 0; } },
+    // Full adaptive snapshot { intensity, tension, layer, bossActive, bossPhase,
+    // bossEnraged, ultActive, theme, running }.
+    get music() { try { return musicState(); } catch { return null; } },
 
     // ── Collapsing-arena sudden death ────────────────────────────────────────
     /** Current safe ground radius (starts 56, shrinks each collapse in endless). */

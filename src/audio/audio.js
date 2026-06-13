@@ -26,6 +26,65 @@ let _bossGain = null;
 let _zenDroneNode = null;        // persistent low drone
 let _bossDroneNode = null;
 
+// ── ADAPTIVE MUSIC state ──────────────────────────────────────────────────────
+// All of these are plain numbers / nullable nodes; every consumer is null-safe so
+// nothing here can throw when the AudioContext was never started (headless E2E).
+let _intensity = 0;        // smoothed 0..1 threat/intensity (drives combat layers)
+let _intensityTarget = 0;  // raw target each tick, _intensity eases toward it
+let _tension = 0;          // smoothed 0..1 low-HP tension (drives the tension drone)
+let _tensionTarget = 0;
+let _bossActive = false;   // a boss is currently alive in the arena
+let _bossPhase = 1;        // 1..3 of the live boss (drives darker/faster shifts)
+let _bossEnraged = false;
+let _ultActive = false;    // any player's ultimate currently running (musical swell)
+let _activeTheme = 1;      // mirror of ctx._activeTheme (1 zen / 2 ice / 3 poison)
+let _tensionDroneOsc = null;   // detuned low drone for low-HP dread
+let _tensionDroneGain = null;
+let _tensionDroneOsc2 = null;  // 2nd, detuned partner for a beating/unease effect
+let _lastTheme = 1;            // last theme we re-pitched drones to
+
+// Per-theme musical mood. The generative engine is reused verbatim — only the
+// melodic scale, drone roots and tempo feel shift per land so L2 reads colder /
+// higher and L3 darker / lower / dissonant. Level 1 = the original zen values.
+const THEME_MUSIC = {
+  // L1 — Zen garden: warm C pentatonic, C3 drone, original 70 BPM feel.
+  1: {
+    zenScale: [48, 50, 52, 55, 57, 60, 62, 64, 67, 69], // C3..A4 major pentatonic
+    zenDroneHz: 130.81,   // C3
+    bossDroneHz: 82.41,   // E2 (minor)
+    bossScaleRoot: 36,    // C2 minor pentatonic root
+    beatMult: 1.0,        // tempo multiplier (1 = base 70 BPM)
+    kotoVol: 1.0,
+    tensionHz: 65.41,     // C2 — tension drone root
+    detune: 8,            // cents of detune for the tension beating
+  },
+  // L2 — Glacial Peaks: higher, sparser, cold. D pentatonic up an octave-ish,
+  // brighter koto, slightly quicker. Drone lifts to a colder G.
+  2: {
+    zenScale: [50, 52, 55, 57, 60, 62, 64, 67, 69, 72], // D3..C5 — higher/colder
+    zenDroneHz: 146.83,   // D3
+    bossDroneHz: 92.50,   // F#2
+    bossScaleRoot: 38,    // D2
+    beatMult: 1.08,       // a touch faster, brittle
+    kotoVol: 0.92,        // sparser/quieter plucks (cold air)
+    tensionHz: 73.42,     // D2
+    detune: 11,
+  },
+  // L3 — Venom Abyss: lower, darker, dissonant. Minor pentatonic, low drone,
+  // slower and heavier. Adds a tritone-ish colour via the minor scale + low root.
+  3: {
+    zenScale: [43, 46, 48, 50, 53, 55, 58, 60, 62, 65], // G2 minor-pentatonic-ish, low/dark
+    zenDroneHz: 97.999,   // G2 — low dread
+    bossDroneHz: 73.42,   // D2 (deep)
+    bossScaleRoot: 31,    // G1 region
+    beatMult: 0.94,       // slower, heavier
+    kotoVol: 1.0,
+    tensionHz: 48.99,     // G1 — very low
+    detune: 16,           // wide, queasy detune
+  },
+};
+function _themeMusic() { return THEME_MUSIC[_activeTheme] || THEME_MUSIC[1]; }
+
 // Persistent taiko loop references (so we can stop them cleanly)
 let _taikoNode = null;
 
@@ -603,9 +662,20 @@ export const sfx = {
 // setInterval 200ms checks beat clock vs ctx.currentTime.
 // ~70 BPM = beat = 60/70 ≈ 0.857s
 
-const BEAT_SEC = 60 / 70;       // seconds per beat
+const BEAT_SEC = 60 / 70;       // base seconds per beat (70 BPM)
 const LOOKAHEAD = 0.5;          // schedule this far ahead (seconds)
 const SCHEDULE_INTERVAL = 200;  // ms between scheduler ticks
+
+// Effective beat length, shortened slightly per theme tempo AND by live intensity
+// (combat speeds the pulse up to ~12% faster at peak threat). Bounded so the
+// lookahead/beat-index math stays sane. Pure function of current state numbers —
+// safe to call with no AudioContext.
+function _beatSec() {
+  const tm = _themeMusic();
+  // intensity tightens tempo up to ~12%; ultimate adds a small extra push
+  const intensityMult = 1 - 0.12 * _intensity - (_ultActive ? 0.04 : 0);
+  return BEAT_SEC * (tm.beatMult || 1) * Math.max(0.82, intensityMult);
+}
 
 // Track which beats have been scheduled (avoid double-scheduling)
 let _scheduledUpTo = 0; // audioCtx.currentTime up to which we've scheduled
@@ -684,12 +754,14 @@ function _spawnZenDrone() {
   if (!_ac || !_zenGain) return null;
   const osc = _ac.createOscillator();
   osc.type = 'sine';
-  osc.frequency.value = 130.81; // C3 root
+  osc.frequency.value = _themeMusic().zenDroneHz; // theme root (C3 zen / D3 ice / G2 poison)
   const gain = _ac.createGain();
   gain.gain.value = 0.06;
   osc.connect(gain);
   gain.connect(_zenGain);
   osc.start(_ac.currentTime);
+  // keep handles so a theme change can re-pitch the root (ramped, no pop)
+  osc._droneGain = gain;
   return osc;
 }
 
@@ -697,7 +769,7 @@ function _spawnBossDrone() {
   if (!_ac || !_bossGain) return null;
   const osc = _ac.createOscillator();
   osc.type = 'sawtooth';
-  osc.frequency.value = 82.41; // E2 (minor shift for boss)
+  osc.frequency.value = _themeMusic().bossDroneHz; // theme-keyed minor root
   const lp = _ac.createBiquadFilter();
   lp.type = 'lowpass';
   lp.frequency.value = 200;
@@ -707,96 +779,190 @@ function _spawnBossDrone() {
   lp.connect(gain);
   gain.connect(_bossGain);
   osc.start(_ac.currentTime);
+  osc._bossLp = lp;
   return osc;
 }
 
-// Pentatonic scale notes for zen layer (C3 pentatonic in MIDI)
+// Fallback zen scale (theme 1). The active scale comes from _themeMusic().zenScale.
 const ZEN_NOTES_MIDI = [48, 50, 52, 55, 57, 60, 62, 64, 67, 69]; // C3..A4 pentatonic
 
-// How often to play a koto note (in beats). Sparse = zen feel
-// Every 2-4 beats randomly
+// How often to play a koto note (in beats). Sparse = zen feel.
+// Probability rises with intensity so the melody gets busier as combat heats up,
+// then thins back toward the sparse zen feel when the arena clears.
 function _shouldPlayKoto(beatIndex) {
   // Deterministic pseudo-random based on beat index (so consistent each loop pass)
   const r = Math.sin(beatIndex * 127.1 + 3.14) * 43758.5453;
   const frac = r - Math.floor(r);
-  return frac < 0.30; // ~30% chance per beat
+  // 0.30 calm → up to ~0.55 at peak intensity
+  const thresh = 0.30 + 0.25 * _intensity;
+  return frac < thresh;
 }
 
-// Beat-indexed note selection
+// Beat-indexed note selection from the ACTIVE theme scale (cold/high vs dark/low).
 function _zenNoteForBeat(beatIndex) {
-  const idx = Math.floor(Math.abs(Math.sin(beatIndex * 314.159) * 43758.5) % ZEN_NOTES_MIDI.length);
-  return _noteFreq(ZEN_NOTES_MIDI[idx]);
+  const scale = _themeMusic().zenScale || ZEN_NOTES_MIDI;
+  const idx = Math.floor(Math.abs(Math.sin(beatIndex * 314.159) * 43758.5) % scale.length);
+  return _noteFreq(scale[idx]);
 }
 
-// Track scheduled beat index (resets when AC context time resets — shouldn't happen)
-let _scheduledBeatIdx = 0;
+// Cursor-based scheduler: a monotonic beat counter + a running time cursor advanced
+// by the (variable) effective beat length. This lets tempo flex with intensity/theme
+// without the absolute-time beat math jumping. _scheduledUpTo (the time cursor) lives
+// in the outer scope and is initialised in _startScheduler.
+let _beatCounter = 0;       // monotonic beat index since scheduler start
 
-function _scheduleBeats(fromTime, toTime) {
-  // Calculate which beats fall in [fromTime, toTime)
-  // Beat N starts at: contextStartTime + N * BEAT_SEC
-  // contextStartTime = 0 (we just use absolute audioCtx times)
-  // beatIdx = floor(fromTime / BEAT_SEC)
+function _scheduleBeats(toTime) {
   if (!_ac) return;
+  // Hard cap iterations so a long pause (large currentTime gap) can never spin.
+  let guard = 0;
+  while (_scheduledUpTo < toTime && guard < 256) {
+    guard++;
+    const beatTime = _scheduledUpTo;
+    const beatIdx = _beatCounter;
+    const tm = _themeMusic();
+    const bs = _beatSec();
 
-  let beatIdx = Math.floor(fromTime / BEAT_SEC);
-  while (true) {
-    const beatTime = beatIdx * BEAT_SEC;
-    if (beatTime >= toTime) break;
-    if (beatTime >= fromTime) {
-      // Zen layer: sparse koto plucks + root drone
-      if (_shouldPlayKoto(beatIdx)) {
-        _kotoPluck(_zenNoteForBeat(beatIdx), beatTime, 0.16);
-        // Occasional 2nd note (chord feel)
-        if (_shouldPlayKoto(beatIdx + 100)) {
-          const idx2 = Math.floor(Math.abs(Math.sin((beatIdx + 200) * 271.82) * 43758.5) % ZEN_NOTES_MIDI.length);
-          _kotoPluck(_noteFreq(ZEN_NOTES_MIDI[idx2]), beatTime + 0.05, 0.10);
-        }
-      }
-
-      // Combat layer: taiko pulse every 2 beats
-      if (beatIdx % 2 === 0) {
-        _taikoBeat(beatTime, 0.22);
-        // Off-beat lighter hit
-        _taikoBeat(beatTime + BEAT_SEC * 0.5, 0.14);
-      }
-
-      // Boss layer: deeper drum every 4 beats + minor drone notes
-      if (beatIdx % 4 === 0) {
-        _bossDrum(beatTime, 0.28);
-        // Low minor tone
-        const minorNote = MINOR_PENTATONIC[Math.floor(Math.abs(Math.sin(beatIdx * 0.77) * 43758) % MINOR_PENTATONIC.length)];
-        _kotoPluck(_noteFreq(36 + minorNote), beatTime, 0.14, _bossGain);
+    // ── Zen melodic layer: theme-scale koto plucks ──
+    if (_shouldPlayKoto(beatIdx)) {
+      _kotoPluck(_zenNoteForBeat(beatIdx), beatTime, 0.16 * (tm.kotoVol || 1));
+      // Occasional 2nd note (chord feel) — more likely under intensity.
+      if (_shouldPlayKoto(beatIdx + 100)) {
+        const scale = tm.zenScale || ZEN_NOTES_MIDI;
+        const idx2 = Math.floor(Math.abs(Math.sin((beatIdx + 200) * 271.82) * 43758.5) % scale.length);
+        _kotoPluck(_noteFreq(scale[idx2]), beatTime + 0.05, 0.10 * (tm.kotoVol || 1));
       }
     }
-    beatIdx++;
+
+    // ── Combat percussion: taiko pulse every 2 beats; intensity adds the
+    // off-beat ghost note (so light combat is a steady pulse, heavy combat
+    // fills in). The _combatGain layer gain (set in _crossfadeTo) gates audibility. ──
+    if (beatIdx % 2 === 0) {
+      _taikoBeat(beatTime, 0.22);
+      if (_intensity > 0.25) {
+        _taikoBeat(beatTime + bs * 0.5, 0.10 + 0.06 * _intensity);
+      }
+    }
+
+    // ── Boss percussion: deeper drum every 4 beats + a low minor tone. When the
+    // boss is enraged / in a late phase, add an extra mid-bar hit for urgency. ──
+    if (beatIdx % 4 === 0) {
+      _bossDrum(beatTime, 0.28);
+      const root = tm.bossScaleRoot || 36;
+      const minorNote = MINOR_PENTATONIC[Math.floor(Math.abs(Math.sin(beatIdx * 0.77) * 43758) % MINOR_PENTATONIC.length)];
+      _kotoPluck(_noteFreq(root + minorNote), beatTime, 0.14, _bossGain);
+    } else if (_bossActive && (_bossEnraged || _bossPhase >= 2) && beatIdx % 2 === 0) {
+      // urgency fill — only when a boss is genuinely escalating
+      _bossDrum(beatTime, 0.20);
+    }
+
+    // advance cursor by the current (possibly flexed) beat length
+    _scheduledUpTo += bs;
+    _beatCounter++;
   }
-  _scheduledBeatIdx = beatIdx;
+  // If we somehow fell far behind (tab parked), jump the cursor forward so we
+  // don't schedule a burst of stale beats.
+  if (_scheduledUpTo < toTime) _scheduledUpTo = toTime;
 }
 
 function _tickScheduler() {
   if (!_ac) return;
+  // Read live game state + ease the adaptive scalars FIRST, so this tick's
+  // scheduling (tempo/density) and layer gains use fresh values.
+  _updateAdaptiveState();
+
   const now = _ac.currentTime;
   const scheduleUpTo = now + LOOKAHEAD;
+  _scheduleBeats(scheduleUpTo);
 
-  if (scheduleUpTo > _scheduledUpTo) {
-    _scheduleBeats(_scheduledUpTo, scheduleUpTo);
-    _scheduledUpTo = scheduleUpTo;
+  // Layer crossfade logic — poll game state + drive continuous layer gains
+  _updateMusicLayer();
+}
+
+// ── Read game state → compute raw intensity/tension targets → ease toward them ──
+// Entirely numeric + null-safe: if gameState/players are missing (headless, menu)
+// it just relaxes toward 0. Never touches WebAudio nodes here.
+function _updateAdaptiveState() {
+  const gs = gameCtx.gameState;
+
+  // Mirror the active level theme (1 zen / 2 ice / 3 poison) for scale/timbre.
+  _activeTheme = (gameCtx._activeTheme === 2 || gameCtx._activeTheme === 3)
+    ? gameCtx._activeTheme : 1;
+
+  let enemyN = 0;
+  _bossActive = false; _bossPhase = 1; _bossEnraged = false;
+  _ultActive = false;
+  let lowHp = 0;
+
+  if (gs) {
+    const spirits = gs.spirits;
+    if (spirits && spirits.length) {
+      for (let i = 0; i < spirits.length; i++) {
+        const s = spirits[i];
+        if (!s || !s.alive) continue;
+        enemyN++;
+        if (s._isBoss) {
+          _bossActive = true;
+          if ((s.phase || 1) > _bossPhase) _bossPhase = s.phase || 1;
+          if (s.enraged) _bossEnraged = true;
+        }
+      }
+    }
+    // Low-HP tension + ultimate swell from both players.
+    const players = [gs.p1, gs.p2];
+    for (let i = 0; i < players.length; i++) {
+      const p = players[i];
+      if (!p || p.inactive) continue;
+      if (p.ultimateActive) _ultActive = true;
+      if (!p.isKO && p.maxHp > 0) {
+        const frac = p.hp / p.maxHp;
+        if (frac < 0.35) {
+          // 0 at 35% HP → 1 at 0% HP (linear)
+          const t = (0.35 - frac) / 0.35;
+          if (t > lowHp) lowHp = t;
+        }
+      }
+    }
   }
 
-  // Layer crossfade logic — poll game state
-  _updateMusicLayer();
+  // Raw intensity target: enemy density + boss escalation. Only count when actually
+  // in a wave (avoid menu/intro residue from lingering arrays).
+  const inWave = gs && typeof gs.state === 'string' && gs.state.indexOf('WAVE') === 0;
+  if (inWave) {
+    // density: ~6 enemies = full from the crowd term
+    const density = Math.min(1, enemyN / 6);
+    let it = density * 0.7;
+    if (_bossActive) {
+      // boss floors intensity high and climbs with phase/enrage
+      const phaseBoost = 0.55 + 0.12 * (_bossPhase - 1) + (_bossEnraged ? 0.12 : 0);
+      it = Math.max(it, Math.min(1, phaseBoost + density * 0.25));
+    }
+    _intensityTarget = Math.min(1, it);
+  } else {
+    _intensityTarget = 0; // menu/intro/complete/gameover → relax to calm
+  }
+  _tensionTarget = lowHp;
+
+  // Ease (EWMA). Rise fast into danger, fall slower for a graceful calm-down.
+  const upRate = 0.22, downRate = 0.06;
+  _intensity += (_intensityTarget - _intensity) * (_intensityTarget > _intensity ? upRate : downRate);
+  _tension   += (_tensionTarget   - _tension)   * (_tensionTarget   > _tension   ? 0.18 : 0.05);
+  // clamp tiny residue to 0 so things fully settle
+  if (_intensity < 0.001) _intensity = 0;
+  if (_tension   < 0.001) _tension   = 0;
 }
 
 function _updateMusicLayer() {
   if (!_ac || !gameCtx.gameState) return;
   const gs = gameCtx.gameState.state;
 
+  // Coarse layer target (drives drones + base mix). The continuous intensity
+  // value then fine-tunes the combat layer gain on top of this.
   let wanted = 'zen';
   if (gs === 'MENU' || gs === 'INTRO' || gs === 'COMPLETE' || gs === 'GAMEOVER') {
     wanted = 'zen';
-  } else if (gs === 'WAVE4' || gs === 'WAVE5') {
+  } else if (_bossActive) {
     wanted = 'boss';
-  } else if (gs === 'WAVE1' || gs === 'WAVE2' || gs === 'WAVE3') {
+  } else if (typeof gs === 'string' && gs.indexOf('WAVE') === 0) {
     wanted = 'combat';
   }
 
@@ -804,26 +970,72 @@ function _updateMusicLayer() {
     _crossfadeTo(wanted);
     _musicLayer = wanted;
   }
+
+  // Re-pitch persistent drones if the level theme changed (smooth glide, no pop).
+  if (_activeTheme !== _lastTheme) {
+    _repitchDronesForTheme();
+    _lastTheme = _activeTheme;
+  }
+
+  // Continuous per-tick fine-tune: even within 'combat', scale the combat layer by
+  // live intensity so a near-cleared arena thins toward calm; ramp every tick.
+  _applyContinuousMix();
+  _applyTensionDrone();
 }
+
+// Glide the persistent drone oscillators to the active theme's roots (called only
+// when the theme actually changes). Each step is guarded + ramped → no clicks.
+function _repitchDronesForTheme() {
+  if (!_ac) return;
+  const now = _ac.currentTime;
+  const tm = _themeMusic();
+  if (_zenDroneNode) {
+    try {
+      _zenDroneNode.frequency.cancelScheduledValues(now);
+      _zenDroneNode.frequency.linearRampToValueAtTime(tm.zenDroneHz, now + 1.2);
+    } catch {}
+  }
+  if (_bossDroneNode) {
+    try {
+      _bossDroneNode.frequency.cancelScheduledValues(now);
+      _bossDroneNode.frequency.linearRampToValueAtTime(tm.bossDroneHz, now + 1.2);
+    } catch {}
+  }
+  if (_tensionDroneOsc) {
+    try {
+      _tensionDroneOsc.frequency.cancelScheduledValues(now);
+      _tensionDroneOsc.frequency.linearRampToValueAtTime(tm.tensionHz, now + 1.2);
+    } catch {}
+  }
+  if (_tensionDroneOsc2) {
+    try {
+      _tensionDroneOsc2.frequency.cancelScheduledValues(now);
+      _tensionDroneOsc2.frequency.linearRampToValueAtTime(tm.tensionHz, now + 1.2);
+    } catch {}
+  }
+}
+
+// Base layer mix per coarse layer. The continuous mix (_applyContinuousMix) then
+// modulates the COMBAT layer by live intensity within these envelopes.
+const _LAYER_BASE = {
+  zen:    { zen: 1.0, combat: 0.0, boss: 0.0 },
+  combat: { zen: 0.4, combat: 1.0, boss: 0.0 },
+  boss:   { zen: 0.2, combat: 0.3, boss: 1.0 },
+  none:   { zen: 0.0, combat: 0.0, boss: 0.0 },
+};
 
 function _crossfadeTo(layer) {
   if (!_ac) return;
   const now = _ac.currentTime;
   const RAMP = 1.5; // crossfade time in seconds
 
-  const targets = {
-    zen:    { zen: 1.0, combat: 0.0, boss: 0.0 },
-    combat: { zen: 0.4, combat: 1.0, boss: 0.0 },
-    boss:   { zen: 0.2, combat: 0.3, boss: 1.0 },
-    none:   { zen: 0.0, combat: 0.0, boss: 0.0 },
-  };
+  const t = _LAYER_BASE[layer] || _LAYER_BASE.none;
 
-  const t = targets[layer] || targets.none;
-
+  // Zen + boss layers ride the coarse base envelope here. The combat layer is left
+  // to _applyContinuousMix (intensity-driven), so we don't fight its per-tick ramps.
   [
-    [_zenGain,    t.zen],
-    [_combatGain, t.combat],
-    [_bossGain,   t.boss],
+    [_zenGain,  t.zen],
+    [_bossGain, t.boss],
   ].forEach(([g, val]) => {
     if (!g) return;
     g.gain.cancelScheduledValues(now);
@@ -844,6 +1056,89 @@ function _crossfadeTo(layer) {
   }
 }
 
+// ── Continuous per-tick mix: scale the combat percussion layer by live intensity,
+// and apply the ultimate "swell" by lifting the whole music bus a touch. Short
+// ramps (≈ scheduler interval) keep it smooth and pop-free. Fully null-safe. ──
+function _applyContinuousMix() {
+  if (!_ac) return;
+  const now = _ac.currentTime;
+  const R = 0.22; // ramp ≈ one scheduler tick, smooth
+
+  // Combat layer audible only within combat/boss layers; its loudness tracks
+  // intensity so a thinning arena fades the drums toward zen calm.
+  if (_combatGain) {
+    let target = 0;
+    if (_musicLayer === 'combat') target = 0.25 + 0.75 * _intensity; // 0.25..1.0
+    else if (_musicLayer === 'boss') target = 0.3 + 0.4 * _intensity; // under the boss bed
+    // ultimate swell adds a little extra body
+    if (_ultActive) target = Math.min(1.1, target + 0.1);
+    _rampGain(_combatGain.gain, target, now, R);
+  }
+
+  // Ultimate swell: lift the master music bus ~18% while a hero's ultimate runs,
+  // then settle back. Gives the super-state a musical bloom.
+  if (_musicBus) {
+    const target = _ultActive ? 0.72 : 0.55; // base music bus is 0.55
+    _rampGain(_musicBus.gain, target, now, R);
+  }
+}
+
+// ── Low-HP tension drone: a detuned low pair whose gain follows _tension. Created
+// lazily on first need; if it can't be created (no context) it's just skipped. ──
+function _applyTensionDrone() {
+  if (!_ac || !_musicBus) return;
+  const now = _ac.currentTime;
+
+  if (_tension > 0.001) {
+    if (!_tensionDroneOsc) _spawnTensionDrone();
+    if (_tensionDroneGain) {
+      // up to ~0.10 gain at full tension — subtle, sits under everything
+      _rampGain(_tensionDroneGain.gain, 0.10 * _tension, now, 0.3);
+    }
+    // widen the detune (beating gets queasier) as tension climbs
+    if (_tensionDroneOsc2) {
+      try {
+        _tensionDroneOsc2.detune.cancelScheduledValues(now);
+        _tensionDroneOsc2.detune.linearRampToValueAtTime(_themeMusic().detune * (1 + _tension), now + 0.3);
+      } catch {}
+    }
+  } else if (_tensionDroneGain) {
+    _rampGain(_tensionDroneGain.gain, 0, now, 0.4);
+  }
+}
+
+function _spawnTensionDrone() {
+  if (!_ac || !_musicBus || _tensionDroneOsc) return;
+  try {
+    const tm = _themeMusic();
+    const g = _ac.createGain();
+    g.gain.value = 0;
+    g.connect(_musicBus);
+    const lp = _ac.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 220;
+    lp.connect(g);
+    // two slightly detuned saws → slow beating = unease
+    const o1 = _ac.createOscillator();
+    o1.type = 'sawtooth'; o1.frequency.value = tm.tensionHz;
+    const o2 = _ac.createOscillator();
+    o2.type = 'sawtooth'; o2.frequency.value = tm.tensionHz; o2.detune.value = tm.detune;
+    o1.connect(lp); o2.connect(lp);
+    o1.start(_ac.currentTime); o2.start(_ac.currentTime);
+    _tensionDroneOsc = o1; _tensionDroneOsc2 = o2; _tensionDroneGain = g;
+  } catch (e) { /* never break gameplay */ }
+}
+
+// Smooth gain ramp helper — cancels, anchors current value, ramps. Null-safe.
+function _rampGain(param, target, now, ramp) {
+  if (!param) return;
+  try {
+    param.cancelScheduledValues(now);
+    param.setValueAtTime(param.value, now);
+    param.linearRampToValueAtTime(target, now + ramp);
+  } catch (e) { /* ignore */ }
+}
+
 function _startScheduler() {
   // Guard: only one interval instance at a time
   if (_schedulerInterval !== null) {
@@ -853,8 +1148,14 @@ function _startScheduler() {
 
   if (!_ac) return;
 
-  // Initialise the "scheduled up to" cursor just ahead of now
+  // Initialise the cursor-based scheduler state.
   _scheduledUpTo = _ac.currentTime;
+  _beatCounter = 0;
+  // Reset adaptive scalars so a fresh context starts calm.
+  _intensity = 0; _intensityTarget = 0; _tension = 0; _tensionTarget = 0;
+  _bossActive = false; _bossPhase = 1; _bossEnraged = false; _ultActive = false;
+  _activeTheme = (gameCtx._activeTheme === 2 || gameCtx._activeTheme === 3) ? gameCtx._activeTheme : 1;
+  _lastTheme = _activeTheme;
 
   // Spawn zen drone immediately
   _zenDroneNode = _spawnZenDrone();
@@ -867,6 +1168,23 @@ function _startScheduler() {
 // Exposed for E2E verification: returns true if only one interval is running
 export function schedulerSingleInstance() {
   return _schedulerInterval !== null;
+}
+
+// ── Adaptive-music introspection (debug/E2E; additive, read-only) ──────────────
+// Returns the live adaptive scalars. Safe to call any time — all plain numbers,
+// 0 when the context was never started (headless).
+export function musicState() {
+  return {
+    intensity: _intensity,
+    tension: _tension,
+    layer: _musicLayer,
+    bossActive: _bossActive,
+    bossPhase: _bossPhase,
+    bossEnraged: _bossEnraged,
+    ultActive: _ultActive,
+    theme: _activeTheme,
+    running: _schedulerInterval !== null,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

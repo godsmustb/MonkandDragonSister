@@ -4,11 +4,13 @@
 // PASS 1 ADDITIONS: lives, startGame(), consumeLife(), forceKO(), lockOn(n),
 //   state now reports 'MENU' and 'GAMEOVER'
 // PASS 7 ADDITIONS: audioReady boolean (context created after first gesture)
+// PASS 13 ADDITIONS: bindings getter, rebind(who, action, code)
 import { ctx } from './state.js';
 import { endIntro } from './game/quest.js';
 import { startGame as menuStartGame } from './ui/menu.js';
 import { consumeLife as _consumeLife } from './game/lives.js';
 import { toggleLockOn, camExtra } from './game/camera.js';
+import { saveBindings } from './game/bindings.js';
 
 export function setupDebugAPI() {
   // Expose raw ctx for VFX testing / screenshot scripts
@@ -179,6 +181,23 @@ export function setupDebugAPI() {
     },
     resume() {
       if (ctx.gameState) ctx.gameState._paused = false;
+    },
+
+    // ── Pass 13: Bindings API ─────────────────────────────────────────────
+    /** Live bindings table { p1: {...}, p2: {...} } */
+    get bindings() { return ctx.bindings; },
+
+    /**
+     * Programmatically rebind an action and persist.
+     * @param {string} who   - 'p1' | 'p2'
+     * @param {string} action - e.g. 'attack', 'jump', 'dodge'
+     * @param {string} code   - KeyboardEvent.code e.g. 'KeyX', 'Space'
+     */
+    rebind(who, action, code) {
+      if (!ctx.bindings || !ctx.bindings[who]) return;
+      if (!Object.prototype.hasOwnProperty.call(ctx.bindings[who], action)) return;
+      ctx.bindings[who][action] = [code];
+      saveBindings();
     },
   };
 }

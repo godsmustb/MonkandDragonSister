@@ -1,10 +1,11 @@
 // src/game/camera.js — Camera V2
 // (a) Auto-follow: yaw eases to behind player movement heading
-// (b) Manual orbit: P1 Q/E, P2 Num7/Num9 — hold, decays after 3s
-// (c) Lock-on: P1 F, P2 Num0 — targets nearest spirit
+// (b) Manual orbit: P1 orbitL/orbitR, P2 orbitL/orbitR — hold, decays after 3s
+// (c) Lock-on: P1 lockon, P2 lockon — targets nearest spirit
 // (d) Ground-clip prevention: cam.y >= 1.2
 import * as THREE from 'three';
 import { ctx } from '../state.js';
+import { isDown } from './bindings.js';
 
 // ── Per-player camera state ────────────────────────────────────────────────
 const _camExtra = {
@@ -97,7 +98,6 @@ export function updateCamera(camId, player) {
   const cs  = ctx.camState[camId];
   const cam = ctx.cameras[camId];
   const cx  = _camExtra[camId];
-  const keys = ctx.keys;
 
   // ── Check lock target still valid ──
   if (cx.lockTarget) {
@@ -128,13 +128,9 @@ export function updateCamera(camId, player) {
   const frameDt = ctx.game._lastDt || 0.016;
 
   let manualInput = false;
-  if (camId === 'p1') {
-    if (keys['KeyQ']) { cx.yawOffset -= ORBIT_SPEED * frameDt; manualInput = true; }
-    if (keys['KeyE']) { cx.yawOffset += ORBIT_SPEED * frameDt; manualInput = true; }
-  } else {
-    if (keys['Numpad7']) { cx.yawOffset -= ORBIT_SPEED * frameDt; manualInput = true; }
-    if (keys['Numpad9']) { cx.yawOffset += ORBIT_SPEED * frameDt; manualInput = true; }
-  }
+  // Pass 13: use bindings for orbit so remapped keys work
+  if (isDown(camId, 'orbitL')) { cx.yawOffset -= ORBIT_SPEED * frameDt; manualInput = true; }
+  if (isDown(camId, 'orbitR')) { cx.yawOffset += ORBIT_SPEED * frameDt; manualInput = true; }
 
   if (manualInput) {
     cx.manualTimer = 0;

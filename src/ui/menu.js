@@ -3,6 +3,7 @@
 import { ctx } from '../state.js';
 import { startIntro } from '../game/quest.js';
 import { initAudioOnGesture, toggleMute, audioLabel, sfx } from '../audio/audio.js';
+import { saveBindings, resetBindings, DEFAULT_BINDINGS } from '../game/bindings.js';
 
 // ── State ─────────────────────────────────────────────────────────────────
 let _menuEl   = null;
@@ -478,11 +479,62 @@ function _makeMenuBtn(label, fn) {
   return btn;
 }
 
-// ── Controls overlay ──────────────────────────────────────────────────────
+// ── Controls overlay — interactive remapper ───────────────────────────────
+
+// Human-readable labels for each action per player
+const _P1_ACTIONS = [
+  { action: 'up',     label: 'Move Up'    },
+  { action: 'down',   label: 'Move Down'  },
+  { action: 'left',   label: 'Move Left'  },
+  { action: 'right',  label: 'Move Right' },
+  { action: 'attack', label: 'Attack'     },
+  { action: 'shield', label: 'Chi Shield' },
+  { action: 'dodge',  label: 'Dodge / Evade' },
+  { action: 'heal',   label: 'Healing Pulse' },
+  { action: 'jump',   label: 'Jump (i-frames)' },
+  { action: 'lockon', label: 'Lock-on'    },
+  { action: 'orbitL', label: 'Camera Left'},
+  { action: 'orbitR', label: 'Camera Right'},
+];
+const _P2_ACTIONS = [
+  { action: 'up',        label: 'Move Up'    },
+  { action: 'down',      label: 'Move Down'  },
+  { action: 'left',      label: 'Move Left'  },
+  { action: 'right',     label: 'Move Right' },
+  { action: 'attack',    label: 'Attack'     },
+  { action: 'transform', label: 'Transform'  },
+  { action: 'dodge',     label: 'Dodge / Evade' },
+  { action: 'special',   label: 'Special'    },
+  { action: 'jump',      label: 'Jump (i-frames)' },
+  { action: 'lockon',    label: 'Lock-on'    },
+  { action: 'orbitL',    label: 'Camera Left'},
+  { action: 'orbitR',    label: 'Camera Right'},
+];
+
+// Format a codes array into display string
+function _codeLabel(codes) {
+  if (!codes || codes.length === 0) return '—';
+  return codes.map(c => _prettyCode(c)).join(' / ');
+}
+
+function _prettyCode(code) {
+  return code
+    .replace('Arrow', '')
+    .replace('Numpad', 'Num')
+    .replace('NumpadEnter', 'NumEnt')
+    .replace('Key', '')
+    .replace('Space', 'Spc')
+    .replace('Enter', 'Ent');
+}
+
 export function showControls() {
   if (_ctrlEl && _ctrlEl.parentNode) {
-    _ctrlEl.style.display = 'flex';
-    return;
+    // Rebuild to reflect any binding changes since last open
+    document.body.removeChild(_ctrlEl);
+    if (_ctrlEl._keyHandler) {
+      document.removeEventListener('keydown', _ctrlEl._keyHandler);
+    }
+    _ctrlEl = null;
   }
   _ctrlEl = document.createElement('div');
   _ctrlEl.id = 'controls-overlay';
@@ -490,74 +542,167 @@ export function showControls() {
     position:fixed;top:0;left:0;width:100%;height:100%;
     background:rgba(0,0,0,0.92);z-index:200;
     display:flex;flex-direction:column;
-    align-items:center;justify-content:center;
+    align-items:center;justify-content:flex-start;
     font-family:Georgia,serif;
+    overflow-y:auto;
+    padding:20px 0 30px;
   `;
 
   const h = document.createElement('h2');
-  h.textContent = 'CONTROLS';
-  h.style.cssText = 'color:#c8a000;font-size:28px;letter-spacing:6px;margin-bottom:30px;';
+  h.textContent = 'CONTROLS & REMAP';
+  h.style.cssText = 'color:#c8a000;font-size:26px;letter-spacing:6px;margin-bottom:6px;flex-shrink:0;';
+
+  const hint = document.createElement('p');
+  hint.textContent = 'Click an action row to rebind. Press a key to assign. Esc cancels.';
+  hint.style.cssText = 'color:#888;font-size:11px;margin-bottom:18px;letter-spacing:1px;flex-shrink:0;';
 
   const cols = document.createElement('div');
-  cols.style.cssText = 'display:flex;gap:60px;align-items:flex-start;';
+  cols.style.cssText = 'display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;justify-content:center;flex-shrink:0;';
 
-  cols.appendChild(_makeControlCol('P1 — The Monk', [
-    ['WASD',       'Move'],
-    ['Space / I',  'Attack'],
-    ['J',          'Chi Shield'],
-    ['K',          'Dodge'],
-    ['L',          'Healing Pulse'],
-    ['Q / E',      'Camera orbit left/right'],
-    ['F',          'Lock-on toggle'],
-  ]));
-  cols.appendChild(_makeControlCol('P2 — Dragon Sister', [
-    ['Arrow Keys',   'Move'],
-    ['Enter / Num8', 'Attack'],
-    ['Num4',         'Transform'],
-    ['Num5',         'Dodge'],
-    ['Num6',         'Special'],
-    ['Num7 / Num9',  'Camera orbit left/right'],
-    ['Num0',         'Lock-on toggle'],
-  ]));
+  // Track listening state
+  let _listening = null; // { who, action, keyEl } or null
+
+  function _stopListening() {
+    if (!_listening) return;
+    const { keyEl, who, action } = _listening;
+    const codes = (ctx.bindings && ctx.bindings[who] && ctx.bindings[who][action]) || [];
+    keyEl.textContent = _codeLabel(codes);
+    keyEl.style.background = 'rgba(255,220,0,0.1)';
+    keyEl.style.color = '#ffdd55';
+    keyEl.style.borderColor = 'rgba(200,160,0,0.4)';
+    _listening = null;
+  }
+
+  function _buildCol(who, playerLabel, actions) {
+    const col = document.createElement('div');
+    col.style.cssText = 'min-width:280px;max-width:320px;';
+    const ch = document.createElement('h3');
+    ch.textContent = playerLabel;
+    ch.style.cssText = 'color:#c8a000;font-size:15px;margin-bottom:14px;border-bottom:1px solid rgba(200,160,0,0.3);padding-bottom:7px;letter-spacing:2px;';
+    col.appendChild(ch);
+
+    actions.forEach(({ action, label }) => {
+      const row = document.createElement('div');
+      row.style.cssText = `
+        display:flex;justify-content:space-between;align-items:center;
+        gap:16px;margin-bottom:8px;cursor:pointer;
+        padding:4px 6px;border-radius:4px;
+        border:1px solid transparent;
+        transition:background 0.12s,border-color 0.12s;
+      `;
+      row.title = 'Click to rebind';
+      row.addEventListener('mouseenter', () => {
+        if (_listening && _listening.row === row) return;
+        row.style.background = 'rgba(200,160,0,0.07)';
+        row.style.borderColor = 'rgba(200,160,0,0.2)';
+      });
+      row.addEventListener('mouseleave', () => {
+        if (_listening && _listening.row === row) return;
+        row.style.background = 'transparent';
+        row.style.borderColor = 'transparent';
+      });
+
+      const lEl = document.createElement('span');
+      lEl.textContent = label;
+      lEl.style.cssText = 'color:#ccc;font-size:12px;flex:1;';
+
+      const codes = (ctx.bindings && ctx.bindings[who] && ctx.bindings[who][action]) || [];
+      const keyEl = document.createElement('span');
+      keyEl.textContent = _codeLabel(codes);
+      keyEl.style.cssText = `
+        color:#ffdd55;font-size:11px;
+        background:rgba(255,220,0,0.1);
+        padding:2px 8px;border-radius:3px;
+        border:1px solid rgba(200,160,0,0.4);
+        white-space:nowrap;min-width:60px;text-align:center;
+        cursor:pointer;
+      `;
+
+      row.appendChild(lEl);
+      row.appendChild(keyEl);
+      col.appendChild(row);
+
+      row.addEventListener('click', () => {
+        // Cancel any previous listening
+        _stopListening();
+        // Enter listening mode
+        _listening = { who, action, keyEl, row };
+        keyEl.textContent = 'Press a key…';
+        keyEl.style.background = 'rgba(200,160,0,0.25)';
+        keyEl.style.color = '#fff';
+        keyEl.style.borderColor = '#c8a000';
+        row.style.background = 'rgba(200,160,0,0.12)';
+        row.style.borderColor = 'rgba(200,160,0,0.5)';
+      });
+    });
+    return col;
+  }
+
+  cols.appendChild(_buildCol('p1', 'P1 — The Monk', _P1_ACTIONS));
+  cols.appendChild(_buildCol('p2', 'P2 — Dragon Sister', _P2_ACTIONS));
+
+  // Reset button + Back
+  const btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:20px;margin-top:20px;flex-shrink:0;';
+
+  const resetBtn = _makeMenuBtn('RESET TO DEFAULTS', () => {
+    try { sfx.menuTick(); } catch {}
+    resetBindings();
+    // Rebuild overlay to reflect defaults
+    showControls();
+  });
+  const backBtn = _makeMenuBtn('BACK', () => {
+    try { sfx.menuTick(); } catch {}
+    hideControls();
+  });
+  btnRow.appendChild(resetBtn);
+  btnRow.appendChild(backBtn);
 
   const esc = document.createElement('p');
-  esc.textContent = 'Esc / Backspace — Back';
-  esc.style.cssText = 'color:#666;font-size:12px;margin-top:30px;letter-spacing:2px;';
+  esc.textContent = 'Esc / Backspace — Back  ·  M — Mute  ·  Global: Esc = Pause (not remappable)';
+  esc.style.cssText = 'color:#555;font-size:10px;margin-top:14px;letter-spacing:1px;flex-shrink:0;';
 
   _ctrlEl.appendChild(h);
+  _ctrlEl.appendChild(hint);
   _ctrlEl.appendChild(cols);
+  _ctrlEl.appendChild(btnRow);
   _ctrlEl.appendChild(esc);
   document.body.appendChild(_ctrlEl);
 
+  // Single keydown listener — captures rebind OR handles Back
   _ctrlEl._keyHandler = (e) => {
+    if (_listening) {
+      // Capture for rebind
+      e.stopPropagation();
+      e.preventDefault();
+      if (e.code === 'Escape') {
+        // Cancel — restore old label
+        _stopListening();
+        return;
+      }
+      // Assign new binding
+      const { who, action, keyEl, row } = _listening;
+      if (ctx.bindings && ctx.bindings[who]) {
+        ctx.bindings[who][action] = [e.code];
+        saveBindings();
+      }
+      _listening = null;
+      keyEl.textContent = _codeLabel([e.code]);
+      keyEl.style.background = 'rgba(255,220,0,0.1)';
+      keyEl.style.color = '#ffdd55';
+      keyEl.style.borderColor = 'rgba(200,160,0,0.4)';
+      row.style.background = 'transparent';
+      row.style.borderColor = 'transparent';
+      try { sfx.menuTick(); } catch {}
+      return;
+    }
+    // Not listening — handle navigation
     if (e.code === 'Escape' || e.code === 'Backspace') {
+      e.stopPropagation();
       hideControls();
     }
   };
   document.addEventListener('keydown', _ctrlEl._keyHandler);
-}
-
-function _makeControlCol(title, rows) {
-  const col = document.createElement('div');
-  col.style.cssText = 'min-width:260px;';
-  const h = document.createElement('h3');
-  h.textContent = title;
-  h.style.cssText = 'color:#c8a000;font-size:16px;margin-bottom:16px;border-bottom:1px solid rgba(200,160,0,0.3);padding-bottom:8px;letter-spacing:2px;';
-  col.appendChild(h);
-  rows.forEach(([key, label]) => {
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;justify-content:space-between;gap:20px;margin-bottom:10px;';
-    const kEl = document.createElement('span');
-    kEl.textContent = key;
-    kEl.style.cssText = 'color:#ffdd55;font-size:13px;background:rgba(255,220,0,0.1);padding:2px 8px;border-radius:3px;border:1px solid rgba(200,160,0,0.4);white-space:nowrap;';
-    const lEl = document.createElement('span');
-    lEl.textContent = label;
-    lEl.style.cssText = 'color:#ccc;font-size:13px;';
-    row.appendChild(kEl);
-    row.appendChild(lEl);
-    col.appendChild(row);
-  });
-  return col;
 }
 
 export function hideControls() {

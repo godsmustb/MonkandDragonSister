@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { ctx } from '../state.js';
 import { LEVEL_TABLE, XP_TO_LEVEL, FORM_DATA, ELEMENT_NAMES, ELEMENT_COLORS, ARENA_SIZE } from '../config.js';
+import { isDown } from '../game/bindings.js';
 import { sfx } from '../audio/audio.js';
 import { buildMonk, buildSister, buildDragon } from '../chars/builders.js';
 import { _animateCharacter } from '../chars/anim.js';
@@ -110,6 +111,11 @@ export class Player {
     this._kneelMesh = null;
     this.inactive = false;     // Pass 12: true = hidden/invulnerable partner in 1P solo
     this._isAiPartner = false; // Pass 12: true = AI-driven in 1P+AI mode
+
+    // Pass 13: Jump state
+    this._jumpVel = 0;
+    this._airborne = false;
+    this._jumpCd = 0;
 
     this._animPhase = 0;
     this._attackAnim = 0;
@@ -264,6 +270,7 @@ export class Player {
     if (this._dodgeCd > 0) this._dodgeCd -= dt;
     if (this._specialCd > 0) this._specialCd -= dt;
     if (this._transformCd > 0) this._transformCd -= dt;
+    if (this._jumpCd > 0) this._jumpCd -= dt;
     if (this._iframes > 0) this._iframes -= dt;
     if (this._comboTimer > 0) this._comboTimer -= dt; else this._comboCount = 0;
     if (this._attackAnimActive) {
@@ -308,17 +315,12 @@ export class Player {
       return;
     }
 
-    if (this.id === 1) {
-      if (keys['KeyW']) mz = -1;
-      if (keys['KeyS']) mz = 1;
-      if (keys['KeyA']) mx = -1;
-      if (keys['KeyD']) mx = 1;
-    } else {
-      if (keys['ArrowUp'])    mz = -1;
-      if (keys['ArrowDown'])  mz = 1;
-      if (keys['ArrowLeft'])  mx = -1;
-      if (keys['ArrowRight']) mx = 1;
-    }
+    // Pass 13: use binding indirection for movement
+    const _who = this.id === 1 ? 'p1' : 'p2';
+    if (isDown(_who, 'up'))    mz = -1;
+    if (isDown(_who, 'down'))  mz = 1;
+    if (isDown(_who, 'left'))  mx = -1;
+    if (isDown(_who, 'right')) mx = 1;
 
     _v3.set(mx, 0, mz);
     if (_v3.lengthSq() > 0) {
@@ -330,7 +332,20 @@ export class Player {
 
     this.pos.x = THREE.MathUtils.clamp(this.pos.x, -ARENA_SIZE + 2, ARENA_SIZE - 2);
     this.pos.z = THREE.MathUtils.clamp(this.pos.z, -ARENA_SIZE + 2, ARENA_SIZE - 2);
-    this.pos.y = 0;
+
+    // Pass 13: jump physics — only pin y=0 when not airborne
+    if (this._airborne) {
+      const GRAVITY = 22;
+      this.pos.y += this._jumpVel * dt;
+      this._jumpVel -= GRAVITY * dt;
+      if (this.pos.y <= 0) {
+        this.pos.y = 0;
+        this._airborne = false;
+        this._jumpVel = 0;
+      }
+    } else {
+      this.pos.y = 0;
+    }
 
     const cm = this.currentMesh();
     if (cm) {
@@ -615,6 +630,19 @@ export class Player {
     this.pos.add(dashDir);
     this.pos.x = THREE.MathUtils.clamp(this.pos.x, -ARENA_SIZE + 2, ARENA_SIZE - 2);
     this.pos.z = THREE.MathUtils.clamp(this.pos.z, -ARENA_SIZE + 2, ARENA_SIZE - 2);
+  }
+
+  // Pass 13: Jump — brief airborne hop with i-frames at takeoff
+  jump() {
+    if (this.isKO) return;
+    if (this.inactive) return;
+    if (this._airborne) return;
+    if (this._jumpCd > 0) return;
+    this._airborne = true;
+    this._jumpVel = 7;     // upward velocity (units/s)
+    this._jumpCd = 0.7;    // cooldown before next jump (s)
+    this._iframes = 0.45;  // i-frames cover rise + apex
+    try { sfx.dodge && sfx.dodge(); } catch {}
   }
 
   // Meditation VFX

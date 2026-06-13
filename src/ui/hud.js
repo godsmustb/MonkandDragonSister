@@ -447,8 +447,8 @@ function _buildFormStrip() {
 // CONTROLS CHIP HOVER TOOLTIP
 // ────────────────────────────────────────────────────────────────────────────
 function _wireControlsChips() {
-  const P1_CONTROLS = 'WASD: Move | I/Spc: Attack | J: Shield | K: Dodge | L: Heal | F: Lock-on';
-  const P2_CONTROLS = 'Arrows: Move | Ent/8: Attack | Num4: Transform | Num5: Dodge | Num6: Special | 0: Lock-on';
+  const P1_CONTROLS = 'WASD: Move | I/Spc: Attack | J: Shield | K: Dodge | L: Heal | C: Jump | F: Lock-on';
+  const P2_CONTROLS = 'Arrows: Move | Ent/8: Attack | Num4: Transform | Num5: Dodge | Num6: Special | Num2: Jump | 0: Lock-on';
 
   [['controls-chip-p1', P1_CONTROLS],['controls-chip-p2', P2_CONTROLS]].forEach(([id, txt]) => {
     const chip = document.getElementById(id);

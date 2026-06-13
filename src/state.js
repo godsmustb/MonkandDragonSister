@@ -36,6 +36,8 @@ export const ctx = {
   mode: '2p',           // '2p' | '1p'
   soloChar: null,       // null | 'monk' | 'sister'  (1p only)
   aiPartner: false,     // false | true  (1p only)
+  // Pass 13 — control bindings (populated by loadBindings() in main.js boot)
+  bindings: null,
 };
 
 export function setQuality(q) {

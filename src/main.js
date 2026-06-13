@@ -22,6 +22,7 @@ import { initLives, consumeLife, _updateLivesHUD } from './game/lives.js';
 import { updateCamera as updateCameraV2, toggleLockOn, clearLockTargets, camExtra } from './game/camera.js';
 import { buildPostFX, renderPostFX, resizePostFX, postFxEnabled, disposePostFX } from './fx/postfx.js';
 import { setQuality } from './state.js';
+import { loadBindings, matchAction } from './game/bindings.js';
 
 // ---- Wire up lazy cross-module references ----
 setDealDamageToPlayer(dealDamageToPlayer);
@@ -147,11 +148,18 @@ function updateGame(dt) {
 }
 
 // ---- Input ----
-// Extra keys for camera V2 + pause
+// Extra keys for camera V2 + pause (supplement PREVENT_KEYS from config.js)
 const EXTRA_PREVENT = new Set(['KeyQ','KeyE','KeyF','Numpad7','Numpad9','Numpad0','Escape']);
 
 window.addEventListener('keydown', (e) => {
+  // Prevent default for all static keys plus any currently bound key
   if (PREVENT_KEYS.has(e.code) || EXTRA_PREVENT.has(e.code)) e.preventDefault();
+  // Also prevent default for any remapped key so the page doesn't scroll/navigate
+  if (ctx.bindings) {
+    const a1 = matchAction('p1', e.code);
+    const a2 = matchAction('p2', e.code);
+    if (a1 || a2) e.preventDefault();
+  }
   keys[e.code] = true;
 
   // Every keydown is a user gesture — init audio lazily (no-op if already created)
@@ -165,7 +173,7 @@ window.addEventListener('keydown', (e) => {
   // Menu state — let menu.js handle navigation via its own listener
   if (gameState.state === 'MENU') return;
 
-  // Pause toggle (Escape key during game)
+  // Pause toggle (Escape key during game) — not remappable
   if (e.code === 'Escape') {
     togglePause();
     return;
@@ -182,24 +190,30 @@ window.addEventListener('keydown', (e) => {
   const p1Active = ctx.mode !== '1p' || ctx.soloChar === 'monk';
   const p2Active = ctx.mode !== '1p' || ctx.soloChar === 'sister';
 
+  // Binding-driven dispatch using matchAction()
+  const act1 = p1Active ? matchAction('p1', e.code) : null;
+  const act2 = p2Active ? matchAction('p2', e.code) : null;
+
   // KO gate: skip action calls for a downed player (movement is already gated in update())
-  if (p1Active && !p1.isKO) {
-    if (e.code === 'Space' || e.code === 'KeyI') p1.attack();
-    if (e.code === 'KeyJ') p1.chiShield();
-    if (e.code === 'KeyK') p1.dodge();
-    if (e.code === 'KeyL') p1.healingPulse();
+  if (act1 && !p1.isKO) {
+    if (act1 === 'attack')  p1.attack();
+    if (act1 === 'shield')  p1.chiShield();
+    if (act1 === 'dodge')   p1.dodge();
+    if (act1 === 'heal')    p1.healingPulse();
+    if (act1 === 'jump')    p1.jump();
   }
   // Camera V2: P1 lock-on (allowed even while KO so player can track the fight)
-  if (p1Active && e.code === 'KeyF') toggleLockOn('p1');
+  if (p1Active && act1 === 'lockon') toggleLockOn('p1');
 
-  if (p2Active && !p2.isKO) {
-    if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Numpad8') p2.attack();
-    if (e.code === 'Numpad4') p2.cycleForm();
-    if (e.code === 'Numpad5') p2.dodge();
-    if (e.code === 'Numpad6') p2.special();
+  if (act2 && !p2.isKO) {
+    if (act2 === 'attack')    p2.attack();
+    if (act2 === 'transform') p2.cycleForm();
+    if (act2 === 'dodge')     p2.dodge();
+    if (act2 === 'special')   p2.special();
+    if (act2 === 'jump')      p2.jump();
   }
   // Camera V2: P2 lock-on
-  if (p2Active && e.code === 'Numpad0') toggleLockOn('p2');
+  if (p2Active && act2 === 'lockon') toggleLockOn('p2');
 });
 
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
@@ -366,6 +380,9 @@ function animate() {
 
 // ---- Init ----
 function init() {
+  // Pass 13: load control bindings (localStorage → ctx.bindings)
+  loadBindings();
+
   buildWorld();
   resize();
 

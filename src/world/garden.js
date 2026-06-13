@@ -453,35 +453,45 @@ function buildCherryTree(x, z, scale = 1, pink) {
   trunk.castShadow = true;
   addOutline(trunk);
   g.add(trunk);
-  const blobs = 5 + Math.floor(Math.random() * 3); // 5-7 blobs
+  // Lush oil-dabbed canopy: more, rounder blobs massed into a soft crown. The
+  // garden sun comes from +X (upper-left of frame), so blobs biased toward +X
+  // and higher get a sunlit lift; lower / -X blobs sink into deeper shadow —
+  // stronger painterly light/shadow separation than a flat 2-tone. A few bright
+  // near-white dabs sit on the sunlit upper side as oil highlights.
+  const blobs = 7 + Math.floor(Math.random() * 3); // 7-9 blobs — fuller massing
   for (let i = 0; i < blobs; i++) {
     // Y-fraction: 0 = lowest, 1 = highest blob in this tree's crown
     const yFrac = i / (blobs - 1);
+    // Pre-pick horizontal offset so colour can react to the light direction.
+    const spread = (1.9 - yFrac * 0.6) * scale;
+    const ox = (Math.random() - 0.5) * spread * 2;
+    const oz = (Math.random() - 0.5) * spread * 2;
+    // Light term: +1 = fully sunlit (high + toward +X), -1 = deep shadow.
+    const light = Math.max(-1, Math.min(1, (yFrac - 0.5) * 1.6 + (ox / (spread + 0.001)) * 0.7));
     let blobColor;
-    if (yFrac < 0.35) {
-      // Lower blobs — deep magenta shadow
+    if (light < -0.35) {
+      // Shadowed underside / far side — deep saturated magenta.
       blobColor = CHERRY_SHADOW[(Math.random() * CHERRY_SHADOW.length) | 0];
-    } else if (yFrac > 0.72 && Math.random() < 0.5) {
-      // Upper blobs — white-pink highlight dabs
+    } else if (light > 0.5 && Math.random() < 0.6) {
+      // Sunlit crown — bright near-white highlight dabs.
       blobColor = CHERRY_HIGHLIGHT[(Math.random() * CHERRY_HIGHLIGHT.length) | 0];
     } else {
-      // Mid blobs — base pink with gentle hue jitter
+      // Mid blobs — base pink lifted/darkened by the light term + gentle jitter.
       blobColor = new THREE.Color(col).offsetHSL(
         (Math.random() - 0.5) * 0.03,
-        (Math.random() - 0.5) * 0.06,
-        (Math.random() - 0.5) * 0.08
+        (Math.random() - 0.5) * 0.05,
+        light * 0.13 + (Math.random() - 0.5) * 0.05
       ).getHex();
     }
     const blob = new THREE.Mesh(
-      new THREE.SphereGeometry((1.1 + Math.random() * 0.6) * scale, 7, 5),
+      new THREE.SphereGeometry((1.2 + Math.random() * 0.6) * scale, 8, 6),
       toonMat(blobColor)
     );
     // Spread lower blobs wider; upper blobs cluster tighter near the crown top.
-    const spread = (1.8 - yFrac * 0.6) * scale;
     blob.position.set(
-      (Math.random() - 0.5) * spread * 2,
+      ox,
       (3 + yFrac * 2.0 + Math.random() * 0.8) * scale,
-      (Math.random() - 0.5) * spread * 2
+      oz
     );
     blob.castShadow = true;
     addOutline(blob, 1.06);

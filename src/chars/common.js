@@ -18,6 +18,30 @@ export function getGradTex() {
   return _gradTex;
 }
 
+// ---- Fresnel rim injection (the "Genshin pop") ----
+// Adds a cool view-angle rim glow to a toon material via onBeforeCompile. Hooked
+// at <dithering_fragment> (the final include in every lit fragment shader) so it
+// works regardless of the exact toon chunk names, and degrades to a silent no-op
+// if the token is ever absent — never a hard shader error (E2E stays green).
+const RIM_COLOR    = new THREE.Color(0xbcd2ff); // matches the scene rim light
+const RIM_POWER    = 2.6;
+const RIM_STRENGTH = 0.32;
+function applyToonRim(mat) {
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uRimColor    = { value: RIM_COLOR };
+    shader.uniforms.uRimPower    = { value: RIM_POWER };
+    shader.uniforms.uRimStrength = { value: RIM_STRENGTH };
+    shader.fragmentShader =
+      'uniform vec3 uRimColor; uniform float uRimPower; uniform float uRimStrength;\n' +
+      shader.fragmentShader.replace(
+        '#include <dithering_fragment>',
+        '#include <dithering_fragment>\n' +
+        '  float _rim = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), uRimPower);\n' +
+        '  gl_FragColor.rgb += uRimColor * (_rim * uRimStrength);'
+      );
+  };
+}
+
 // ---- Cached toon materials (one shared instance per color, per opts signature) ----
 const _matCache = new Map();
 export function toonMat(color, opts = {}) {
@@ -25,6 +49,7 @@ export function toonMat(color, opts = {}) {
   let m = _matCache.get(key);
   if (m) return m;
   m = new THREE.MeshToonMaterial({ color, gradientMap: getGradTex(), ...opts });
+  applyToonRim(m);
   _matCache.set(key, m);
   return m;
 }

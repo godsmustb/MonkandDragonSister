@@ -38,12 +38,25 @@ export function buildSky() {
   dome.renderOrder = -10;
   scene.add(dome);
 
-  // ── Karst mountain rings ─────────────────────────────────────────────────
-  // Three concentric rings of stylized limestone peaks. Nearer = darker jade;
-  // farther = lighter, blue-shifted, hazier (atmospheric perspective).
-  buildMountainRing(scene, { radius: 150, count: 14, minH: 22, maxH: 46, baseW: 26, color: 0x6f8f86, y: -4 });
-  buildMountainRing(scene, { radius: 210, count: 18, minH: 30, maxH: 64, baseW: 34, color: 0x9bb7bf, y: -8 });
-  buildMountainRing(scene, { radius: 270, count: 22, minH: 40, maxH: 84, baseW: 42, color: 0xc4d6da, y: -12 });
+  // ── Painterly mountain rings ─────────────────────────────────────────────
+  // Three concentric rings of soft "Bob Ross" peaks. Each ring's merged cones
+  // carry a VERTICAL canvas gradient (deep shadowed base → lighter mid → soft
+  // near-white snow cap at the apex) since ConeGeometry side UVs run v=0 (base)
+  // → v=1 (apex). Nearer ring = more contrast/saturation; farther rings = paler,
+  // hazier, more blue-violet (atmospheric perspective). A faint warm sun-side
+  // tint warms the cap. Still unlit + fog so they melt dreamily into the haze.
+  buildMountainRing(scene, {
+    radius: 150, count: 14, minH: 22, maxH: 46, baseW: 26, y: -4,
+    base: '#5c7d83', mid: '#86a3a6', snow: '#eef4f3', warm: '#f6e9cf',
+  });
+  buildMountainRing(scene, {
+    radius: 210, count: 18, minH: 30, maxH: 64, baseW: 34, y: -8,
+    base: '#86a0b4', mid: '#aabfcb', snow: '#eef1f7', warm: '#f0ecdc',
+  });
+  buildMountainRing(scene, {
+    radius: 270, count: 22, minH: 40, maxH: 84, baseW: 42, y: -12,
+    base: '#aebccf', mid: '#c6d2de', snow: '#f0f2f7', warm: '#eeecdf',
+  });
 
   // ── Sun disc + glow ──────────────────────────────────────────────────────
   buildSun(scene);
@@ -53,11 +66,46 @@ export function buildSky() {
   scene.background = new THREE.Color(SKY_MID);
 }
 
-// Build one ring of merged karst peaks (single draw call). Peaks are tapered
-// cones with slight random lean; flat toon-ish colour via MeshBasicMaterial
-// (unlit so distant silhouettes read as clean flat shapes, fog blends them).
+// Paint a vertical painterly mountain gradient once at build time. ConeGeometry
+// side UVs run v=0 (base) → v=1 (apex), and CanvasTexture v=0 is the TOP of the
+// canvas — so we paint the snow cap at the top and the shadowed base at the
+// bottom. Soft blended stops (deep base → mid → soft snow) plus a faint warm
+// sun-side wash near the cap for a dreamy oil-painting feel.
+function makeMountainGradient(o) {
+  const W = 8, H = 256;
+  const cvs = document.createElement('canvas');
+  cvs.width = W; cvs.height = H;
+  const c = cvs.getContext('2d');
+  // Main vertical gradient: top = snow cap (UV v≈1, apex), bottom = base (v≈0).
+  const g = c.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0.00, o.snow);
+  g.addColorStop(0.16, o.snow);
+  g.addColorStop(0.34, o.mid);
+  g.addColorStop(0.70, o.mid);
+  g.addColorStop(1.00, o.base);
+  c.fillStyle = g;
+  c.fillRect(0, 0, W, H);
+  // Faint warm sun-side wash blended over the upper third (cheap golden tint).
+  const wg = c.createLinearGradient(0, 0, 0, H * 0.5);
+  wg.addColorStop(0.0, o.warm);
+  wg.addColorStop(1.0, 'rgba(255,255,255,0)');
+  c.globalAlpha = 0.22;
+  c.globalCompositeOperation = 'soft-light';
+  c.fillStyle = wg;
+  c.fillRect(0, 0, W, H * 0.5);
+  c.globalCompositeOperation = 'source-over';
+  c.globalAlpha = 1.0;
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+// Build one ring of merged painterly peaks (single draw call). Peaks are tapered
+// cones with slight random lean; a vertical snow-capped gradient texture is
+// mapped across the cone side UVs. Unlit (MeshBasicMaterial + map) + fog so the
+// distant silhouettes read as soft, dreamy snow-lit shapes that haze with depth.
 function buildMountainRing(scene, opts) {
-  const { radius, count, minH, maxH, baseW, color, y } = opts;
+  const { radius, count, minH, maxH, baseW, y } = opts;
   const geos = [];
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
@@ -69,7 +117,7 @@ function buildMountainRing(scene, opts) {
     const a = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.12;
     const h = minH + Math.random() * (maxH - minH);
     const w = baseW * (0.7 + Math.random() * 0.6);
-    // Karst peaks: a cone with few radial segments reads as a faceted limestone tower.
+    // Soft peaks: a cone with few radial segments reads as a gently faceted summit.
     const cone = new THREE.ConeGeometry(w * 0.5, h, 5, 1, false);
     // anchor base at y=0 of the local geo (cone is centred)
     cone.translate(0, h / 2, 0);
@@ -84,8 +132,11 @@ function buildMountainRing(scene, opts) {
   }
   const merged = mergeGeometries(geos, false);
   geos.forEach(g => g.dispose());
-  // Unlit flat colour + fog so the ring melts into haze with distance.
-  const mat = new THREE.MeshBasicMaterial({ color, fog: true });
+  // Unlit vertical gradient map (snow cap → shadowed base) + fog so the ring
+  // melts into haze with distance. Farther rings pass paler/bluer base+mid
+  // colours so they read hazier (atmospheric perspective) — see buildSky().
+  const tex = makeMountainGradient(opts);
+  const mat = new THREE.MeshBasicMaterial({ map: tex, fog: true });
   const mesh = new THREE.Mesh(merged, mat);
   mesh.renderOrder = -9;
   scene.add(mesh);
@@ -133,26 +184,74 @@ function buildSun(scene) {
   ctx.sunGlow = sunGroup;
 }
 
+// Paint a soft oil-painting "puff" once at build time: a cluster of overlapping
+// radial gradients on a feathered transparent canvas, warm-cream sunlit TOP →
+// cooler lavender-grey UNDERSIDE, edges fading to fully transparent so the blobs
+// read as fluffy painted cloud rather than hard spheres. Unlit + below bloom.
+function makeCloudPuffTexture() {
+  const SZ = 256;
+  const cvs = document.createElement('canvas');
+  cvs.width = cvs.height = SZ;
+  const c = cvs.getContext('2d');
+  // Vertical body wash: warm cream top → soft lavender-grey bottom (the two-tone).
+  const body = c.createLinearGradient(0, 0, 0, SZ);
+  body.addColorStop(0.00, 'rgba(255,250,238,0.96)');
+  body.addColorStop(0.42, 'rgba(250,242,236,0.92)');
+  body.addColorStop(0.72, 'rgba(214,210,228,0.80)');
+  body.addColorStop(1.00, 'rgba(186,184,210,0.62)');
+  // Draw the body only inside a soft feathered mask so square edges never show.
+  c.save();
+  c.fillStyle = body;
+  c.fillRect(0, 0, SZ, SZ);
+  c.restore();
+  // Feather the whole thing radially to transparent at the rim.
+  const feather = c.createRadialGradient(SZ * 0.5, SZ * 0.52, SZ * 0.10, SZ * 0.5, SZ * 0.5, SZ * 0.5);
+  feather.addColorStop(0.0, 'rgba(255,255,255,1)');
+  feather.addColorStop(0.62, 'rgba(255,255,255,1)');
+  feather.addColorStop(1.0, 'rgba(255,255,255,0)');
+  c.globalCompositeOperation = 'destination-in';
+  c.fillStyle = feather;
+  c.fillRect(0, 0, SZ, SZ);
+  c.globalCompositeOperation = 'source-over';
+  // A few soft overlapping highlight puffs on the sunlit upper half for dab feel.
+  const puffs = [
+    [0.36, 0.34, 0.20], [0.60, 0.30, 0.17], [0.50, 0.44, 0.22], [0.28, 0.50, 0.15],
+  ];
+  for (const [px, py, pr] of puffs) {
+    const hg = c.createRadialGradient(SZ * px, SZ * py, 0, SZ * px, SZ * py, SZ * pr);
+    hg.addColorStop(0.0, 'rgba(255,253,245,0.55)');
+    hg.addColorStop(1.0, 'rgba(255,253,245,0)');
+    c.fillStyle = hg;
+    c.fillRect(0, 0, SZ, SZ);
+  }
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 export function buildClouds() {
   const scene = ctx.scene;
   ctx.cloudLayers = [];
-  // Flattened billboard clusters at 2 altitudes. Slightly emissive cream so a
-  // touch of bloom catches them. MeshBasicMaterial w/ flattened spheres.
-  const lowMat = new THREE.MeshBasicMaterial({ color: 0xfff6ea, transparent: true, opacity: 0.85, fog: true });
-  const hiMat  = new THREE.MeshBasicMaterial({ color: 0xfffdf6, transparent: true, opacity: 0.78, fog: true });
+  // Fluffy two-tone oil-painting puffs at 2 altitudes. The puff texture carries
+  // the warm-cream sunlit top / lavender-grey underside + feathered edges, so a
+  // flattened sphere reads as a soft painted cloud. Unlit + transparent, kept
+  // below the bloom threshold (no emissive) so distant clouds don't bloom.
+  const puffTex = makeCloudPuffTexture();
+  const lowMat = new THREE.MeshBasicMaterial({ map: puffTex, color: 0xfff4e8, transparent: true, opacity: 0.9, depthWrite: false, fog: true });
+  const hiMat  = new THREE.MeshBasicMaterial({ map: puffTex, color: 0xfffaf2, transparent: true, opacity: 0.82, depthWrite: false, fog: true });
   const altitudes = [
-    { y: 34, mat: lowMat, n: 7,  scale: 1.0, speed: 1.1 },
-    { y: 58, mat: hiMat,  n: 6,  scale: 1.6, speed: 0.6 },
+    { y: 34, mat: lowMat, n: 7,  scale: 1.25, speed: 1.1 },
+    { y: 58, mat: hiMat,  n: 6,  scale: 1.9,  speed: 0.6 },
   ];
   altitudes.forEach(layer => {
     for (let i = 0; i < layer.n; i++) {
       const g = new THREE.Group();
       const blobCount = 4 + Math.floor(Math.random() * 3);
       for (let j = 0; j < blobCount; j++) {
-        const r = (5 + Math.random() * 4) * layer.scale;
-        const blob = new THREE.Mesh(new THREE.SphereGeometry(r, 7, 5), layer.mat);
-        blob.position.set(j * 6 * layer.scale - 8, (Math.random() - 0.5) * 2.5, (Math.random() - 0.5) * 4);
-        blob.scale.y = 0.42; // flatten → billboard cluster
+        const r = (6 + Math.random() * 5) * layer.scale;
+        const blob = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), layer.mat);
+        blob.position.set(j * 7 * layer.scale - 10, (Math.random() - 0.5) * 3.0, (Math.random() - 0.5) * 5);
+        blob.scale.y = 0.5; // flatten → soft puff cluster
         g.add(blob);
       }
       g.position.set((Math.random() - 0.5) * 280, layer.y + (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 280);

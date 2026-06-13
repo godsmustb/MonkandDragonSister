@@ -153,7 +153,8 @@ function _buildLocalArcadeUI(score, cycle, table) {
 
   const catchPhrase = document.createElement('div');
   catchPhrase.className = 'arcade-catchphrase';
-  catchPhrase.textContent = 'CAN YOU BEAT #1?  ' + rank1Score.toLocaleString();
+  const isFirst = (thisRunIdx === 0) || (score > 0 && score >= rank1Score);
+  catchPhrase.textContent = isFirst ? '🏆  CONGRATULATIONS — YOU’RE #1!' : ('CAN YOU BEAT #1?  ' + rank1Score.toLocaleString());
   overlay.appendChild(catchPhrase);
 
   if (thisRunIdx >= 0) {

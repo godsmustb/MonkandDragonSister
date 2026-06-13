@@ -957,6 +957,9 @@ function _showPauseOverlay() {
 
   const resume  = _makePauseBtn('RESUME', () => resumeGame());
 
+  // View/edit controls without leaving the game (overlays the pause screen).
+  const ctrlBtn = _makePauseBtn('CONTROLS', () => { showControls(); });
+
   // Quality toggle — reuses applyQuality from main.js + refreshes label.
   const qualBtn = _makePauseBtn(_pauseQualityLabel(), () => {
     const next = (ctx.quality === 'low') ? 'high' : 'low';
@@ -969,6 +972,7 @@ function _showPauseOverlay() {
 
   _pauseEl.appendChild(h);
   _pauseEl.appendChild(resume);
+  _pauseEl.appendChild(ctrlBtn);
   _pauseEl.appendChild(qualBtn);
   _pauseEl.appendChild(quit);
   document.body.appendChild(_pauseEl);

@@ -497,10 +497,11 @@ export function showStageLeaderboard(stage, score, entries, title, onClose) {
   badge.style.cssText = 'font-size:11px;color:#666;letter-spacing:2px;margin-bottom:18px;';
   badge.textContent = _apiReachable ? '🌐 global' : '📋 local only';
 
-  // CAN YOU BEAT #1?
+  // "Congratulations" if the player holds #1, else the "can you beat #1?" hook.
+  const isFirst = (myRank === 0) || (score > 0 && score >= rank1Score);
   const catchEl = document.createElement('div');
-  catchEl.style.cssText = 'font-size:clamp(18px,3vw,30px);color:#ff6633;letter-spacing:4px;text-shadow:0 0 30px rgba(255,100,0,0.8);margin-bottom:20px;font-style:italic;text-align:center;';
-  catchEl.textContent = 'CAN YOU BEAT #1?  ' + rank1Score.toLocaleString();
+  catchEl.style.cssText = 'font-size:clamp(18px,3vw,30px);color:' + (isFirst ? '#ffd24b' : '#ff6633') + ';letter-spacing:4px;text-shadow:0 0 30px rgba(255,160,0,0.8);margin-bottom:20px;font-style:italic;text-align:center;';
+  catchEl.textContent = isFirst ? '🏆  CONGRATULATIONS — YOU’RE #1!' : ('CAN YOU BEAT #1?  ' + rank1Score.toLocaleString());
 
   // New high / top 15 indicator
   if (myRank >= 0) {

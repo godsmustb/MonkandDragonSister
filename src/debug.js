@@ -8,6 +8,7 @@
 // PASS 15 ADDITIONS: dda getter {S,m}, lands getter (LANDS data)
 // SUDDEN DEATH ADDITIONS: arenaRadius, suddenDeathElapsed, startEndless()
 import { ctx } from './state.js';
+import { IS_TOUCH } from './ui/touch.js';
 import { endIntro, startEndless as _startEndless } from './game/quest.js';
 import { startGame as menuStartGame } from './ui/menu.js';
 import { consumeLife as _consumeLife, loadHighScores, recordScore as _recordScore } from './game/lives.js';
@@ -277,6 +278,32 @@ export function setupDebugAPI() {
       if (!Object.prototype.hasOwnProperty.call(ctx.bindings[who], action)) return;
       ctx.bindings[who][action] = [code];
       saveBindings();
+    },
+
+    // ── Touch API (for test harness) ──────────────────────────────────────
+    /** Whether touch controls are active on this device/session */
+    get isTouch() { return IS_TOUCH; },
+    /**
+     * Exercise the touch dispatch path (calls dispatchPlayerAction).
+     * @param {number} playerId - 1 or 2
+     * @param {string} action - e.g. 'attack', 'dodge'
+     */
+    touchAction(playerId, action) {
+      import('./main.js').then(m => {
+        if (m.dispatchPlayerAction) m.dispatchPlayerAction(playerId, action);
+      }).catch(() => {});
+    },
+    /**
+     * Simulate joystick movement for a player.
+     * @param {number} playerId - 1 or 2
+     * @param {number} dx - X axis [-1,1] (negative = left)
+     * @param {number} dz - Z axis [-1,1] (negative = up/forward)
+     */
+    touchMove(playerId, dx, dz) {
+      const who = playerId === 1 ? 'p1' : 'p2';
+      import('./ui/touch.js').then(m => {
+        if (m.touchMove) m.touchMove(who, dx, dz);
+      }).catch(() => {});
     },
   };
 }

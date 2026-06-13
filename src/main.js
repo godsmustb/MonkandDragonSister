@@ -25,6 +25,7 @@ import { setQuality } from './state.js';
 import { loadBindings, matchAction } from './game/bindings.js';
 import { updatePowerLabels } from './ui/powerlabel.js';
 import { updateSuddenDeath } from './game/suddendeath.js';
+import { IS_TOUCH, initTouchControls, updateTouchOverlay } from './ui/touch.js';
 
 // ---- Wire up lazy cross-module references ----
 setDealDamageToPlayer(dealDamageToPlayer);
@@ -155,6 +156,39 @@ function updateGame(dt) {
   updatePowerLabels([gameState.p1, gameState.p2]);
 }
 
+// ---- Shared action dispatch (also called by touch layer) ----
+export function dispatchPlayerAction(playerId, action) {
+  const p1 = gameState.p1, p2 = gameState.p2;
+  if (!p1 || !p2) return;
+
+  const p1Active = ctx.mode !== '1p' || ctx.soloChar === 'monk';
+  const p2Active = ctx.mode !== '1p' || ctx.soloChar === 'sister';
+
+  if (playerId === 1) {
+    if (!p1Active) return;
+    if (action === 'lockon') { toggleLockOn('p1'); return; }
+    if (p1.isKO) return;
+    if (action === 'attack')  p1.attack();
+    else if (action === 'heavy')   p1.heavyAttack();
+    else if (action === 'shield')  p1.chiShield();
+    else if (action === 'dodge')   p1.dodge();
+    else if (action === 'heal')    p1.healingPulse();
+    else if (action === 'jump')    p1.jump();
+    else if (action === 'ultimate') p1.ultimate();
+  } else if (playerId === 2) {
+    if (!p2Active) return;
+    if (action === 'lockon') { toggleLockOn('p2'); return; }
+    if (p2.isKO) return;
+    if (action === 'attack')    p2.attack();
+    else if (action === 'heavy')     p2.heavyAttack();
+    else if (action === 'transform') p2.cycleForm();
+    else if (action === 'dodge')     p2.dodge();
+    else if (action === 'special')   p2.special();
+    else if (action === 'jump')      p2.jump();
+    else if (action === 'ultimate')  p2.ultimate();
+  }
+}
+
 // ---- Input ----
 // Extra keys for camera V2 + pause (supplement PREVENT_KEYS from config.js)
 const EXTRA_PREVENT = new Set(['KeyQ','KeyE','KeyF','Numpad7','Numpad9','Numpad0','Escape']);
@@ -203,29 +237,8 @@ window.addEventListener('keydown', (e) => {
   const act2 = p2Active ? matchAction('p2', e.code) : null;
 
   // KO gate: skip action calls for a downed player (movement is already gated in update())
-  if (act1 && !p1.isKO) {
-    if (act1 === 'attack')  p1.attack();
-    if (act1 === 'heavy')   p1.heavyAttack();
-    if (act1 === 'shield')  p1.chiShield();
-    if (act1 === 'dodge')   p1.dodge();
-    if (act1 === 'heal')    p1.healingPulse();
-    if (act1 === 'jump')    p1.jump();
-    if (act1 === 'ultimate') p1.ultimate();
-  }
-  // Camera V2: P1 lock-on (allowed even while KO so player can track the fight)
-  if (p1Active && act1 === 'lockon') toggleLockOn('p1');
-
-  if (act2 && !p2.isKO) {
-    if (act2 === 'attack')    p2.attack();
-    if (act2 === 'heavy')     p2.heavyAttack();
-    if (act2 === 'transform') p2.cycleForm();
-    if (act2 === 'dodge')     p2.dodge();
-    if (act2 === 'special')   p2.special();
-    if (act2 === 'jump')      p2.jump();
-    if (act2 === 'ultimate')  p2.ultimate();
-  }
-  // Camera V2: P2 lock-on
-  if (p2Active && act2 === 'lockon') toggleLockOn('p2');
+  if (act1) dispatchPlayerAction(1, act1);
+  if (act2) dispatchPlayerAction(2, act2);
 });
 
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
@@ -377,6 +390,7 @@ function animate() {
     updateHUD();
     updateObjective();
     _updateLivesHUD();
+    updateTouchOverlay();
     // Boss bar: show during wave 4 and 5
     const _ws = gameState.state;
     if (_ws === 'WAVE4' || _ws === 'WAVE5') {
@@ -417,6 +431,8 @@ function init() {
   updateHUD();
   buildMenu();      // shows menu, wires its own event listeners
   setupDebugAPI();
+  // Touch controls (no-op on desktop)
+  initTouchControls(dispatchPlayerAction);
   animate();
 }
 

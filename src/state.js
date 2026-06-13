@@ -9,6 +9,14 @@ function _readQuality() {
     const v = localStorage.getItem('mds_quality');
     if (v === 'low' || v === 'high') return v;
   } catch (e) { /* localStorage may be unavailable */ }
+  // No saved preference yet: default TOUCH/mobile devices to 'low'. The high path's
+  // bloom + SMAA composer is heavy for mobile GPUs and triggers a texSubImage2D
+  // WebGL error from SMAA on iOS/WebKit. Desktop still defaults to 'high'.
+  try {
+    const touch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
+      || (window.matchMedia && window.matchMedia('(pointer:coarse)').matches);
+    if (touch) return 'low';
+  } catch (e) { /* ignore */ }
   return 'high';
 }
 

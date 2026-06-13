@@ -11,7 +11,10 @@ let _gradTex = null;
 function _getGradTex() {
   if (_gradTex) return _gradTex;
   const gradData = new Uint8Array([80, 160, 255]);
-  _gradTex = new THREE.DataTexture(gradData, 3, 1);
+  // RedFormat: 3 bytes for a 3x1 ramp (matches chars/common.js). The default RGBA
+  // format expects 12 bytes for 3x1 and throws a texSubImage2D error on the strict
+  // iOS/WebKit WebGL implementation (Chromium silently tolerates it).
+  _gradTex = new THREE.DataTexture(gradData, 3, 1, THREE.RedFormat);
   _gradTex.needsUpdate = true;
   _gradTex.magFilter = THREE.NearestFilter;
   _gradTex.minFilter = THREE.NearestFilter;

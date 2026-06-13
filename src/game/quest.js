@@ -43,6 +43,13 @@ export function startIntro() {
   gameState.score = 0;
   const introEl = document.getElementById('intro-screen');
   if (introEl) introEl.style.display = 'flex';
+  // Tap to begin (mobile) — fires endIntro() same as any keydown
+  if (introEl && !introEl._tapWired) {
+    introEl._tapWired = true;
+    introEl.addEventListener('click', () => {
+      if (ctx.gameState.state === 'INTRO') endIntro();
+    });
+  }
 }
 
 export function endIntro() {

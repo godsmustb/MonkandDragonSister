@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>The Monk & The Dragon Sister</title>
 <style>
 /* ── Reset & base ─────────────────────────────────────────────────── */
@@ -10,6 +10,18 @@
 body{background:#000;overflow:hidden;font-family:Georgia,serif;}
 #game-container{position:relative;width:100vw;height:100vh;overflow:hidden;}
 #gameCanvas{display:block;width:100vw!important;height:100vh!important;}
+
+/* ── Mobile: prevent scroll/zoom/highlight on touch ────────────────────── */
+body,#game-container{
+  touch-action:none;
+  -webkit-user-select:none;user-select:none;
+  overscroll-behavior:none;
+  -webkit-tap-highlight-color:transparent;
+}
+/* Portrait + 2P hint */
+@media (orientation:portrait) and (pointer:coarse) {
+  #touch-rotate-hint{display:block!important;}
+}
 
 /* ── Divider ────────────────────────────────────────────────────────── */
 #divider{
@@ -887,7 +899,7 @@ body{background:#000;overflow:hidden;font-family:Georgia,serif;}
       <h1>The Monk &amp; The Dragon Sister</h1>
       <p style="font-size:16px;color:#c8a000;margin-bottom:12px;font-style:italic;">The Initial Compassion</p>
       <p class="lore">"A peaceful Buddhist monk and his dragon sister face initial compassion as dark spirits invade their sanctuary. In the quiet of the Zen garden, their bond shall be tested — and their power unleashed."</p>
-      <p class="skip-hint">Press any key to begin…</p>
+      <p class="skip-hint">Press any key or tap to begin…</p>
     </div>
   </div>
 
@@ -910,6 +922,8 @@ body{background:#000;overflow:hidden;font-family:Georgia,serif;}
   </div>
 
   <div id="webgl-error"><h2>WebGL Not Available</h2><p>Please use a modern browser with hardware acceleration enabled.</p></div>
+
+  <div id="touch-rotate-hint" style="display:none;position:fixed;bottom:8px;left:50%;transform:translateX(-50%);z-index:600;background:rgba(0,0,0,0.7);color:#fff;font-size:12px;padding:6px 14px;border-radius:20px;pointer-events:none;white-space:nowrap;font-family:Georgia,serif;">↻ Rotate to landscape for the best view</div>
 </div>
 
 <script type="importmap">

@@ -1,5 +1,5 @@
 {
-  "_comment": "Copy this file to deploy.config.json (gitignored) and fill in your Hostinger FTP details. Find them in the Hostinger panel under Files -> FTP Accounts. 'remoteRoot' is your web root (usually /public_html). Set 'secure': true to use FTPS if your host supports it.",
+  "_comment": "Copy this file to deploy.config.json (gitignored) and fill in your Hostinger FTP details. Find them in the Hostinger panel under Files -> FTP Accounts. Use the bare host/IP (no ftp:// prefix). 'remoteRoot' is your web root (usually /public_html). Set 'secure': true to use FTPS if your host supports it.",
   "host": "ftp.yourdomain.com",
   "port": 21,
   "user": "your-ftp-username",

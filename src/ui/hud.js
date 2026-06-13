@@ -560,15 +560,15 @@ function _wireControlsChips() {
         bottom:30px;
         ${id.includes('p1') ? 'right:0' : 'left:0'};
         background:rgba(10,8,6,0.92);
-        border:1px solid rgba(200,160,0,0.45);
+        border:1px solid rgba(var(--gold-rgb),0.45);
         color:rgba(220,200,160,0.9);
-        font-family:'Segoe UI',system-ui,sans-serif;
+        font-family:var(--font-ui);
         font-size:9px;
         padding:5px 10px;
         border-radius:6px;
         white-space:nowrap;
         z-index:100;
-        backdrop-filter:blur(4px);
+        backdrop-filter:var(--blur);
         line-height:1.7;
         pointer-events:none;
       `;
@@ -680,7 +680,7 @@ function _updateMeterFor(pid, player) {
         lbl.className = 'ult-ready-label';
         lbl.textContent = 'ULTIMATE READY';
         lbl.style.cssText = 'position:absolute;left:0;right:0;top:-13px;text-align:center;' +
-          'font-family:Georgia,serif;font-size:9px;letter-spacing:2px;color:#ffe27a;' +
+          'font-family:var(--font-display);font-size:9px;letter-spacing:2px;color:var(--p1);' +
           'text-shadow:0 0 8px rgba(255,200,60,0.9);pointer-events:none;' +
           'animation:ultPulse 0.9s ease-in-out infinite;';
         // ensure a positioning context

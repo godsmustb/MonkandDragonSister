@@ -223,25 +223,9 @@ function _buildLocalArcadeUI(score, cycle, table) {
 
 function _makeArcadeBtn(label, fn) {
   const btn = document.createElement('div');
+  btn.className = 'mds-btn';
   btn.textContent = label;
-  btn.style.cssText = `
-    font-family:Georgia,serif;font-size:clamp(13px,1.6vw,17px);
-    letter-spacing:4px;color:#888;cursor:pointer;
-    padding:10px 24px;border:1px solid rgba(200,160,0,0.4);
-    border-radius:4px;
-    transition:color 0.15s,border-color 0.15s,background 0.15s;
-    user-select:none;
-  `;
-  btn.addEventListener('mouseenter', () => {
-    btn.style.color = '#ffdd55';
-    btn.style.borderColor = 'rgba(200,160,0,0.8)';
-    btn.style.background = 'rgba(200,160,0,0.08)';
-  });
-  btn.addEventListener('mouseleave', () => {
-    btn.style.color = '#888';
-    btn.style.borderColor = 'rgba(200,160,0,0.4)';
-    btn.style.background = 'transparent';
-  });
+  btn.style.cssText = 'font-size:clamp(13px,1.6vw,17px);';
   btn.addEventListener('click', fn);
   return btn;
 }
@@ -250,13 +234,10 @@ function _showGameOverScreen() {
   // Dim overlay
   const overlay = document.createElement('div');
   overlay.id = 'gameover-screen';
+  overlay.className = 'mds-scrim';
   overlay.style.cssText = `
-    position:fixed;top:0;left:0;width:100%;height:100%;
     background:rgba(0,0,0,0.88);
     z-index:200;
-    display:flex;flex-direction:column;
-    align-items:center;justify-content:center;
-    font-family:Georgia,serif;
     animation:goFadeIn 0.8s ease-out forwards;
   `;
 
@@ -268,14 +249,14 @@ function _showGameOverScreen() {
   const title = document.createElement('h1');
   title.textContent = 'GAME OVER';
   title.style.cssText = `
-    font-size:60px;color:#cc2222;
+    font-size:60px;color:var(--danger);
     text-shadow:0 0 40px rgba(200,0,0,0.9),0 0 80px rgba(200,0,0,0.5);
     margin-bottom:16px;letter-spacing:8px;
   `;
 
   const sub = document.createElement('p');
   sub.textContent = 'The sanctuary has fallen…';
-  sub.style.cssText = 'font-size:18px;color:#aaa;font-style:italic;margin-bottom:40px;';
+  sub.style.cssText = 'font-size:18px;color:var(--text-dim);font-style:italic;margin-bottom:40px;';
 
   const hint = document.createElement('p');
   hint.textContent = 'Press any key or click to return to menu';

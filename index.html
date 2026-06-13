@@ -8,9 +8,104 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>The Monk & The Dragon Sister</title>
 <style>
+/* ════════════════════════════════════════════════════════════════════
+   DESIGN SYSTEM — single source of truth for the whole UI.
+   Zen/ink aesthetic: ink-dark panels, gold + jade accents, per-player tints.
+   Harmonizes the colors already in use across the menu/HUD/overlays; it does
+   NOT introduce a new look. JS overlays reference these via var(--…) in their
+   inline styles (CSS custom properties resolve inside style attributes too).
+   ════════════════════════════════════════════════════════════════════ */
+:root{
+  /* — Type — */
+  --font-display: Georgia, 'Times New Roman', serif;   /* headings, lore, scores */
+  --font-ui: 'Segoe UI', system-ui, sans-serif;        /* small labels, meta, keys */
+
+  /* — Core palette (ink / parchment / gold / jade) — */
+  --ink:            #0a0806;        /* deepest background */
+  --gold:           #c8a000;        /* primary accent (rim, headings) */
+  --gold-bright:    #ffdd55;        /* hover / selected highlight */
+  --gold-soft:      #f0d882;        /* score / parchment text on gold */
+  --gold-glyph:     #e8c86a;        /* glyph / objective text */
+  --gold-rgb:       200,160,0;      /* for rgba() borders & glows */
+
+  --text:           #d8cbb4;        /* default body text on dark */
+  --text-dim:       #aaaaaa;        /* secondary text */
+  --text-muted:     #888888;        /* idle menu items / captions */
+  --text-faint:     #555555;        /* hints / footnotes */
+
+  --jade:           #44ff99;        /* heal / success / "effective" */
+  --danger:         #cc2222;        /* KO / game over / weak */
+  --danger-soft:    #ff6644;        /* hp fill highlight, weak pill */
+  --boss:           #ff8844;        /* boss accent (fire-orange) */
+
+  /* — Per-player identity (kept distinct, one family) — */
+  --p1:             #ffe27a;        /* Monk — warm gold */
+  --p1-rgb:         255,226,122;
+  --p2:             #46d6e0;        /* Dragon Sister — cyan */
+  --p2-rgb:         70,214,224;
+
+  /* — Element accents (match ELEMENT_COLORS / FORM colors) — */
+  --el-neutral:     #aaaaaa;
+  --el-fire:        #ff6633;
+  --el-ice:         #88ddff;
+  --el-poison:      #cc44ff;
+  --el-water:       #4499ff;
+
+  /* — Panel / surface chrome — */
+  --panel-bg:       rgba(10,8,6,0.55);   /* in-game HUD panels (light) */
+  --panel-bg-solid: rgba(20,14,2,0.95);  /* modal/overlay cards (heavy) */
+  --scrim:          rgba(0,0,0,0.92);     /* full-screen overlay backdrop */
+  --scrim-soft:     rgba(0,0,0,0.7);      /* pause-style lighter backdrop */
+  --border:         rgba(var(--gold-rgb),0.30);  /* default gold border */
+  --border-strong:  rgba(var(--gold-rgb),0.60);  /* selected/active border */
+  --radius:         8px;                  /* panels */
+  --radius-sm:      4px;                  /* buttons / chips */
+  --radius-pill:    20px;                 /* pills */
+  --blur:           blur(4px);
+  --glow-gold:      0 0 20px rgba(var(--gold-rgb),0.8);
+  --shadow-panel:   0 4px 20px rgba(0,0,0,0.6);
+
+  /* — Spacing scale — */
+  --sp-1: 4px; --sp-2: 6px; --sp-3: 8px; --sp-4: 12px;
+  --sp-5: 16px; --sp-6: 20px; --sp-8: 30px; --sp-10: 40px;
+}
+
 /* ── Reset & base ─────────────────────────────────────────────────── */
 *{margin:0;padding:0;box-sizing:border-box;}
-body{background:#000;overflow:hidden;font-family:Georgia,serif;}
+body{background:#000;overflow:hidden;font-family:var(--font-display);}
+
+/* ════════════════════════════════════════════════════════════════════
+   SHARED UI FAMILY — reusable classes for the JS-built overlays so the
+   menu, controls, leaderboard, campaign, pause and game-over screens all
+   share one panel/button/heading look. (Applied via classList in JS; the
+   inline styles those overlays already set are harmonized to the same
+   tokens so nothing visually diverges.)
+   ════════════════════════════════════════════════════════════════════ */
+.mds-scrim{
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  background:var(--scrim);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-family:var(--font-display);
+}
+.mds-heading{
+  color:var(--gold);letter-spacing:6px;text-align:center;
+  font-family:var(--font-display);
+}
+.mds-btn{
+  font-family:var(--font-display);
+  letter-spacing:4px;color:var(--text-muted);cursor:pointer;
+  padding:10px 24px;
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  background:transparent;
+  transition:color 0.15s,border-color 0.15s,background 0.15s,text-shadow 0.15s;
+  user-select:none;
+}
+.mds-btn:hover,.mds-btn.selected{
+  color:var(--gold-bright);
+  border-color:var(--border-strong);
+  background:rgba(var(--gold-rgb),0.10);
+}
 #game-container{position:relative;width:100vw;height:100vh;overflow:hidden;}
 #gameCanvas{display:block;width:100vw!important;height:100vh!important;}
 
@@ -29,7 +124,7 @@ body,#game-container{
 /* ── Divider ────────────────────────────────────────────────────────── */
 #divider{
   position:absolute;top:0;left:50%;width:3px;height:100%;
-  background:linear-gradient(to bottom,transparent 0%,#c8a000 15%,#ffdd55 50%,#c8a000 85%,transparent 100%);
+  background:linear-gradient(to bottom,transparent 0%,var(--gold) 15%,var(--gold-bright) 50%,var(--gold) 85%,transparent 100%);
   transform:translateX(-50%);z-index:10;pointer-events:none;
   display:none; /* shown only during 2P gameplay (see hud.js) — never on the menu/load */
 }
@@ -55,11 +150,11 @@ body,#game-container{
 
 /* ── Shared panel look ──────────────────────────────────────────────── */
 .hud-panel{
-  background:rgba(10,8,6,0.55);
-  border:1px solid rgba(200,160,0,0.30);
-  border-radius:8px;
-  padding:6px 8px;
-  backdrop-filter:blur(4px);
+  background:var(--panel-bg);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:var(--sp-2) var(--sp-3);
+  backdrop-filter:var(--blur);
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -69,11 +164,11 @@ body,#game-container{
   position:absolute;
   top:8px;left:8px;
   display:flex;align-items:center;gap:6px;
-  background:rgba(10,8,6,0.55);
-  border:1px solid rgba(200,160,0,0.28);
-  border-radius:20px;
+  background:var(--panel-bg);
+  border:1px solid var(--border);
+  border-radius:var(--radius-pill);
   padding:3px 10px 3px 7px;
-  backdrop-filter:blur(4px);
+  backdrop-filter:var(--blur);
   pointer-events:none;
 }
 .objective-bar .obj-icon{
@@ -82,18 +177,18 @@ body,#game-container{
   flex-shrink:0;display:block;
 }
 .objective-bar .obj-text{
-  font-family:'Segoe UI',system-ui,sans-serif;
-  font-size:11px;color:#e8c86a;
+  font-family:var(--font-ui);
+  font-size:11px;color:var(--gold-glyph);
   white-space:nowrap;letter-spacing:0.5px;
 }
 .objective-bar .obj-text b{
-  font-family:Georgia,serif;font-weight:normal;
+  font-family:var(--font-display);font-weight:normal;
 }
 /* Kill tick animation */
 @keyframes killTick{
   0%{transform:scale(1.4);color:#fff;}
   60%{transform:scale(1);}
-  100%{color:#e8c86a;}
+  100%{color:var(--gold-glyph);}
 }
 .obj-tick{ animation:killTick 0.35s ease-out; }
 
@@ -117,12 +212,12 @@ body,#game-container{
 #score-hud{
   position:fixed;top:36px;left:50%;transform:translateX(-50%);
   z-index:30;pointer-events:none;
-  font-family:Georgia,serif;
+  font-family:var(--font-display);
   font-size:13px;letter-spacing:3px;
-  color:#f0d882;
-  text-shadow:0 0 10px rgba(200,160,0,0.7);
-  background:rgba(10,8,6,0.52);
-  border:1px solid rgba(200,160,0,0.25);
+  color:var(--gold-soft);
+  text-shadow:0 0 10px rgba(var(--gold-rgb),0.7);
+  background:var(--panel-bg);
+  border:1px solid var(--border);
   border-radius:14px;
   padding:2px 14px;
   white-space:nowrap;
@@ -132,30 +227,30 @@ body,#game-container{
 @keyframes scorePop{
   0%{transform:translateX(-50%) scale(1.22);color:#fff;}
   60%{transform:translateX(-50%) scale(1);}
-  100%{color:#f0d882;}
+  100%{color:var(--gold-soft);}
 }
 #score-hud.score-pop{animation:scorePop 0.35s ease-out forwards;}
 
 /* Arcade leaderboard overlay */
 #arcade-leaderboard{
   position:fixed;top:0;left:0;width:100%;height:100%;
-  background:rgba(0,0,0,0.92);
+  background:var(--scrim);
   z-index:210;
   display:none;
   flex-direction:column;
   align-items:center;justify-content:center;
-  font-family:Georgia,serif;
+  font-family:var(--font-display);
   animation:goFadeIn 0.6s ease-out forwards;
 }
 #arcade-leaderboard .arcade-title{
   font-size:clamp(16px,2.5vw,24px);
-  color:#f0d882;letter-spacing:5px;
-  text-shadow:0 0 20px rgba(200,160,0,0.8);
+  color:var(--gold-soft);letter-spacing:5px;
+  text-shadow:var(--glow-gold);
   margin-bottom:4px;
 }
 #arcade-leaderboard .arcade-catchphrase{
   font-size:clamp(22px,3.5vw,36px);
-  color:#ff6633;letter-spacing:4px;
+  color:var(--el-fire);letter-spacing:4px;
   text-shadow:0 0 30px rgba(255,100,0,0.8);
   margin-bottom:24px;
   font-style:italic;
@@ -166,27 +261,27 @@ body,#game-container{
   min-width:min(420px,85vw);
 }
 #arcade-leaderboard .arcade-table th{
-  font-family:'Segoe UI',system-ui,sans-serif;
-  font-size:9px;letter-spacing:3px;color:#888;
+  font-family:var(--font-ui);
+  font-size:9px;letter-spacing:3px;color:var(--text-muted);
   padding:4px 18px;text-align:center;
-  border-bottom:1px solid rgba(200,160,0,0.25);
+  border-bottom:1px solid var(--border);
 }
 #arcade-leaderboard .arcade-table td{
-  font-family:Georgia,serif;
+  font-family:var(--font-display);
   font-size:15px;color:#ccc;
   padding:6px 18px;text-align:center;
-  border-bottom:1px solid rgba(200,160,0,0.1);
+  border-bottom:1px solid rgba(var(--gold-rgb),0.1);
 }
 #arcade-leaderboard .arcade-table tr.this-run td{
-  color:#f0d882;
-  text-shadow:0 0 10px rgba(200,160,0,0.7);
+  color:var(--gold-soft);
+  text-shadow:0 0 10px rgba(var(--gold-rgb),0.7);
 }
 #arcade-leaderboard .arcade-table td.rank{
-  color:#888;font-size:12px;
+  color:var(--text-muted);font-size:12px;
 }
 #arcade-leaderboard .new-high{
   font-size:clamp(13px,1.8vw,18px);
-  color:#ff6633;letter-spacing:4px;
+  color:var(--el-fire);letter-spacing:4px;
   text-shadow:0 0 16px rgba(255,100,0,0.7);
   margin-bottom:20px;
   animation:ultPulse 0.8s ease-in-out infinite;
@@ -209,12 +304,12 @@ body,#game-container{
   margin-bottom:3px;
 }
 #boss-hp-bar .boss-name{
-  font-family:Georgia,serif;
-  font-size:11px;color:#ff8844;letter-spacing:1px;
+  font-family:var(--font-display);
+  font-size:11px;color:var(--boss);letter-spacing:1px;
   text-shadow:0 0 8px rgba(255,80,0,0.7);
 }
 #boss-hp-bar .boss-phase{
-  font-family:'Segoe UI',system-ui,sans-serif;
+  font-family:var(--font-ui);
   font-size:9px;color:#aa4422;letter-spacing:0.5px;
 }
 #boss-hp-bar .boss-bar-bg{
@@ -272,15 +367,15 @@ body,#game-container{
 .portrait-ring .lvl-ring{
   position:absolute;inset:-3px;
   border-radius:50%;
-  border:2px solid #c8a000;
-  box-shadow:0 0 6px rgba(200,160,0,0.5),inset 0 0 4px rgba(200,160,0,0.2);
+  border:2px solid var(--gold);
+  box-shadow:0 0 6px rgba(var(--gold-rgb),0.5),inset 0 0 4px rgba(var(--gold-rgb),0.2);
   pointer-events:none;
 }
 .portrait-ring .lvl-badge{
   position:absolute;bottom:-7px;left:50%;transform:translateX(-50%);
-  background:#1a1200;border:1px solid #c8a000;
-  color:#ffdd55;
-  font-family:'Segoe UI',system-ui,sans-serif;
+  background:#1a1200;border:1px solid var(--gold);
+  color:var(--gold-bright);
+  font-family:var(--font-ui);
   font-size:9px;font-weight:700;
   padding:1px 5px;border-radius:8px;
   white-space:nowrap;z-index:2;
@@ -303,7 +398,7 @@ body,#game-container{
   position:relative;
   height:12px;
   background:rgba(10,8,6,0.75);
-  border:1px solid rgba(200,160,0,0.35);
+  border:1px solid rgba(var(--gold-rgb),0.35);
   border-radius:6px;
   overflow:hidden;
 }
@@ -319,7 +414,7 @@ body,#game-container{
 .hp-bar-fill.healed{animation:healFlash 0.4s ease-out;}
 
 .hp-text{
-  font-family:'Segoe UI',system-ui,sans-serif;
+  font-family:var(--font-ui);
   font-size:9px;color:rgba(220,200,180,0.75);
   white-space:nowrap;text-align:right;
 }
@@ -343,8 +438,8 @@ body,#game-container{
   display:flex;gap:4px;flex-wrap:wrap;min-height:0;
 }
 .relic-icon{
-  width:20px;height:20px;border-radius:4px;
-  border:1px solid rgba(200,160,0,0.45);
+  width:20px;height:20px;border-radius:var(--radius-sm);
+  border:1px solid rgba(var(--gold-rgb),0.45);
   background:rgba(10,8,6,0.7);
   display:flex;align-items:center;justify-content:center;
   font-size:10px;
@@ -354,14 +449,14 @@ body,#game-container{
 .advantage-pill{
   display:inline-flex;align-items:center;gap:4px;
   padding:2px 7px;border-radius:12px;
-  font-family:'Segoe UI',system-ui,sans-serif;
+  font-family:var(--font-ui);
   font-size:10px;font-weight:600;
   letter-spacing:0.3px;
   border:1px solid currentColor;
 }
-.advantage-pill.strong{color:#44ff99;background:rgba(0,160,80,0.2);}
+.advantage-pill.strong{color:var(--jade);background:rgba(0,160,80,0.2);}
 .advantage-pill.weak  {color:#ff6666;background:rgba(180,0,0,0.2);}
-.advantage-pill.neutral{color:#aaaaaa;background:rgba(80,80,80,0.2);}
+.advantage-pill.neutral{color:var(--text-dim);background:rgba(80,80,80,0.2);}
 
 /* ════════════════════════════════════════════════════════════════════
    ABILITY CLUSTER — bottom-right of each half
@@ -381,15 +476,15 @@ body,#game-container{
 }
 .form-diamond{
   width:10px;height:10px;
-  border:1px solid rgba(200,160,0,0.35);
+  border:1px solid rgba(var(--gold-rgb),0.35);
   border-radius:2px;
   transform:rotate(45deg);
   background:rgba(10,8,6,0.7);
   transition:background 0.2s,border-color 0.2s,box-shadow 0.2s;
 }
 .form-diamond.active{
-  border-color:#ffdd55;
-  background:#c8a000;
+  border-color:var(--gold-bright);
+  background:var(--gold);
   box-shadow:0 0 6px rgba(255,220,50,0.8);
 }
 .form-diamond.locked{
@@ -403,7 +498,7 @@ body,#game-container{
 .ability-icon{
   position:relative;
   width:46px;height:46px;
-  border:1px solid rgba(200,160,0,0.55);
+  border:1px solid rgba(var(--gold-rgb),0.55);
   border-radius:50%;
   background:rgba(10,8,6,0.72);
   overflow:hidden;
@@ -425,7 +520,7 @@ body,#game-container{
   transition:none;
 }
 .ability-icon .key-chip{
-  font-family:'Segoe UI',system-ui,sans-serif;
+  font-family:var(--font-ui);
   font-size:7px;color:rgba(180,160,120,0.85);
   line-height:1;margin-top:1px;
   position:absolute;bottom:4px;left:0;right:0;text-align:center;
@@ -467,7 +562,7 @@ body,#game-container{
   display:flex;align-items:center;gap:5px;justify-content:flex-end;
 }
 .meter-label{
-  font-family:'Segoe UI',system-ui,sans-serif;
+  font-family:var(--font-ui);
   font-size:7px;letter-spacing:1px;
   color:rgba(180,160,120,0.75);
   min-width:54px;text-align:right;
@@ -475,7 +570,7 @@ body,#game-container{
 .meter-track{
   width:96px;height:6px;
   background:rgba(10,8,6,0.78);
-  border:1px solid rgba(200,160,0,0.35);
+  border:1px solid rgba(var(--gold-rgb),0.35);
   border-radius:3px;overflow:hidden;
 }
 .meter-fill{
@@ -508,7 +603,7 @@ body,#game-container{
 }
 .dmg-num{
   position:absolute;
-  font-family:Georgia,serif;
+  font-family:var(--font-display);
   font-size:18px;font-weight:bold;
   -webkit-text-stroke:1px rgba(0,0,0,0.8);
   text-shadow:0 1px 4px rgba(0,0,0,0.9),0 0 8px currentColor;
@@ -568,12 +663,12 @@ body,#game-container{
 #toast-container-p2{left:75%;}
 .toast{
   background:rgba(10,8,6,0.88);
-  border:1px solid rgba(200,160,0,0.65);
-  color:#f0d882;
-  padding:7px 18px;border-radius:20px;
-  font-family:Georgia,serif;font-size:12px;
+  border:1px solid var(--border-strong);
+  color:var(--gold-soft);
+  padding:7px 18px;border-radius:var(--radius-pill);
+  font-family:var(--font-display);font-size:12px;
   text-align:center;letter-spacing:0.4px;
-  box-shadow:0 4px 20px rgba(0,0,0,0.6),0 0 12px rgba(200,160,0,0.15);
+  box-shadow:var(--shadow-panel),0 0 12px rgba(var(--gold-rgb),0.15);
   animation:toastSlide 0.3s ease-out, toastFade 0.4s ease-in 1.85s forwards;
   white-space:nowrap;
 }
@@ -584,10 +679,10 @@ body,#game-container{
 @keyframes toastFade{to{opacity:0;transform:translateY(-8px) scale(0.95);}}
 /* Unlock banner variant */
 .toast.unlock{
-  border-color:rgba(200,160,0,0.9);
+  border-color:rgba(var(--gold-rgb),0.9);
   background:rgba(20,14,2,0.93);
   font-size:13px;padding:9px 22px;
-  box-shadow:0 4px 24px rgba(0,0,0,0.7),0 0 20px rgba(200,160,0,0.25);
+  box-shadow:0 4px 24px rgba(0,0,0,0.7),0 0 20px rgba(var(--gold-rgb),0.25);
 }
 
 /* Wave start banner — full-width letterbox flash */
@@ -604,15 +699,15 @@ body,#game-container{
 }
 .wave-banner-letter{ display:none; } /* removed — was the source of the black lines */
 .wave-banner-title{
-  font-family:Georgia,serif;
+  font-family:var(--font-display);
   font-size:clamp(18px,3vw,28px);
-  color:#f0d882;letter-spacing:6px;
-  text-shadow:0 0 24px rgba(200,160,0,0.8);
+  color:var(--gold-soft);letter-spacing:6px;
+  text-shadow:0 0 24px rgba(var(--gold-rgb),0.8);
   z-index:1;
 }
 .wave-banner-sub{
-  font-family:'Segoe UI',system-ui,sans-serif;
-  font-size:12px;color:#aaa;letter-spacing:3px;margin-top:4px;z-index:1;
+  font-family:var(--font-ui);
+  font-size:12px;color:var(--text-dim);letter-spacing:3px;margin-top:4px;z-index:1;
 }
 @keyframes bannerIn{
   0%  {opacity:0;letter-spacing:12px;}
@@ -633,14 +728,14 @@ body,#game-container{
 }
 .ko-overlay.visible{display:flex;}
 .ko-title{
-  font-family:Georgia,serif;
+  font-family:var(--font-display);
   font-size:clamp(20px,3vw,28px);
-  color:#cc2222;letter-spacing:5px;
+  color:var(--danger);letter-spacing:5px;
   text-shadow:0 0 20px rgba(200,0,0,0.8);margin-bottom:8px;
 }
 .ko-sub{
-  font-family:'Segoe UI',system-ui,sans-serif;
-  font-size:11px;color:#aaa;letter-spacing:2px;
+  font-family:var(--font-ui);
+  font-size:11px;color:var(--text-dim);letter-spacing:2px;
 }
 /* Revive countdown ring — SVG circle */
 .revive-ring-wrap{
@@ -650,9 +745,9 @@ body,#game-container{
   display:none;
 }
 .revive-ring-wrap.visible{display:block;}
-.revive-ring-bg{stroke:rgba(200,160,0,0.2);}
+.revive-ring-bg{stroke:rgba(var(--gold-rgb),0.2);}
 .revive-ring-fill{
-  stroke:#ffdd55;
+  stroke:var(--gold-bright);
   stroke-dasharray:100;
   stroke-dashoffset:100;
   transition:stroke-dashoffset 0.5s linear;
@@ -665,9 +760,9 @@ body,#game-container{
   width:24px;height:24px;
   border-radius:50%;
   background:rgba(10,8,6,0.6);
-  border:1px solid rgba(200,160,0,0.3);
-  color:rgba(200,160,0,0.6);
-  font-family:'Segoe UI',system-ui,sans-serif;
+  border:1px solid rgba(var(--gold-rgb),0.3);
+  color:rgba(var(--gold-rgb),0.6);
+  font-family:var(--font-ui);
   font-size:11px;font-weight:bold;
   display:flex;align-items:center;justify-content:center;
   cursor:pointer;pointer-events:all;z-index:22;
@@ -675,8 +770,8 @@ body,#game-container{
 }
 .controls-chip:hover{
   background:rgba(30,22,6,0.9);
-  border-color:rgba(200,160,0,0.7);
-  color:#ffdd55;
+  border-color:rgba(var(--gold-rgb),0.7);
+  color:var(--gold-bright);
 }
 #controls-chip-p1{right:10px;}
 #controls-chip-p2{left:10px;}
@@ -691,35 +786,35 @@ body,#game-container{
   background:#000;z-index:100;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
 }
-.title-card{text-align:center;color:#c8a000;z-index:102;}
-.title-card .quest-label{font-size:14px;letter-spacing:4px;color:#888;margin-bottom:8px;}
-.title-card h1{font-size:36px;color:#c8a000;text-shadow:0 0 30px rgba(200,160,0,0.8);margin-bottom:16px;}
+.title-card{text-align:center;color:var(--gold);z-index:102;}
+.title-card .quest-label{font-size:14px;letter-spacing:4px;color:var(--text-muted);margin-bottom:8px;}
+.title-card h1{font-size:36px;color:var(--gold);text-shadow:0 0 30px rgba(var(--gold-rgb),0.8);margin-bottom:16px;}
 .title-card .lore{font-size:13px;color:#ccc;max-width:500px;line-height:1.7;font-style:italic;margin-bottom:20px;}
 .title-card .skip-hint{font-size:11px;color:#666;}
 #complete-screen{
   position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  background:rgba(20,15,5,0.95);border:2px solid #c8a000;border-radius:12px;
+  background:var(--panel-bg-solid);border:2px solid var(--gold);border-radius:12px;
   padding:40px;z-index:100;max-width:520px;text-align:center;display:none;
   overflow-y:auto;max-height:90vh;
 }
-#complete-screen h2{color:#c8a000;font-size:28px;margin-bottom:16px;}
+#complete-screen h2{color:var(--gold);font-size:28px;margin-bottom:16px;}
 #complete-screen p{color:#ddd;font-size:13px;line-height:1.8;margin-bottom:12px;}
-#complete-screen .coming-soon{color:#888;font-size:12px;font-style:italic;}
+#complete-screen .coming-soon{color:var(--text-muted);font-size:12px;font-style:italic;}
 #complete-screen .trial-mode-label{
-  color:#c8a000;font-size:13px;letter-spacing:2px;margin:16px 0 8px;
-  padding:6px 0;border-top:1px solid rgba(200,160,0,0.3);
-  border-bottom:1px solid rgba(200,160,0,0.3);
+  color:var(--gold);font-size:13px;letter-spacing:2px;margin:16px 0 8px;
+  padding:6px 0;border-top:1px solid rgba(var(--gold-rgb),0.3);
+  border-bottom:1px solid rgba(var(--gold-rgb),0.3);
 }
 .complete-btn{
   display:inline-block;
-  font-family:Georgia,serif;
-  font-size:13px;letter-spacing:3px;color:#888;cursor:pointer;
+  font-family:var(--font-display);
+  font-size:13px;letter-spacing:3px;color:var(--text-muted);cursor:pointer;
   padding:9px 20px;margin:6px 4px;
-  border:1px solid rgba(200,160,0,0.4);border-radius:4px;
+  border:1px solid var(--border);border-radius:var(--radius-sm);
   transition:color 0.15s,border-color 0.15s,background 0.15s;
   user-select:none;
 }
-.complete-btn:hover{color:#ffdd55;border-color:rgba(200,160,0,0.8);background:rgba(200,160,0,0.08);}
+.complete-btn:hover{color:var(--gold-bright);border-color:var(--border-strong);background:rgba(var(--gold-rgb),0.08);}
 #complete-btns{margin-top:18px;display:flex;flex-direction:column;align-items:center;gap:2px;}
 #webgl-error{
   display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);

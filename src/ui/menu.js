@@ -68,15 +68,15 @@ export function buildMenu() {
   logo.textContent = 'The Monk & The Dragon Sister';
   logo.style.cssText = `
     font-size:clamp(24px,4vw,52px);
-    color:#c8a000;
-    text-shadow:0 0 40px rgba(200,160,0,0.9),0 0 80px rgba(200,160,0,0.4);
+    color:var(--gold);
+    text-shadow:0 0 40px rgba(var(--gold-rgb),0.9),0 0 80px rgba(var(--gold-rgb),0.4);
     letter-spacing:3px;margin-bottom:10px;
   `;
 
   const sub = document.createElement('p');
   sub.textContent = 'Quest I — The Initial Compassion';
   sub.style.cssText = `
-    font-size:clamp(13px,1.5vw,18px);color:#aaa;
+    font-size:clamp(13px,1.5vw,18px);color:var(--text-dim);
     font-style:italic;letter-spacing:2px;
   `;
 
@@ -90,19 +90,16 @@ export function buildMenu() {
 
   MENU_ITEMS.forEach((label, idx) => {
     const btn = document.createElement('div');
-    btn.className = 'menu-item';
+    btn.className = 'menu-item mds-btn';
     btn.dataset.index = idx;
     btn.textContent = (label === 'QUALITY') ? _qualityLabel() : (label === 'AUDIO') ? _audioItemLabel() : label;
+    // Slightly larger type + tighter tracking than the base .mds-btn for the
+    // main menu list; chrome (border/radius/colors) comes from the shared class.
     btn.style.cssText = `
       font-size:clamp(16px,2vw,22px);
       letter-spacing:5px;
-      color:#888;
-      cursor:pointer;
       padding:10px 30px;
       border:1px solid transparent;
-      border-radius:4px;
-      transition:color 0.15s,border-color 0.15s,text-shadow 0.15s;
-      user-select:none;
     `;
     btn.addEventListener('mouseenter', () => _selectItem(idx));
     btn.addEventListener('click', () => _activateItem(idx));
@@ -120,7 +117,7 @@ export function buildMenu() {
   privacyNote.style.cssText = `
     position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
     font-size:10px;color:rgba(150,130,80,0.55);letter-spacing:1px;
-    pointer-events:none;white-space:nowrap;
+    pointer-events:none;white-space:nowrap;font-family:var(--font-ui);
   `;
 
   _menuEl.appendChild(titleWrap);
@@ -175,15 +172,17 @@ function _selectItem(idx) {
   if (!els) return;
   els.forEach((el, i) => {
     if (i === idx) {
-      el.style.color = '#ffdd55';
-      el.style.borderColor = 'rgba(200,160,0,0.6)';
-      el.style.textShadow = '0 0 20px rgba(200,160,0,0.8)';
-      el.style.background = 'rgba(200,160,0,0.08)';
+      el.classList.add('selected');
+      el.style.color = 'var(--gold-bright)';
+      el.style.borderColor = 'var(--border-strong)';
+      el.style.textShadow = 'var(--glow-gold)';
+      el.style.background = 'rgba(var(--gold-rgb),0.10)';
     } else {
-      el.style.color = '#888';
+      el.classList.remove('selected');
+      el.style.color = '';
       el.style.borderColor = 'transparent';
       el.style.textShadow = 'none';
-      el.style.background = 'transparent';
+      el.style.background = '';
     }
   });
 }
@@ -308,17 +307,13 @@ function _showModeSelect() {
   if (_modeEl) { _modeEl.style.display = 'flex'; return; }
   _modeEl = document.createElement('div');
   _modeEl.id = 'mode-select';
-  _modeEl.style.cssText = `
-    position:fixed;top:0;left:0;width:100%;height:100%;
-    background:rgba(0,0,0,0.92);z-index:160;
-    display:flex;flex-direction:column;
-    align-items:center;justify-content:center;
-    font-family:Georgia,serif;
-  `;
+  _modeEl.className = 'mds-scrim';
+  _modeEl.style.cssText = 'z-index:160;';
 
   const h = document.createElement('h2');
+  h.className = 'mds-heading';
   h.textContent = 'SELECT MODE';
-  h.style.cssText = 'color:#c8a000;font-size:28px;letter-spacing:6px;margin-bottom:40px;';
+  h.style.cssText = 'font-size:28px;margin-bottom:40px;';
 
   const btnRow = document.createElement('div');
   btnRow.style.cssText = 'display:flex;gap:30px;align-items:center;margin-bottom:30px;';
@@ -368,17 +363,13 @@ function _showCharSelect() {
   if (_charEl) { _charEl.style.display = 'flex'; _charEl._refresh && _charEl._refresh(); return; }
   _charEl = document.createElement('div');
   _charEl.id = 'char-select';
-  _charEl.style.cssText = `
-    position:fixed;top:0;left:0;width:100%;height:100%;
-    background:rgba(0,0,0,0.92);z-index:161;
-    display:flex;flex-direction:column;
-    align-items:center;justify-content:center;
-    font-family:Georgia,serif;gap:24px;
-  `;
+  _charEl.className = 'mds-scrim';
+  _charEl.style.cssText = 'z-index:161;gap:24px;';
 
   const h = document.createElement('h2');
+  h.className = 'mds-heading';
   h.textContent = 'SELECT CHARACTER';
-  h.style.cssText = 'color:#c8a000;font-size:28px;letter-spacing:6px;';
+  h.style.cssText = 'font-size:28px;';
 
   // Char buttons
   const charRow = document.createElement('div');
@@ -406,7 +397,7 @@ function _showCharSelect() {
   partnerWrap.style.cssText = 'display:flex;align-items:center;gap:16px;';
   const partnerLabel = document.createElement('span');
   partnerLabel.textContent = 'PARTNER:';
-  partnerLabel.style.cssText = 'color:#888;font-size:14px;letter-spacing:3px;';
+  partnerLabel.style.cssText = 'color:var(--text-muted);font-size:14px;letter-spacing:3px;';
 
   const btnSolo = _makeMenuBtn('SOLO', () => {
     _aiPartnerFlag = false;
@@ -456,9 +447,12 @@ function _showCharSelect() {
   // gold highlight survives the cursor leaving the button.
   function _styleSelectable(btn, selected) {
     btn._selected = selected;
-    btn.style.color = selected ? '#ffdd55' : '#888';
-    btn.style.borderColor = selected ? 'rgba(200,160,0,0.7)' : 'rgba(200,160,0,0.4)';
-    btn.style.background = selected ? 'rgba(200,160,0,0.12)' : 'transparent';
+    btn.classList.toggle('selected', selected);
+    // Mirror the selected look inline too. Inline color is the source of truth the
+    // E2E reads (style.color === rgb(255,221,85)); literals match the gold tokens.
+    btn.style.color = selected ? '#ffdd55' : '';
+    btn.style.borderColor = selected ? 'rgba(200,160,0,0.7)' : '';
+    btn.style.background = selected ? 'rgba(200,160,0,0.12)' : '';
   }
   function _refreshCharButtons() {
     _styleSelectable(btnMonk, _selectedChar === 'monk');
@@ -495,30 +489,27 @@ function _hideCharSelect() {
 // ── Shared styled button helper ───────────────────────────────────────────
 function _makeMenuBtn(label, fn) {
   const btn = document.createElement('div');
+  btn.className = 'mds-btn';
   btn.textContent = label;
-  btn.style.cssText = `
-    font-size:clamp(14px,1.8vw,20px);letter-spacing:4px;color:#888;cursor:pointer;
-    padding:10px 24px;border:1px solid rgba(200,160,0,0.4);
-    border-radius:4px;transition:color 0.15s,border-color 0.15s,background 0.15s;
-    user-select:none;
-  `;
+  // Only size/tracking here; the panel/button chrome + hover come from .mds-btn.
+  btn.style.cssText = 'font-size:clamp(14px,1.8vw,20px);';
   btn.addEventListener('mouseenter', () => {
-    btn.style.color = '#ffdd55';
-    btn.style.borderColor = 'rgba(200,160,0,0.8)';
-    btn.style.background = 'rgba(200,160,0,0.08)';
     try { initAudioOnGesture(); sfx.menuTick(); } catch {}
   });
   btn.addEventListener('mouseleave', () => {
     // Respect a persistent selected state (toggle buttons like character/partner)
     // so leaving the button doesn't wipe the gold "selected" highlight.
+    // We set BOTH the shared .selected class (for cohesion) and the inline color
+    // (literal hex of --gold-bright; the E2E reads style.color as source of truth).
+    btn.classList.toggle('selected', !!btn._selected);
     if (btn._selected) {
-      btn.style.color = '#ffdd55';
+      btn.style.color = '#ffdd55';            // --gold-bright
       btn.style.borderColor = 'rgba(200,160,0,0.7)';
       btn.style.background = 'rgba(200,160,0,0.12)';
     } else {
-      btn.style.color = '#888';
-      btn.style.borderColor = 'rgba(200,160,0,0.4)';
-      btn.style.background = 'transparent';
+      btn.style.color = '';
+      btn.style.borderColor = '';
+      btn.style.background = '';
     }
   });
   btn.addEventListener('click', fn);
@@ -536,30 +527,29 @@ export function showCampaignPreview(fromComplete = false) {
 
   _campaignEl = document.createElement('div');
   _campaignEl.id = 'campaign-preview';
+  _campaignEl.className = 'mds-scrim';
   _campaignEl.style.cssText = `
-    position:fixed;top:0;left:0;width:100%;height:100%;
-    background:rgba(0,0,0,0.93);z-index:170;
-    display:flex;flex-direction:column;
-    align-items:center;justify-content:flex-start;
-    font-family:Georgia,serif;
+    background:var(--scrim);z-index:170;
+    justify-content:flex-start;
     overflow-y:auto;padding:30px 16px 36px;
   `;
 
   const h = document.createElement('h2');
+  h.className = 'mds-heading';
   h.textContent = 'CAMPAIGN — ELEMENTAL LANDS';
-  h.style.cssText = 'color:#c8a000;font-size:clamp(18px,2.5vw,26px);letter-spacing:5px;margin-bottom:6px;text-align:center;';
+  h.style.cssText = 'font-size:clamp(18px,2.5vw,26px);letter-spacing:5px;margin-bottom:6px;';
 
   const sub = document.createElement('p');
   sub.textContent = 'Master all four dragon forms across four elemental realms.';
-  sub.style.cssText = 'color:#888;font-size:12px;letter-spacing:1px;margin-bottom:28px;text-align:center;';
+  sub.style.cssText = 'color:var(--text-muted);font-size:12px;letter-spacing:1px;margin-bottom:28px;text-align:center;';
 
-  // Element accent colors matching ELEMENT_COLORS
+  // Element accent colors matching ELEMENT_COLORS (CSS tokens defined in :root)
   const ELEM_CSS = {
-    neutral: '#aaaaaa',
-    fire:    '#ff6633',
-    ice:     '#88ddff',
-    poison:  '#cc44ff',
-    water:   '#4499ff',
+    neutral: 'var(--el-neutral)',
+    fire:    'var(--el-fire)',
+    ice:     'var(--el-ice)',
+    poison:  'var(--el-poison)',
+    water:   'var(--el-water)',
   };
 
   const grid = document.createElement('div');
@@ -570,10 +560,10 @@ export function showCampaignPreview(fromComplete = false) {
     const accent = ELEM_CSS[land.themeElement] || '#c8a000';
     const playable = !land.comingSoon;
     card.style.cssText = `
-      border:1px solid ${playable ? accent : 'rgba(200,160,0,0.2)'};
+      border:1px solid ${playable ? accent : 'rgba(var(--gold-rgb),0.2)'};
       border-radius:6px;
       padding:14px 18px;
-      background:${playable ? 'rgba(200,160,0,0.06)' : 'rgba(30,30,30,0.5)'};
+      background:${playable ? 'rgba(var(--gold-rgb),0.06)' : 'rgba(30,30,30,0.5)'};
       opacity:${playable ? '1' : '0.65'};
     `;
 
@@ -586,15 +576,15 @@ export function showCampaignPreview(fromComplete = false) {
 
     const landName = document.createElement('span');
     landName.textContent = land.name;
-    landName.style.cssText = `color:${playable ? '#ffdd88' : '#aaa'};font-size:clamp(14px,1.8vw,17px);letter-spacing:2px;`;
+    landName.style.cssText = `color:${playable ? '#ffdd88' : 'var(--text-dim)'};font-size:clamp(14px,1.8vw,17px);letter-spacing:2px;`;
 
     const badge = document.createElement('span');
     badge.textContent = playable ? 'PLAYABLE' : 'COMING SOON';
     badge.style.cssText = `
       margin-left:auto;
       font-size:9px;letter-spacing:2px;
-      color:${playable ? '#66ff88' : '#666'};
-      border:1px solid ${playable ? 'rgba(100,255,136,0.5)' : 'rgba(100,100,100,0.3)'};
+      color:${playable ? 'var(--jade)' : '#666'};
+      border:1px solid ${playable ? 'rgba(68,255,153,0.5)' : 'rgba(100,100,100,0.3)'};
       border-radius:3px;padding:2px 6px;
     `;
 
@@ -604,7 +594,7 @@ export function showCampaignPreview(fromComplete = false) {
 
     const cardSub = document.createElement('div');
     cardSub.textContent = land.subtitle;
-    cardSub.style.cssText = `color:#888;font-size:11px;font-style:italic;letter-spacing:1px;margin-bottom:6px;`;
+    cardSub.style.cssText = `color:var(--text-muted);font-size:11px;font-style:italic;letter-spacing:1px;margin-bottom:6px;`;
 
     const cardDesc = document.createElement('div');
     cardDesc.textContent = land.description;
@@ -619,7 +609,7 @@ export function showCampaignPreview(fromComplete = false) {
 
     const counterTag = document.createElement('span');
     counterTag.textContent = `Counter: ${land.counterDragon.toUpperCase()} DRAGON`;
-    counterTag.style.cssText = `font-size:10px;color:#bbb;letter-spacing:2px;`;
+    counterTag.style.cssText = `font-size:10px;color:var(--text-dim);letter-spacing:2px;`;
 
     cardMeta.appendChild(elemTag);
     cardMeta.appendChild(counterTag);
@@ -727,23 +717,22 @@ export function showControls() {
   }
   _ctrlEl = document.createElement('div');
   _ctrlEl.id = 'controls-overlay';
+  _ctrlEl.className = 'mds-scrim';
   _ctrlEl.style.cssText = `
-    position:fixed;top:0;left:0;width:100%;height:100%;
-    background:rgba(0,0,0,0.92);z-index:200;
-    display:flex;flex-direction:column;
-    align-items:center;justify-content:flex-start;
-    font-family:Georgia,serif;
+    z-index:200;
+    justify-content:flex-start;
     overflow-y:auto;
     padding:20px 0 30px;
   `;
 
   const h = document.createElement('h2');
+  h.className = 'mds-heading';
   h.textContent = 'CONTROLS & REMAP';
-  h.style.cssText = 'color:#c8a000;font-size:26px;letter-spacing:6px;margin-bottom:6px;flex-shrink:0;';
+  h.style.cssText = 'font-size:26px;margin-bottom:6px;flex-shrink:0;';
 
   const hint = document.createElement('p');
   hint.textContent = 'Click an action row to rebind. Press a key to assign. Esc cancels.';
-  hint.style.cssText = 'color:#888;font-size:11px;margin-bottom:18px;letter-spacing:1px;flex-shrink:0;';
+  hint.style.cssText = 'color:var(--text-muted);font-size:11px;margin-bottom:18px;letter-spacing:1px;flex-shrink:0;';
 
   // ── Touch-only: EDIT TOUCH LAYOUT button (built now, appended in order below) ──
   let _editLayoutBtn = null;
@@ -773,8 +762,8 @@ export function showControls() {
     const codes = (ctx.bindings && ctx.bindings[who] && ctx.bindings[who][action]) || [];
     keyEl.textContent = _codeLabel(codes);
     keyEl.style.background = 'rgba(255,220,0,0.1)';
-    keyEl.style.color = '#ffdd55';
-    keyEl.style.borderColor = 'rgba(200,160,0,0.4)';
+    keyEl.style.color = 'var(--gold-bright)';
+    keyEl.style.borderColor = 'var(--border)';
     _listening = null;
   }
 
@@ -783,7 +772,7 @@ export function showControls() {
     col.style.cssText = 'min-width:280px;max-width:320px;';
     const ch = document.createElement('h3');
     ch.textContent = playerLabel;
-    ch.style.cssText = 'color:#c8a000;font-size:15px;margin-bottom:14px;border-bottom:1px solid rgba(200,160,0,0.3);padding-bottom:7px;letter-spacing:2px;';
+    ch.style.cssText = 'color:var(--gold);font-size:15px;margin-bottom:14px;border-bottom:1px solid rgba(var(--gold-rgb),0.3);padding-bottom:7px;letter-spacing:2px;';
     col.appendChild(ch);
 
     actions.forEach(({ action, label }) => {
@@ -798,8 +787,8 @@ export function showControls() {
       row.title = 'Click to rebind';
       row.addEventListener('mouseenter', () => {
         if (_listening && _listening.row === row) return;
-        row.style.background = 'rgba(200,160,0,0.07)';
-        row.style.borderColor = 'rgba(200,160,0,0.2)';
+        row.style.background = 'rgba(var(--gold-rgb),0.07)';
+        row.style.borderColor = 'rgba(var(--gold-rgb),0.2)';
       });
       row.addEventListener('mouseleave', () => {
         if (_listening && _listening.row === row) return;
@@ -815,10 +804,10 @@ export function showControls() {
       const keyEl = document.createElement('span');
       keyEl.textContent = _codeLabel(codes);
       keyEl.style.cssText = `
-        color:#ffdd55;font-size:11px;
+        color:var(--gold-bright);font-size:11px;
         background:rgba(255,220,0,0.1);
         padding:2px 8px;border-radius:3px;
-        border:1px solid rgba(200,160,0,0.4);
+        border:1px solid var(--border);
         white-space:nowrap;min-width:60px;text-align:center;
         cursor:pointer;
       `;
@@ -833,11 +822,11 @@ export function showControls() {
         // Enter listening mode
         _listening = { who, action, keyEl, row };
         keyEl.textContent = 'Press a key…';
-        keyEl.style.background = 'rgba(200,160,0,0.25)';
+        keyEl.style.background = 'rgba(var(--gold-rgb),0.25)';
         keyEl.style.color = '#fff';
-        keyEl.style.borderColor = '#c8a000';
-        row.style.background = 'rgba(200,160,0,0.12)';
-        row.style.borderColor = 'rgba(200,160,0,0.5)';
+        keyEl.style.borderColor = 'var(--gold)';
+        row.style.background = 'rgba(var(--gold-rgb),0.12)';
+        row.style.borderColor = 'rgba(var(--gold-rgb),0.5)';
       });
     });
     return col;
@@ -865,7 +854,7 @@ export function showControls() {
 
   const esc = document.createElement('p');
   esc.textContent = 'Esc / Backspace — Back  ·  M — Mute  ·  Global: Esc = Pause (not remappable)';
-  esc.style.cssText = 'color:#555;font-size:10px;margin-top:14px;letter-spacing:1px;flex-shrink:0;';
+  esc.style.cssText = 'color:var(--text-faint);font-size:10px;margin-top:14px;letter-spacing:1px;flex-shrink:0;';
 
   _ctrlEl.appendChild(h);
   _ctrlEl.appendChild(hint);
@@ -895,8 +884,8 @@ export function showControls() {
       _listening = null;
       keyEl.textContent = _codeLabel([e.code]);
       keyEl.style.background = 'rgba(255,220,0,0.1)';
-      keyEl.style.color = '#ffdd55';
-      keyEl.style.borderColor = 'rgba(200,160,0,0.4)';
+      keyEl.style.color = 'var(--gold-bright)';
+      keyEl.style.borderColor = 'var(--border)';
       row.style.background = 'transparent';
       row.style.borderColor = 'transparent';
       try { sfx.menuTick(); } catch {}
@@ -963,16 +952,12 @@ function _showPauseOverlay() {
   if (_pauseEl && _pauseEl.parentNode) { _pauseEl.style.display = 'flex'; return; }
   _pauseEl = document.createElement('div');
   _pauseEl.id = 'pause-overlay';
-  _pauseEl.style.cssText = `
-    position:fixed;top:0;left:0;width:100%;height:100%;
-    background:rgba(0,0,0,0.7);z-index:180;
-    display:flex;flex-direction:column;
-    align-items:center;justify-content:center;
-    font-family:Georgia,serif;
-  `;
+  _pauseEl.className = 'mds-scrim';
+  _pauseEl.style.cssText = 'background:var(--scrim-soft);z-index:180;';
   const h = document.createElement('h2');
+  h.className = 'mds-heading';
   h.textContent = 'PAUSED';
-  h.style.cssText = 'color:#c8a000;font-size:40px;letter-spacing:8px;margin-bottom:30px;';
+  h.style.cssText = 'font-size:40px;letter-spacing:8px;margin-bottom:30px;';
 
   const resume  = _makePauseBtn('RESUME', () => resumeGame());
 
@@ -1012,14 +997,11 @@ function _showPauseOverlay() {
 
 function _makePauseBtn(label, fn) {
   const btn = document.createElement('div');
+  btn.className = 'mds-btn';
   btn.textContent = label;
-  btn.style.cssText = `
-    font-size:18px;letter-spacing:4px;color:#888;cursor:pointer;
-    padding:10px 30px;margin:8px;border:1px solid rgba(200,160,0,0.4);
-    border-radius:4px;transition:color 0.15s;
-  `;
-  btn.addEventListener('mouseenter', () => { btn.style.color = '#ffdd55'; });
-  btn.addEventListener('mouseleave', () => { btn.style.color = '#888'; });
+  // .mds-btn provides the chrome + hover/selected; pause buttons are a touch
+  // larger with extra vertical rhythm.
+  btn.style.cssText = 'font-size:18px;padding:10px 30px;margin:8px;';
   btn.addEventListener('click', fn);
   return btn;
 }

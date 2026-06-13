@@ -157,20 +157,21 @@ export function promptPlayerName() {
 
     const box = document.createElement('div');
     box.style.cssText = `
-      background:rgba(20,14,2,0.97);
-      border:1px solid rgba(200,160,0,0.65);
-      border-radius:8px;padding:36px 40px;
+      background:var(--panel-bg-solid);
+      border:1px solid var(--border-strong);
+      border-radius:var(--radius);padding:36px 40px;
       display:flex;flex-direction:column;align-items:center;gap:18px;
       min-width:min(340px,88vw);
     `;
 
     const h = document.createElement('h2');
+    h.className = 'mds-heading';
     h.textContent = 'ENTER YOUR NAME';
-    h.style.cssText = 'color:#c8a000;font-size:22px;letter-spacing:5px;margin:0;';
+    h.style.cssText = 'font-size:22px;letter-spacing:5px;margin:0;';
 
     const sub = document.createElement('p');
     sub.textContent = 'Your name will appear on the global leaderboard.';
-    sub.style.cssText = 'color:#888;font-size:11px;letter-spacing:1px;margin:0;text-align:center;';
+    sub.style.cssText = 'color:var(--text-muted);font-size:11px;letter-spacing:1px;margin:0;text-align:center;';
 
     const input = document.createElement('input');
     input.type = 'text';
@@ -179,10 +180,10 @@ export function promptPlayerName() {
     input.value = existing;
     input.style.cssText = `
       background:rgba(10,8,6,0.8);
-      border:1px solid rgba(200,160,0,0.5);
-      border-radius:4px;
-      color:#f0d882;
-      font-family:Georgia,serif;
+      border:1px solid var(--border-strong);
+      border-radius:var(--radius-sm);
+      color:var(--gold-soft);
+      font-family:var(--font-display);
       font-size:16px;
       letter-spacing:2px;
       padding:10px 16px;
@@ -192,25 +193,9 @@ export function promptPlayerName() {
     `;
 
     const okBtn = document.createElement('div');
+    okBtn.className = 'mds-btn';
     okBtn.textContent = 'OK';
-    okBtn.style.cssText = `
-      font-family:Georgia,serif;font-size:15px;letter-spacing:5px;
-      color:#888;cursor:pointer;
-      padding:10px 40px;border:1px solid rgba(200,160,0,0.4);
-      border-radius:4px;
-      transition:color 0.15s,border-color 0.15s,background 0.15s;
-      user-select:none;
-    `;
-    okBtn.addEventListener('mouseenter', () => {
-      okBtn.style.color = '#ffdd55';
-      okBtn.style.borderColor = 'rgba(200,160,0,0.8)';
-      okBtn.style.background = 'rgba(200,160,0,0.08)';
-    });
-    okBtn.addEventListener('mouseleave', () => {
-      okBtn.style.color = '#888';
-      okBtn.style.borderColor = 'rgba(200,160,0,0.4)';
-      okBtn.style.background = 'transparent';
-    });
+    okBtn.style.cssText = 'font-size:15px;letter-spacing:5px;padding:10px 40px;';
 
     function _confirm() {
       const name = setPlayerName(input.value || 'Anonymous');
@@ -249,19 +234,18 @@ export function showLeaderboardOverlay(onClose) {
 
   const overlay = document.createElement('div');
   overlay.id = 'hs-overlay';
+  overlay.className = 'mds-scrim';
   overlay.style.cssText = `
-    position:fixed;top:0;left:0;width:100%;height:100%;
-    background:rgba(0,0,0,0.93);z-index:250;
-    display:flex;flex-direction:column;
-    align-items:center;justify-content:flex-start;
-    font-family:Georgia,serif;
+    background:var(--scrim);z-index:250;
+    justify-content:flex-start;
     overflow-y:auto;
     padding:30px 16px 36px;
   `;
 
   const h = document.createElement('h2');
+  h.className = 'mds-heading';
   h.textContent = 'HIGH SCORES';
-  h.style.cssText = 'color:#c8a000;font-size:clamp(18px,2.5vw,26px);letter-spacing:6px;margin-bottom:4px;text-align:center;flex-shrink:0;';
+  h.style.cssText = 'font-size:clamp(18px,2.5vw,26px);margin-bottom:4px;flex-shrink:0;';
 
   const statusEl = document.createElement('div');
   statusEl.id = 'hs-status';
@@ -289,22 +273,22 @@ export function showLeaderboardOverlay(onClose) {
     tab.dataset.stage = s.id;
     tab.style.cssText = `
       font-size:clamp(11px,1.4vw,14px);letter-spacing:3px;cursor:pointer;
-      padding:7px 18px;border:1px solid rgba(200,160,0,0.4);
-      border-radius:4px;color:#888;
+      padding:7px 18px;border:1px solid var(--border);
+      border-radius:var(--radius-sm);color:var(--text-muted);
       transition:color 0.15s,border-color 0.15s,background 0.15s;
       user-select:none;
     `;
     tab.addEventListener('click', () => _showStage(s.id));
     tab.addEventListener('mouseenter', () => {
       if (parseInt(tab.dataset.stage) !== activeStage) {
-        tab.style.color = '#ffdd55';
-        tab.style.borderColor = 'rgba(200,160,0,0.7)';
+        tab.style.color = 'var(--gold-bright)';
+        tab.style.borderColor = 'var(--border-strong)';
       }
     });
     tab.addEventListener('mouseleave', () => {
       if (parseInt(tab.dataset.stage) !== activeStage) {
-        tab.style.color = '#888';
-        tab.style.borderColor = 'rgba(200,160,0,0.4)';
+        tab.style.color = 'var(--text-muted)';
+        tab.style.borderColor = 'var(--border)';
         tab.style.background = 'transparent';
       }
     });
@@ -321,9 +305,9 @@ export function showLeaderboardOverlay(onClose) {
   function _setActiveTab(stageId) {
     Object.values(tabs).forEach(t => {
       const isActive = parseInt(t.dataset.stage) === stageId;
-      t.style.color = isActive ? '#ffdd55' : '#888';
-      t.style.borderColor = isActive ? 'rgba(200,160,0,0.8)' : 'rgba(200,160,0,0.4)';
-      t.style.background = isActive ? 'rgba(200,160,0,0.10)' : 'transparent';
+      t.style.color = isActive ? 'var(--gold-bright)' : 'var(--text-muted)';
+      t.style.borderColor = isActive ? 'var(--border-strong)' : 'var(--border)';
+      t.style.background = isActive ? 'rgba(var(--gold-rgb),0.10)' : 'transparent';
     });
   }
 
@@ -333,13 +317,13 @@ export function showLeaderboardOverlay(onClose) {
 
     const subEl = document.createElement('div');
     subEl.textContent = stageInfo ? stageInfo.sub : '';
-    subEl.style.cssText = 'color:#888;font-size:11px;font-style:italic;letter-spacing:1px;margin-bottom:14px;text-align:center;';
+    subEl.style.cssText = 'color:var(--text-muted);font-size:11px;font-style:italic;letter-spacing:1px;margin-bottom:14px;text-align:center;';
     contentArea.appendChild(subEl);
 
     if (!entries || entries.length === 0) {
       const empty = document.createElement('div');
       empty.textContent = 'No scores yet. Be the first!';
-      empty.style.cssText = 'color:#555;font-size:13px;text-align:center;padding:30px 0;letter-spacing:1px;';
+      empty.style.cssText = 'color:var(--text-faint);font-size:13px;text-align:center;padding:30px 0;letter-spacing:1px;';
       contentArea.appendChild(empty);
       return;
     }
@@ -352,7 +336,7 @@ export function showLeaderboardOverlay(onClose) {
     ['#', 'NAME', 'SCORE', 'DATE'].forEach(h => {
       const th = document.createElement('th');
       th.textContent = h;
-      th.style.cssText = 'font-size:9px;letter-spacing:3px;color:#666;padding:4px 16px;text-align:center;border-bottom:1px solid rgba(200,160,0,0.2);';
+      th.style.cssText = 'font-size:9px;letter-spacing:3px;color:#666;padding:4px 16px;text-align:center;border-bottom:1px solid rgba(var(--gold-rgb),0.2);';
       hrow.appendChild(th);
     });
     thead.appendChild(hrow);
@@ -363,24 +347,24 @@ export function showLeaderboardOverlay(onClose) {
       const tr = document.createElement('tr');
       const isMe = highlightName && entry.name === highlightName;
       if (isMe) {
-        tr.style.cssText = 'color:#f0d882;text-shadow:0 0 8px rgba(200,160,0,0.6);';
+        tr.style.cssText = 'color:var(--gold-soft);text-shadow:0 0 8px rgba(var(--gold-rgb),0.6);';
       }
 
       const tdRank = document.createElement('td');
       tdRank.textContent = '#' + (i + 1);
-      tdRank.style.cssText = 'color:#666;font-size:12px;padding:6px 16px;text-align:center;border-bottom:1px solid rgba(200,160,0,0.08);';
+      tdRank.style.cssText = 'color:#666;font-size:12px;padding:6px 16px;text-align:center;border-bottom:1px solid rgba(var(--gold-rgb),0.08);';
 
       const tdName = document.createElement('td');
       tdName.textContent = entry.name || '—';
-      tdName.style.cssText = `color:${isMe ? '#f0d882' : '#ccc'};font-size:14px;padding:6px 16px;text-align:center;border-bottom:1px solid rgba(200,160,0,0.08);`;
+      tdName.style.cssText = `color:${isMe ? 'var(--gold-soft)' : '#ccc'};font-size:14px;padding:6px 16px;text-align:center;border-bottom:1px solid rgba(var(--gold-rgb),0.08);`;
 
       const tdScore = document.createElement('td');
       tdScore.textContent = (entry.score || 0).toLocaleString() + (isMe ? ' ◀' : '');
-      tdScore.style.cssText = `color:${isMe ? '#f0d882' : '#aaa'};font-size:14px;padding:6px 16px;text-align:center;border-bottom:1px solid rgba(200,160,0,0.08);`;
+      tdScore.style.cssText = `color:${isMe ? 'var(--gold-soft)' : 'var(--text-dim)'};font-size:14px;padding:6px 16px;text-align:center;border-bottom:1px solid rgba(var(--gold-rgb),0.08);`;
 
       const tdDate = document.createElement('td');
       tdDate.textContent = entry.date || '—';
-      tdDate.style.cssText = 'color:#555;font-size:10px;padding:6px 16px;text-align:center;border-bottom:1px solid rgba(200,160,0,0.08);';
+      tdDate.style.cssText = 'color:var(--text-faint);font-size:10px;padding:6px 16px;text-align:center;border-bottom:1px solid rgba(var(--gold-rgb),0.08);';
 
       tr.appendChild(tdRank);
       tr.appendChild(tdName);
@@ -395,7 +379,7 @@ export function showLeaderboardOverlay(onClose) {
   async function _showStage(stageId) {
     activeStage = stageId;
     _setActiveTab(stageId);
-    contentArea.innerHTML = '<div style="color:#555;font-size:13px;text-align:center;padding:30px 0;letter-spacing:1px;">Loading…</div>';
+    contentArea.innerHTML = '<div style="color:var(--text-faint);font-size:13px;text-align:center;padding:30px 0;letter-spacing:1px;">Loading…</div>';
 
     const entries = await fetchLeaderboard(stageId);
     statusEl.textContent = _apiReachable ? '🌐 global' : '📋 local only';
@@ -407,23 +391,9 @@ export function showLeaderboardOverlay(onClose) {
   btnRow.style.cssText = 'display:flex;gap:16px;margin-top:24px;flex-shrink:0;';
 
   const backBtn = document.createElement('div');
+  backBtn.className = 'mds-btn';
   backBtn.textContent = 'BACK';
-  backBtn.style.cssText = `
-    font-family:Georgia,serif;font-size:clamp(14px,1.8vw,18px);letter-spacing:4px;color:#888;cursor:pointer;
-    padding:10px 24px;border:1px solid rgba(200,160,0,0.4);
-    border-radius:4px;transition:color 0.15s,border-color 0.15s,background 0.15s;
-    user-select:none;
-  `;
-  backBtn.addEventListener('mouseenter', () => {
-    backBtn.style.color = '#ffdd55';
-    backBtn.style.borderColor = 'rgba(200,160,0,0.8)';
-    backBtn.style.background = 'rgba(200,160,0,0.08)';
-  });
-  backBtn.addEventListener('mouseleave', () => {
-    backBtn.style.color = '#888';
-    backBtn.style.borderColor = 'rgba(200,160,0,0.4)';
-    backBtn.style.background = 'transparent';
-  });
+  backBtn.style.cssText = 'font-size:clamp(14px,1.8vw,18px);';
 
   function _close() {
     if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
@@ -471,12 +441,9 @@ export function showStageLeaderboard(stage, score, entries, title, onClose) {
 
   const overlay = document.createElement('div');
   overlay.id = 'stage-lb-overlay';
+  overlay.className = 'mds-scrim';
   overlay.style.cssText = `
-    position:fixed;top:0;left:0;width:100%;height:100%;
-    background:rgba(0,0,0,0.92);z-index:260;
-    display:flex;flex-direction:column;
-    align-items:center;justify-content:center;
-    font-family:Georgia,serif;
+    background:var(--scrim);z-index:260;
     animation:goFadeIn 0.6s ease-out forwards;
     overflow-y:auto;
     padding:30px 16px;
@@ -489,7 +456,7 @@ export function showStageLeaderboard(stage, score, entries, title, onClose) {
 
   // Title
   const titleEl = document.createElement('div');
-  titleEl.style.cssText = 'font-size:clamp(14px,2vw,20px);color:#f0d882;letter-spacing:5px;text-shadow:0 0 20px rgba(200,160,0,0.8);margin-bottom:4px;text-align:center;';
+  titleEl.style.cssText = 'font-size:clamp(14px,2vw,20px);color:var(--gold-soft);letter-spacing:5px;text-shadow:var(--glow-gold);margin-bottom:4px;text-align:center;';
   titleEl.textContent = title || 'LEADERBOARD';
 
   // Online/offline badge
@@ -500,13 +467,13 @@ export function showStageLeaderboard(stage, score, entries, title, onClose) {
   // "Congratulations" if the player holds #1, else the "can you beat #1?" hook.
   const isFirst = (myRank === 0) || (score > 0 && score >= rank1Score);
   const catchEl = document.createElement('div');
-  catchEl.style.cssText = 'font-size:clamp(18px,3vw,30px);color:' + (isFirst ? '#ffd24b' : '#ff6633') + ';letter-spacing:4px;text-shadow:0 0 30px rgba(255,160,0,0.8);margin-bottom:20px;font-style:italic;text-align:center;';
+  catchEl.style.cssText = 'font-size:clamp(18px,3vw,30px);color:' + (isFirst ? '#ffd24b' : 'var(--el-fire)') + ';letter-spacing:4px;text-shadow:0 0 30px rgba(255,160,0,0.8);margin-bottom:20px;font-style:italic;text-align:center;';
   catchEl.textContent = isFirst ? '🏆  CONGRATULATIONS — YOU’RE #1!' : ('CAN YOU BEAT #1?  ' + rank1Score.toLocaleString());
 
   // New high / top 15 indicator
   if (myRank >= 0) {
     const newHigh = document.createElement('div');
-    newHigh.style.cssText = 'font-size:clamp(13px,1.8vw,18px);color:#ff6633;letter-spacing:4px;text-shadow:0 0 16px rgba(255,100,0,0.7);margin-bottom:20px;animation:ultPulse 0.8s ease-in-out infinite;text-align:center;';
+    newHigh.style.cssText = 'font-size:clamp(13px,1.8vw,18px);color:var(--el-fire);letter-spacing:4px;text-shadow:0 0 16px rgba(255,100,0,0.7);margin-bottom:20px;animation:ultPulse 0.8s ease-in-out infinite;text-align:center;';
     newHigh.textContent = myRank === 0 ? '★  NEW HIGH SCORE!  ★' : `★  RANK #${myRank + 1}!  ★`;
     overlay.appendChild(titleEl);
     overlay.appendChild(badge);
@@ -527,7 +494,7 @@ export function showStageLeaderboard(stage, score, entries, title, onClose) {
     ['#', 'NAME', 'SCORE', 'DATE'].forEach(h => {
       const th = document.createElement('th');
       th.textContent = h;
-      th.style.cssText = 'font-family:\'Segoe UI\',system-ui,sans-serif;font-size:9px;letter-spacing:3px;color:#888;padding:4px 16px;text-align:center;border-bottom:1px solid rgba(200,160,0,0.25);';
+      th.style.cssText = 'font-family:var(--font-ui);font-size:9px;letter-spacing:3px;color:var(--text-muted);padding:4px 16px;text-align:center;border-bottom:1px solid var(--border);';
       hrow.appendChild(th);
     });
     thead.appendChild(hrow);
@@ -540,18 +507,18 @@ export function showStageLeaderboard(stage, score, entries, title, onClose) {
 
       const tdRank  = document.createElement('td');
       tdRank.textContent = '#' + (i + 1);
-      tdRank.style.cssText = 'color:#888;font-size:12px;padding:6px 16px;text-align:center;border-bottom:1px solid rgba(200,160,0,0.1);';
+      tdRank.style.cssText = 'color:var(--text-muted);font-size:12px;padding:6px 16px;text-align:center;border-bottom:1px solid rgba(var(--gold-rgb),0.1);';
 
       const tdName = document.createElement('td');
       tdName.textContent = entry.name || '—';
-      tdName.style.cssText = `color:${isMe ? '#f0d882' : '#ccc'};font-size:14px;padding:6px 16px;text-align:center;border-bottom:1px solid rgba(200,160,0,0.1);${isMe ? 'text-shadow:0 0 10px rgba(200,160,0,0.7);' : ''}`;
+      tdName.style.cssText = `color:${isMe ? 'var(--gold-soft)' : '#ccc'};font-size:14px;padding:6px 16px;text-align:center;border-bottom:1px solid rgba(var(--gold-rgb),0.1);${isMe ? 'text-shadow:0 0 10px rgba(var(--gold-rgb),0.7);' : ''}`;
 
       const tdScore = document.createElement('td');
       tdScore.textContent = (entry.score || 0).toLocaleString() + (isMe ? ' ◀' : '');
-      tdScore.style.cssText = `color:${isMe ? '#f0d882' : '#ccc'};font-size:15px;padding:6px 16px;text-align:center;border-bottom:1px solid rgba(200,160,0,0.1);${isMe ? 'text-shadow:0 0 10px rgba(200,160,0,0.7);' : ''}`;
+      tdScore.style.cssText = `color:${isMe ? 'var(--gold-soft)' : '#ccc'};font-size:15px;padding:6px 16px;text-align:center;border-bottom:1px solid rgba(var(--gold-rgb),0.1);${isMe ? 'text-shadow:0 0 10px rgba(var(--gold-rgb),0.7);' : ''}`;
 
       const tdDate = document.createElement('td');
-      tdDate.style.cssText = 'font-size:11px;color:#555;padding:6px 16px;text-align:center;border-bottom:1px solid rgba(200,160,0,0.1);';
+      tdDate.style.cssText = 'font-size:11px;color:var(--text-faint);padding:6px 16px;text-align:center;border-bottom:1px solid rgba(var(--gold-rgb),0.1);';
       tdDate.textContent = entry.date || '—';
 
       tr.appendChild(tdRank);
@@ -576,25 +543,9 @@ export function showStageLeaderboard(stage, score, entries, title, onClose) {
 
   function _makeBtn(label, fn) {
     const btn = document.createElement('div');
+    btn.className = 'mds-btn';
     btn.textContent = label;
-    btn.style.cssText = `
-      font-family:Georgia,serif;font-size:clamp(13px,1.6vw,17px);
-      letter-spacing:4px;color:#888;cursor:pointer;
-      padding:10px 24px;border:1px solid rgba(200,160,0,0.4);
-      border-radius:4px;
-      transition:color 0.15s,border-color 0.15s,background 0.15s;
-      user-select:none;
-    `;
-    btn.addEventListener('mouseenter', () => {
-      btn.style.color = '#ffdd55';
-      btn.style.borderColor = 'rgba(200,160,0,0.8)';
-      btn.style.background = 'rgba(200,160,0,0.08)';
-    });
-    btn.addEventListener('mouseleave', () => {
-      btn.style.color = '#888';
-      btn.style.borderColor = 'rgba(200,160,0,0.4)';
-      btn.style.background = 'transparent';
-    });
+    btn.style.cssText = 'font-size:clamp(13px,1.6vw,17px);';
     btn.addEventListener('click', fn);
     return btn;
   }

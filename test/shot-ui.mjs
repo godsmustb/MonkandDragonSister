@@ -1,0 +1,17 @@
+import { chromium } from 'playwright';
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
+await p.goto('http://localhost:8321/index.html', { waitUntil: 'load' });
+await p.waitForFunction(() => window.__game && window.__game.state, null, { timeout: 20000 });
+await p.waitForTimeout(600);
+await p.screenshot({ path: 'shots/hud/ui_menu.png' });
+console.log('menu shot');
+await p.evaluate(() => { window.__game.startGame(); window.__game.skipIntro(); window.__game.unlockAll(); });
+await p.waitForTimeout(1400);
+await p.screenshot({ path: 'shots/hud/ui_ingame.png' });
+console.log('ingame shot');
+await p.evaluate(() => window.__game.pause());
+await p.waitForTimeout(500);
+await p.screenshot({ path: 'shots/hud/ui_pause.png' });
+console.log('pause shot');
+await b.close();

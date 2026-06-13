@@ -656,7 +656,7 @@ export function enterTouchLayoutEditor() {
       transform:scale(${st.scale});
       transform-origin:top left;
       box-sizing:border-box;
-      border:2px dashed rgba(200,160,0,0.6);
+      border:2px dashed var(--border-strong);
       border-radius:10px;
       background:rgba(0,0,0,0.35);
       display:flex;align-items:center;justify-content:center;
@@ -669,7 +669,7 @@ export function enterTouchLayoutEditor() {
     const labelEl = document.createElement('div');
     labelEl.textContent = _LABELS[id] || id;
     labelEl.style.cssText = `
-      color:rgba(200,160,0,0.9);
+      color:rgba(var(--gold-rgb),0.9);
       font-size:11px;
       letter-spacing:2px;
       text-align:center;
@@ -751,13 +751,13 @@ export function enterTouchLayoutEditor() {
   function _selectControl(id) {
     // Deselect previous
     if (_selectedId && _ctrlEls[_selectedId]) {
-      _ctrlEls[_selectedId].style.borderColor = 'rgba(200,160,0,0.6)';
+      _ctrlEls[_selectedId].style.borderColor = 'var(--border-strong)';
       _ctrlEls[_selectedId].style.background  = 'rgba(0,0,0,0.35)';
     }
     _selectedId = id;
     if (_ctrlEls[id]) {
       _ctrlEls[id].style.borderColor = 'rgba(255,220,50,1)';
-      _ctrlEls[id].style.background  = 'rgba(200,160,0,0.18)';
+      _ctrlEls[id].style.background  = 'rgba(var(--gold-rgb),0.18)';
     }
     _refreshToolbar();
   }
@@ -769,14 +769,14 @@ export function enterTouchLayoutEditor() {
     display:flex;align-items:center;justify-content:space-between;
     padding:10px 14px;
     background:rgba(0,0,0,0.85);
-    border-bottom:1px solid rgba(200,160,0,0.4);
+    border-bottom:1px solid var(--border);
     box-sizing:border-box;z-index:1;
     gap:10px;
   `;
 
   const _titleEl = document.createElement('span');
   _titleEl.textContent = 'EDIT TOUCH LAYOUT';
-  _titleEl.style.cssText = 'color:#c8a000;font-size:12px;letter-spacing:3px;flex-shrink:0;';
+  _titleEl.style.cssText = 'color:var(--gold);font-size:12px;letter-spacing:3px;flex-shrink:0;';
 
   const _saveBtn  = _makeEditorBtn('SAVE');
   const _resetBtn = _makeEditorBtn('RESET');
@@ -830,17 +830,17 @@ export function enterTouchLayoutEditor() {
     display:flex;align-items:center;justify-content:center;
     padding:10px 14px;
     background:rgba(0,0,0,0.85);
-    border-top:1px solid rgba(200,160,0,0.4);
+    border-top:1px solid var(--border);
     box-sizing:border-box;z-index:1;
     gap:16px;
     display:none;
   `;
 
   const _selLabel = document.createElement('span');
-  _selLabel.style.cssText = 'color:#c8a000;font-size:11px;letter-spacing:2px;min-width:80px;text-align:center;';
+  _selLabel.style.cssText = 'color:var(--gold);font-size:11px;letter-spacing:2px;min-width:80px;text-align:center;';
 
   const _scaleLabel = document.createElement('span');
-  _scaleLabel.style.cssText = 'color:#ffdd55;font-size:13px;min-width:42px;text-align:center;';
+  _scaleLabel.style.cssText = 'color:var(--gold-bright);font-size:13px;min-width:42px;text-align:center;';
 
   const _minusBtn = _makeEditorBtn('A−');
   const _plusBtn  = _makeEditorBtn('A+');
@@ -889,7 +889,7 @@ export function enterTouchLayoutEditor() {
   function _flashBtn(btn, msg) {
     const orig = btn.textContent;
     btn.textContent = msg;
-    btn.style.color = '#66ff88';
+    btn.style.color = 'var(--jade)';
     // Use requestAnimationFrame-based delay to avoid setTimeout for UI (allowed for UI only)
     // The constraint is no setTimeout for game/FX; UI feedback is fine
     let t = Date.now();
@@ -925,10 +925,10 @@ function _makeEditorBtn(label) {
   const btn = document.createElement('div');
   btn.textContent = label;
   btn.style.cssText = `
-    font-size:12px;letter-spacing:3px;color:#c8a000;
+    font-size:12px;letter-spacing:3px;color:var(--gold);
     padding:7px 14px;
-    border:1px solid rgba(200,160,0,0.5);
-    border-radius:4px;
+    border:1px solid var(--border-strong);
+    border-radius:var(--radius-sm);
     background:rgba(0,0,0,0.5);
     touch-action:none;
     user-select:none;

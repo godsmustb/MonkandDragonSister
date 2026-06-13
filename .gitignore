@@ -1,3 +1,6 @@
 node_modules/
 test/shots/
 test/results.json
+
+# Claude Code agent worktrees (temp)
+.claude/worktrees/

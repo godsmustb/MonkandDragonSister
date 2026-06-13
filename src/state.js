@@ -32,6 +32,10 @@ export const ctx = {
   grassTufts: [],
   pondRipple: null,
   sunGlow: null,
+  // Pass 12 — game mode
+  mode: '2p',           // '2p' | '1p'
+  soloChar: null,       // null | 'monk' | 'sister'  (1p only)
+  aiPartner: false,     // false | true  (1p only)
 };
 
 export function setQuality(q) {

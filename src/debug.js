@@ -62,6 +62,9 @@ export function setupDebugAPI() {
     // audioReady is set to true by audio.js after context creation.
     audioReady: false,
 
+    // Pass 12: endless mode cycle counter
+    get endlessCycle() { return ctx.gameState.endlessCycle || 0; },
+
     get relics() {
       const p1 = ctx.gameState.p1, p2 = ctx.gameState.p2;
       return [...new Set([...(p1 ? p1.relics : []), ...(p2 ? p2.relics : [])])];

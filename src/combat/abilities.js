@@ -32,6 +32,7 @@ export function knockback(spirit, fromPos, force) {
 
 // ---- dealDamageToPlayer ----
 export function dealDamageToPlayer(player, amount, element) {
+  if (player.inactive) return;  // Pass 12: inactive partner is invulnerable
   if (player._iframes > 0) return;
   if (player.shieldActive) return;
   if (player.isKO) return;
@@ -107,6 +108,8 @@ export class Player {
     this._koTimer = 0;
     this.isKO = false;
     this._kneelMesh = null;
+    this.inactive = false;     // Pass 12: true = hidden/invulnerable partner in 1P solo
+    this._isAiPartner = false; // Pass 12: true = AI-driven in 1P+AI mode
 
     this._animPhase = 0;
     this._attackAnim = 0;
@@ -244,6 +247,17 @@ export class Player {
   update(dt, keys, allPlayers) {
     if (ctx.gameState.state === 'INTRO') return;
 
+    // Pass 12: inactive partner (1P solo) — park at active hero's position, skip all logic
+    if (this.inactive) {
+      const other = allPlayers.find(p => p.id !== this.id);
+      if (other) {
+        this.pos.copy(other.pos);
+        const cm = this.currentMesh();
+        if (cm) { cm.position.copy(this.pos); cm.visible = false; }
+      }
+      return;
+    }
+
     if (this._shieldCd > 0) this._shieldCd -= dt;
     if (this._healCd > 0) this._healCd -= dt;
     if (this._attackCd > 0) this._attackCd -= dt;
@@ -287,6 +301,13 @@ export class Player {
 
     const speed = 5.5 * (1 + (this.level - 1) * 0.05);
     let mx = 0, mz = 0;
+
+    // Pass 12: AI partner movement — if flagged, ignore keyboard and drive by AI
+    if (this._isAiPartner) {
+      this._runAiPartner(dt, allPlayers, speed);
+      return;
+    }
+
     if (this.id === 1) {
       if (keys['KeyW']) mz = -1;
       if (keys['KeyS']) mz = 1;
@@ -653,6 +674,87 @@ export class Player {
     if (this._medAura) { ctx.scene.remove(this._medAura); this._medAura = null; }
     if (this._medFxEntry) { this._medFxEntry.timer = 0; this._medFxEntry = null; }
     if (this._medLotusEntry) { this._medLotusEntry.timer = 0; this._medLotusEntry = null; }
+  }
+
+  // Pass 12: simple AI partner — move toward nearest enemy, attack when in range.
+  _runAiPartner(dt, allPlayers, speed) {
+    const spirits = ctx.gameState.spirits;
+    const ATTACK_RANGE = 2.8;
+    const FOLLOW_RANGE = 5.0;
+
+    // Find nearest living enemy
+    let nearestEnemy = null, nearEnemyDist = Infinity;
+    if (spirits) {
+      spirits.forEach(s => {
+        if (!s.alive) return;
+        const d = this.pos.distanceTo(s.pos);
+        if (d < nearEnemyDist) { nearEnemyDist = d; nearestEnemy = s; }
+      });
+    }
+
+    // Find the human-controlled partner (active hero)
+    const activeHero = allPlayers.find(p => p !== this && !p._isAiPartner && !p.inactive);
+
+    let mx = 0, mz = 0;
+    if (nearestEnemy && nearEnemyDist < 20) {
+      // Move toward nearest enemy
+      const dx = nearestEnemy.pos.x - this.pos.x;
+      const dz = nearestEnemy.pos.z - this.pos.z;
+      const len = Math.sqrt(dx * dx + dz * dz) || 1;
+      if (nearEnemyDist > ATTACK_RANGE) {
+        mx = dx / len;
+        mz = dz / len;
+      }
+      // Attack when close enough and off cooldown
+      if (nearEnemyDist < ATTACK_RANGE && this._attackCd <= 0) {
+        this.facing.set(dx / len, 0, dz / len);
+        this.attack();
+      }
+    } else if (activeHero) {
+      // No nearby enemy — follow active hero
+      const dx = activeHero.pos.x - this.pos.x;
+      const dz = activeHero.pos.z - this.pos.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist > FOLLOW_RANGE) {
+        mx = dx / (dist || 1);
+        mz = dz / (dist || 1);
+      }
+    }
+
+    _v3.set(mx, 0, mz);
+    if (_v3.lengthSq() > 0) {
+      _v3.normalize().multiplyScalar(speed * dt);
+      this.pos.add(_v3);
+      this.facing.set(mx, 0, mz).normalize();
+    }
+    const moveVec = _v3;
+
+    this.pos.x = THREE.MathUtils.clamp(this.pos.x, -ARENA_SIZE + 2, ARENA_SIZE - 2);
+    this.pos.z = THREE.MathUtils.clamp(this.pos.z, -ARENA_SIZE + 2, ARENA_SIZE - 2);
+    this.pos.y = 0;
+
+    const cm = this.currentMesh();
+    if (cm) {
+      cm.position.copy(this.pos);
+      if (moveVec.lengthSq() > 0.001)
+        cm.rotation.y = Math.atan2(this.facing.x, this.facing.z);
+    }
+
+    this._animPhase += dt * (moveVec.lengthSq() > 0.001 ? 4 : 1);
+    _animateCharacter(this, dt, moveVec.lengthSq() > 0.001);
+
+    if (this.id === 2 && this.form !== 'human') {
+      this._updateDragonSpine(dt);
+    }
+
+    if (this._shieldMesh) {
+      this._shieldMesh.position.copy(this.pos);
+      this._shieldMesh.position.y = 1;
+      if (!this.shieldActive) {
+        ctx.scene.remove(this._shieldMesh);
+        this._shieldMesh = null;
+      }
+    }
   }
 
   /** Get world-space position of staff tip (used for trail) */

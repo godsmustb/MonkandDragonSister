@@ -21,6 +21,9 @@ export const gameState = {
   _completed: false,
   _waveClearGranted: false,
   _paused: false,
+  // Pass 12: Endless mode
+  _endless: false,
+  endlessCycle: 0,
 };
 
 export function startIntro() {
@@ -83,6 +86,16 @@ export function startWave(n) {
 export function checkWaveComplete() {
   if (gameState.state === 'INTRO' || gameState.state === 'COMPLETE' ||
       gameState.state === 'MENU'  || gameState.state === 'GAMEOVER') return;
+  // In endless mode, any wave completion triggers the endless cycle handler
+  if (gameState._endless) {
+    const alive = gameState.spirits.filter(s => s.alive);
+    if (alive.length > 0 || gameState._waveClearing) return;
+    if (gameState.spirits.length === 0) return;
+    gameState._waveClearing = true;
+    _endlessWaveComplete();
+    return;
+  }
+
   const alive = gameState.spirits.filter(s => s.alive);
   if (alive.length > 0 || gameState._waveClearing) return;
   if (gameState.spirits.length === 0) return;
@@ -139,4 +152,113 @@ export function questComplete() {
   gameState.p2.unlockForm('poison');
   gameState.p2.unlockForm('water');
   updateHUD();
+
+  // Wire complete-screen buttons (safe to call multiple times — idempotent)
+  _wireCompleteButtons();
+}
+
+function _wireCompleteButtons() {
+  const btnEndless  = document.getElementById('btn-endless');
+  const btnRestart  = document.getElementById('btn-restart');
+  const btnMainMenu = document.getElementById('btn-mainmenu');
+  if (btnEndless && !btnEndless._wired) {
+    btnEndless._wired = true;
+    btnEndless.addEventListener('click', () => startEndless());
+  }
+  if (btnRestart && !btnRestart._wired) {
+    btnRestart._wired = true;
+    btnRestart.addEventListener('click', () => restartQuest());
+  }
+  if (btnMainMenu && !btnMainMenu._wired) {
+    btnMainMenu._wired = true;
+    btnMainMenu.addEventListener('click', () => { location.reload(); });
+  }
+}
+
+// ── Restart Quest (Wave 1 in same mode) ───────────────────────────────────
+// Uses location.reload() for a clean reset — matches the existing QUIT TO MENU pattern.
+// Mode/char selection persists across reload via sessionStorage.
+export function restartQuest() {
+  // Persist the current mode settings so after reload they are restored
+  try {
+    sessionStorage.setItem('mds_restart_mode',      ctx.mode      || '2p');
+    sessionStorage.setItem('mds_restart_soloChar',  ctx.soloChar  || '');
+    sessionStorage.setItem('mds_restart_aiPartner', ctx.aiPartner ? '1' : '0');
+    sessionStorage.setItem('mds_restart_pending',   '1');
+  } catch (_) {}
+  location.reload();
+}
+
+// ── Endless Wave Mode ─────────────────────────────────────────────────────
+// Spawns cycling waves with increasing HP/count until team runs out of lives.
+export function startEndless() {
+  const completeEl = document.getElementById('complete-screen');
+  if (completeEl) completeEl.style.display = 'none';
+
+  gameState._endless = true;
+  gameState.endlessCycle = 0;
+  gameState._completed = false;
+  gameState._waveClearing = false;
+  gameState._waveClearGranted = false;
+
+  clearAllFx();
+  _spawnEndlessWave();
+}
+
+function _spawnEndlessWave() {
+  const cycle = gameState.endlessCycle;
+  const scaleMult = 1 + 0.25 * cycle;
+  const MAX_CONCURRENT = 8;
+
+  // Cycle through wave slots 1-5
+  const waveSlot = ((cycle % 5) + 1);
+  gameState.wave = waveSlot;
+  gameState.state = 'WAVE' + waveSlot;
+  gameState._waveClearing = false;
+  gameState._waveClearGranted = false;
+
+  // Clear old spirits
+  gameState.spirits.forEach(s => s.cleanup && s.cleanup());
+  gameState.spirits = [];
+  clearAllFx();
+  try {
+    import('../game/camera.js').then(m => m.clearLockTargets()).catch(() => {});
+  } catch (_) {}
+
+  // Mix demon types for variety (forces form-swapping — no single dragon dominates)
+  const mixTypes = ['shadowling', 'frostimp', 'tidewraith'];
+  const baseCount = Math.min(3 + cycle, MAX_CONCURRENT);
+
+  // spawnSpirits creates a group; we call it with a type and scale results after
+  // We use it for each type in the mix, distributing count
+  const perType = Math.max(1, Math.floor(baseCount / mixTypes.length));
+  mixTypes.forEach((type, ti) => {
+    const n = (ti < baseCount % mixTypes.length) ? perType + 1 : perType;
+    if (n <= 0) return;
+    const elements = { shadowling: 'neutral', frostimp: 'ice', tidewraith: 'water' };
+    spawnSpirits(elements[type], n, type);
+  });
+
+  // Scale HP/ATK on newly spawned spirits
+  if (scaleMult > 1) {
+    gameState.spirits.forEach(s => {
+      s.maxHp = Math.round(s.maxHp * scaleMult);
+      s.hp    = s.maxHp;
+      s.atk   = Math.round(s.atk * scaleMult);
+    });
+  }
+
+  showToast(`ENDLESS — Cycle ${cycle + 1}  (×${scaleMult.toFixed(2)} power)`);
+  updateObjective();
+  updateHUD();
+}
+
+// Called from checkWaveComplete when in endless mode instead of questComplete
+function _endlessWaveComplete() {
+  gameState.endlessCycle += 1;
+  const xpAmt = 50 + gameState.endlessCycle * 20;
+  if (gameState.p1) gameState.p1.gainXP(xpAmt);
+  if (gameState.p2) gameState.p2.gainXP(xpAmt);
+  const tid = setTimeout(() => { _spawnEndlessWave(); }, 2000);
+  _fxTimers.push(tid);
 }

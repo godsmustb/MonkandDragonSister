@@ -177,6 +177,7 @@ export class Spirit {
 
     let nearest = null, nearXZDist = Infinity;
     players.forEach(p => {
+      if (p.inactive) return;  // Pass 12: skip hidden partner
       if (p.hp <= 0 || p.isKO) return;
       const d = xzDist(this, p);
       if (d < nearXZDist) { nearXZDist = d; nearest = p; }

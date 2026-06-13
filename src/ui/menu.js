@@ -8,6 +8,8 @@ import { initAudioOnGesture, toggleMute, audioLabel, sfx } from '../audio/audio.
 let _menuEl   = null;
 let _pauseEl  = null;
 let _ctrlEl   = null;
+let _modeEl   = null;     // Pass 12: mode-select sub-screen
+let _charEl   = null;     // Pass 12: character-select sub-screen
 let _selectedIndex = 0;
 let _menuVisible   = false;
 let _pauseVisible  = false;
@@ -125,6 +127,22 @@ export function buildMenu() {
 
   _selectItem(0);
   showMenu();
+
+  // Pass 12: restore after a restart-triggered reload
+  try {
+    const pending = sessionStorage.getItem('mds_restart_pending');
+    if (pending === '1') {
+      sessionStorage.removeItem('mds_restart_pending');
+      const mode     = sessionStorage.getItem('mds_restart_mode')      || '2p';
+      const soloChar = sessionStorage.getItem('mds_restart_soloChar')  || null;
+      const aiP      = sessionStorage.getItem('mds_restart_aiPartner') === '1';
+      ctx.mode = mode;
+      ctx.soloChar = soloChar || null;
+      ctx.aiPartner = aiP;
+      // Slight delay so players are constructed before _applyModeSetup
+      setTimeout(() => { startGame(); }, 50);
+    }
+  } catch (_) {}
 }
 
 function _selectItem(idx) {
@@ -155,10 +173,9 @@ function _activateItem(idx) {
   // Every menu interaction is a user gesture — init audio context
   try { initAudioOnGesture(); } catch {}
   if (idx === 0) {
-    // START GAME
+    // START GAME → open mode select
     try { sfx.menuSelect(); } catch {}
-    hideMenu();
-    startGame();
+    _showModeSelect();
   } else if (idx === 1) {
     try { sfx.menuSelect(); } catch {}
     showControls();
@@ -193,12 +210,272 @@ export function hideMenu() {
 export function isMenuVisible() { return _menuVisible; }
 
 // ── Start game (MENU → INTRO) ─────────────────────────────────────────────
+// Called directly by debug.js startGame() — must keep 2P default behaviour.
 export function startGame() {
   // Remove petal container as it overlaps with game
   const petals = document.getElementById('menu-petals');
   if (petals) petals.remove();
   hideMenu();
+  _hideModeSelect();
+  _hideCharSelect();
+  // Ensure we always boot into 2P when called programmatically (E2E contract)
+  if (ctx.mode !== '1p') ctx.mode = '2p';
+  _applyModeSetup();
+  // Rebuild postFX composers for the selected mode (1P=full-screen, 2P=split).
+  // Falls back silently to the direct render path if unavailable.
+  try {
+    if (typeof window.__applyQuality === 'function') window.__applyQuality(ctx.quality);
+  } catch (_) {}
   startIntro();
+}
+
+// ── Internal: apply mode setup to players after mode/char chosen ──────────
+function _applyModeSetup() {
+  const p1 = ctx.gameState && ctx.gameState.p1;
+  const p2 = ctx.gameState && ctx.gameState.p2;
+  if (!p1 || !p2) return;
+
+  if (ctx.mode === '2p') {
+    // Both active
+    p1.inactive = false; p1._isAiPartner = false;
+    p2.inactive = false; p2._isAiPartner = false;
+    const cm1 = p1.currentMesh(); if (cm1) cm1.visible = true;
+    const cm2 = p2.currentMesh(); if (cm2) cm2.visible = true;
+  } else if (ctx.mode === '1p') {
+    if (ctx.soloChar === 'monk') {
+      // P1 = active monk; P2 = partner (solo hidden OR AI driven)
+      p1.inactive = false; p1._isAiPartner = false;
+      const cm1 = p1.currentMesh(); if (cm1) cm1.visible = true;
+      if (ctx.aiPartner) {
+        p2.inactive = false; p2._isAiPartner = true;
+        const cm2 = p2.currentMesh(); if (cm2) cm2.visible = true;
+      } else {
+        p2.inactive = true; p2._isAiPartner = false;
+        const cm2 = p2.currentMesh(); if (cm2) cm2.visible = false;
+      }
+    } else {
+      // soloChar === 'sister': P2 = active; P1 = partner
+      p2.inactive = false; p2._isAiPartner = false;
+      const cm2 = p2.currentMesh(); if (cm2) cm2.visible = true;
+      if (ctx.aiPartner) {
+        p1.inactive = false; p1._isAiPartner = true;
+        const cm1 = p1.currentMesh(); if (cm1) cm1.visible = true;
+      } else {
+        p1.inactive = true; p1._isAiPartner = false;
+        const cm1 = p1.currentMesh(); if (cm1) cm1.visible = false;
+      }
+    }
+  }
+}
+
+// ── Mode select screen ────────────────────────────────────────────────────
+function _showModeSelect() {
+  if (_modeEl) { _modeEl.style.display = 'flex'; return; }
+  _modeEl = document.createElement('div');
+  _modeEl.id = 'mode-select';
+  _modeEl.style.cssText = `
+    position:fixed;top:0;left:0;width:100%;height:100%;
+    background:rgba(0,0,0,0.92);z-index:160;
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    font-family:Georgia,serif;
+  `;
+
+  const h = document.createElement('h2');
+  h.textContent = 'SELECT MODE';
+  h.style.cssText = 'color:#c8a000;font-size:28px;letter-spacing:6px;margin-bottom:40px;';
+
+  const btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:30px;align-items:center;margin-bottom:30px;';
+
+  const btn1P = _makeMenuBtn('1 PLAYER', () => {
+    try { sfx.menuSelect(); } catch {}
+    _hideModeSelect();
+    _showCharSelect();
+  });
+  const btn2P = _makeMenuBtn('2 PLAYERS', () => {
+    try { sfx.menuSelect(); } catch {}
+    ctx.mode = '2p'; ctx.soloChar = null; ctx.aiPartner = false;
+    _hideModeSelect();
+    startGame();
+  });
+  const btnBack = _makeMenuBtn('BACK', () => {
+    try { sfx.menuTick(); } catch {}
+    _hideModeSelect();
+  });
+
+  btnRow.appendChild(btn1P);
+  btnRow.appendChild(btn2P);
+
+  _modeEl.appendChild(h);
+  _modeEl.appendChild(btnRow);
+  _modeEl.appendChild(btnBack);
+  document.body.appendChild(_modeEl);
+
+  _modeEl._keyHandler = (e) => {
+    if (e.code === 'Escape' || e.code === 'Backspace') { _hideModeSelect(); }
+  };
+  document.addEventListener('keydown', _modeEl._keyHandler);
+}
+
+function _hideModeSelect() {
+  if (_modeEl) {
+    _modeEl.style.display = 'none';
+    if (_modeEl._keyHandler) {
+      document.removeEventListener('keydown', _modeEl._keyHandler);
+      _modeEl._keyHandler = null;
+    }
+  }
+}
+
+// ── Character select screen ───────────────────────────────────────────────
+function _showCharSelect() {
+  if (_charEl) { _charEl.style.display = 'flex'; _charEl._refresh && _charEl._refresh(); return; }
+  _charEl = document.createElement('div');
+  _charEl.id = 'char-select';
+  _charEl.style.cssText = `
+    position:fixed;top:0;left:0;width:100%;height:100%;
+    background:rgba(0,0,0,0.92);z-index:161;
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    font-family:Georgia,serif;gap:24px;
+  `;
+
+  const h = document.createElement('h2');
+  h.textContent = 'SELECT CHARACTER';
+  h.style.cssText = 'color:#c8a000;font-size:28px;letter-spacing:6px;';
+
+  // Char buttons
+  const charRow = document.createElement('div');
+  charRow.style.cssText = 'display:flex;gap:30px;align-items:center;';
+
+  let _selectedChar = 'monk'; // default
+  let _aiPartnerFlag = false;
+
+  const btnMonk = _makeMenuBtn('THE MONK', () => {
+    _selectedChar = 'monk';
+    try { sfx.menuTick(); } catch {}
+    _refreshCharButtons();
+  });
+  const btnSister = _makeMenuBtn('THE DRAGON SISTER', () => {
+    _selectedChar = 'sister';
+    try { sfx.menuTick(); } catch {}
+    _refreshCharButtons();
+  });
+
+  charRow.appendChild(btnMonk);
+  charRow.appendChild(btnSister);
+
+  // Partner toggle
+  const partnerWrap = document.createElement('div');
+  partnerWrap.style.cssText = 'display:flex;align-items:center;gap:16px;';
+  const partnerLabel = document.createElement('span');
+  partnerLabel.textContent = 'PARTNER:';
+  partnerLabel.style.cssText = 'color:#888;font-size:14px;letter-spacing:3px;';
+
+  const btnSolo = _makeMenuBtn('SOLO', () => {
+    _aiPartnerFlag = false;
+    try { sfx.menuTick(); } catch {}
+    _refreshPartnerButtons();
+  });
+  const btnAI = _makeMenuBtn('AI PARTNER', () => {
+    _aiPartnerFlag = true;
+    try { sfx.menuTick(); } catch {}
+    _refreshPartnerButtons();
+  });
+
+  partnerWrap.appendChild(partnerLabel);
+  partnerWrap.appendChild(btnSolo);
+  partnerWrap.appendChild(btnAI);
+
+  // Action row
+  const actionRow = document.createElement('div');
+  actionRow.style.cssText = 'display:flex;gap:20px;align-items:center;';
+
+  const btnBegin = _makeMenuBtn('BEGIN', () => {
+    try { sfx.menuSelect(); } catch {}
+    ctx.mode = '1p'; ctx.soloChar = _selectedChar; ctx.aiPartner = _aiPartnerFlag;
+    _hideCharSelect();
+    startGame();
+  });
+  const btnBack = _makeMenuBtn('BACK', () => {
+    try { sfx.menuTick(); } catch {}
+    _hideCharSelect();
+    _showModeSelect();
+  });
+
+  actionRow.appendChild(btnBegin);
+  actionRow.appendChild(btnBack);
+
+  _charEl.appendChild(h);
+  _charEl.appendChild(charRow);
+  _charEl.appendChild(partnerWrap);
+  _charEl.appendChild(actionRow);
+  document.body.appendChild(_charEl);
+
+  function _refreshCharButtons() {
+    btnMonk.style.color = _selectedChar === 'monk' ? '#ffdd55' : '#888';
+    btnMonk.style.borderColor = _selectedChar === 'monk' ? 'rgba(200,160,0,0.6)' : 'rgba(200,160,0,0.4)';
+    btnMonk.style.background = _selectedChar === 'monk' ? 'rgba(200,160,0,0.08)' : 'transparent';
+    btnSister.style.color = _selectedChar === 'sister' ? '#ffdd55' : '#888';
+    btnSister.style.borderColor = _selectedChar === 'sister' ? 'rgba(200,160,0,0.6)' : 'rgba(200,160,0,0.4)';
+    btnSister.style.background = _selectedChar === 'sister' ? 'rgba(200,160,0,0.08)' : 'transparent';
+  }
+  function _refreshPartnerButtons() {
+    btnSolo.style.color = !_aiPartnerFlag ? '#ffdd55' : '#888';
+    btnSolo.style.borderColor = !_aiPartnerFlag ? 'rgba(200,160,0,0.6)' : 'rgba(200,160,0,0.4)';
+    btnSolo.style.background = !_aiPartnerFlag ? 'rgba(200,160,0,0.08)' : 'transparent';
+    btnAI.style.color = _aiPartnerFlag ? '#ffdd55' : '#888';
+    btnAI.style.borderColor = _aiPartnerFlag ? 'rgba(200,160,0,0.6)' : 'rgba(200,160,0,0.4)';
+    btnAI.style.background = _aiPartnerFlag ? 'rgba(200,160,0,0.08)' : 'transparent';
+  }
+
+  // Store refresh function for re-open
+  _charEl._refresh = () => { _refreshCharButtons(); _refreshPartnerButtons(); };
+  _refreshCharButtons();
+  _refreshPartnerButtons();
+
+  _charEl._keyHandler = (e) => {
+    if (e.code === 'Escape' || e.code === 'Backspace') {
+      _hideCharSelect(); _showModeSelect();
+    }
+  };
+  document.addEventListener('keydown', _charEl._keyHandler);
+}
+
+function _hideCharSelect() {
+  if (_charEl) {
+    _charEl.style.display = 'none';
+    if (_charEl._keyHandler) {
+      document.removeEventListener('keydown', _charEl._keyHandler);
+      _charEl._keyHandler = null;
+    }
+  }
+}
+
+// ── Shared styled button helper ───────────────────────────────────────────
+function _makeMenuBtn(label, fn) {
+  const btn = document.createElement('div');
+  btn.textContent = label;
+  btn.style.cssText = `
+    font-size:clamp(14px,1.8vw,20px);letter-spacing:4px;color:#888;cursor:pointer;
+    padding:10px 24px;border:1px solid rgba(200,160,0,0.4);
+    border-radius:4px;transition:color 0.15s,border-color 0.15s,background 0.15s;
+    user-select:none;
+  `;
+  btn.addEventListener('mouseenter', () => {
+    btn.style.color = '#ffdd55';
+    btn.style.borderColor = 'rgba(200,160,0,0.8)';
+    btn.style.background = 'rgba(200,160,0,0.08)';
+    try { initAudioOnGesture(); sfx.menuTick(); } catch {}
+  });
+  btn.addEventListener('mouseleave', () => {
+    btn.style.color = '#888';
+    btn.style.borderColor = 'rgba(200,160,0,0.4)';
+    btn.style.background = 'transparent';
+  });
+  btn.addEventListener('click', fn);
+  return btn;
 }
 
 // ── Controls overlay ──────────────────────────────────────────────────────

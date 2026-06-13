@@ -85,13 +85,31 @@ ctx.game = game;
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h);
-  cameras.p1.aspect = (w / 2) / h;
-  cameras.p1.updateProjectionMatrix();
-  cameras.p2.aspect = (w / 2) / h;
-  cameras.p2.updateProjectionMatrix();
+  if (ctx.mode === '1p') {
+    // Full-screen single camera for 1P
+    const activeCam = _getActiveCam();
+    activeCam.aspect = w / h;
+    activeCam.updateProjectionMatrix();
+    // Keep the unused camera aspect consistent to avoid stale matrix
+    const otherCam = activeCam === cameras.p1 ? cameras.p2 : cameras.p1;
+    otherCam.aspect = w / h;
+    otherCam.updateProjectionMatrix();
+  } else {
+    cameras.p1.aspect = (w / 2) / h;
+    cameras.p1.updateProjectionMatrix();
+    cameras.p2.aspect = (w / 2) / h;
+    cameras.p2.updateProjectionMatrix();
+  }
   resizePostFX();
 }
 window.addEventListener('resize', resize);
+
+// ---- Helper: get the active camera for 1P mode ----
+function _getActiveCam() {
+  // In 2P mode this is unused; in 1P: monk → cameras.p1, sister → cameras.p2
+  if (ctx.mode === '1p' && ctx.soloChar === 'sister') return cameras.p2;
+  return cameras.p1;
+}
 
 // ---- Simulation step ----
 function updateGame(dt) {
@@ -110,6 +128,7 @@ function updateGame(dt) {
   // The old special both-KO instant branch is removed — each timer fires separately.
   allPlayers.forEach(p => {
     if (!p || !p.isKO) return;
+    if (p.inactive) return;  // Pass 12: inactive partner never KOs
     if (p._koTimer <= 0) {
       // Solo KO timer expired → consume life, respawn via lives.js
       consumeLife(p);
@@ -159,24 +178,28 @@ window.addEventListener('keydown', (e) => {
   const p1 = gameState.p1, p2 = gameState.p2;
   if (!p1 || !p2) return;
 
+  // Pass 12: in 1P mode, only send key actions to the active hero; skip inactive/AI partner
+  const p1Active = ctx.mode !== '1p' || ctx.soloChar === 'monk';
+  const p2Active = ctx.mode !== '1p' || ctx.soloChar === 'sister';
+
   // KO gate: skip action calls for a downed player (movement is already gated in update())
-  if (!p1.isKO) {
+  if (p1Active && !p1.isKO) {
     if (e.code === 'Space' || e.code === 'KeyI') p1.attack();
     if (e.code === 'KeyJ') p1.chiShield();
     if (e.code === 'KeyK') p1.dodge();
     if (e.code === 'KeyL') p1.healingPulse();
   }
   // Camera V2: P1 lock-on (allowed even while KO so player can track the fight)
-  if (e.code === 'KeyF') toggleLockOn('p1');
+  if (p1Active && e.code === 'KeyF') toggleLockOn('p1');
 
-  if (!p2.isKO) {
+  if (p2Active && !p2.isKO) {
     if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Numpad8') p2.attack();
     if (e.code === 'Numpad4') p2.cycleForm();
     if (e.code === 'Numpad5') p2.dodge();
     if (e.code === 'Numpad6') p2.special();
   }
   // Camera V2: P2 lock-on
-  if (e.code === 'Numpad0') toggleLockOn('p2');
+  if (p2Active && e.code === 'Numpad0') toggleLockOn('p2');
 });
 
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
@@ -191,13 +214,25 @@ function applyQuality(q) {
 window.__applyQuality = applyQuality; // simple hook for menu + debug
 
 // ---- Render ----
-// HIGH quality → two half-screen composers (bloom + ACES + SMAA).
-// LOW quality (or composer unavailable) → direct split-screen scissor render.
+// 2P HIGH quality → two half-screen composers (bloom + ACES + SMAA).
+// 2P LOW quality  → direct split-screen scissor render.
+// 1P              → single full-screen render of the active hero's camera.
 function renderFrame() {
   if (postFxEnabled() && renderPostFX()) return;
 
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setScissorTest(true);
+
+  if (ctx.mode === '1p') {
+    // Single full-screen view
+    const activeCam = _getActiveCam();
+    renderer.setScissor(0, 0, w, h);
+    renderer.setViewport(0, 0, w, h);
+    renderer.render(scene, activeCam);
+    return;
+  }
+
+  // 2P split-screen
   renderer.setScissor(0, 0, w / 2, h);
   renderer.setViewport(0, 0, w / 2, h);
   renderer.render(scene, cameras.p1);
@@ -296,8 +331,15 @@ function animate() {
   }
 
   if (!game._freezeCam) {
-    if (gameState.p1) updateCameraV2('p1', gameState.p1);
-    if (gameState.p2) updateCameraV2('p2', gameState.p2);
+    // In 1P, only update the active hero's camera (skip partner camera)
+    if (ctx.mode === '1p') {
+      const activeId = ctx.soloChar === 'sister' ? 'p2' : 'p1';
+      const activePlayer = activeId === 'p1' ? gameState.p1 : gameState.p2;
+      if (activePlayer) updateCameraV2(activeId, activePlayer);
+    } else {
+      if (gameState.p1) updateCameraV2('p1', gameState.p1);
+      if (gameState.p2) updateCameraV2('p2', gameState.p2);
+    }
   }
 
   const midCam = cameras.p1;

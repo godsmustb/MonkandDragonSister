@@ -508,6 +508,31 @@ export function updateHUD() {
   const p2 = ctx.gameState && ctx.gameState.p2;
   if (!p1 || !p2) return;
 
+  // Pass 12: in 1P mode show only the active hero's panel; hide the partner's.
+  if (ctx.mode === '1p') {
+    const showP1 = ctx.soloChar === 'monk';
+    const showP2 = ctx.soloChar === 'sister';
+    const hudP1 = document.getElementById('hud-p1');
+    const hudP2 = document.getElementById('hud-p2');
+    const divider = document.getElementById('divider');
+    if (hudP1) {
+      hudP1.style.width = showP1 ? '100%' : '0';
+      hudP1.style.display = showP1 ? '' : 'none';
+    }
+    if (hudP2) {
+      hudP2.style.left = showP2 ? '0' : '50%';
+      hudP2.style.width = showP2 ? '100%' : '50%';
+      hudP2.style.display = showP2 ? '' : 'none';
+    }
+    if (divider) divider.style.display = 'none';
+    // The split-screen DOM vignette overlays frame two halves; hide them in 1P
+    // (the composer grade already vignettes the full-screen view).
+    const vL = document.querySelector('.vignette');
+    const vR = document.querySelector('.vignette-r');
+    if (vL) vL.style.display = 'none';
+    if (vR) vR.style.display = 'none';
+  }
+
   _updatePlayerPlate('p1', p1);
   _updatePlayerPlate('p2', p2);
   _updateFormStrip(p2);

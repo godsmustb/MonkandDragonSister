@@ -47,6 +47,11 @@ animation.** No per-hero manual step.
 > Working stack in `tools\unirig\venv`: torch 2.4.1+cu121, **spconv-cu121** (the cu120 wheel
 > DLL-load-failed — use cu121 and add `os.add_dll_directory(<torch>/lib)` before importing spconv),
 > trimesh/transformers/lightning, CLI scripts present. `flash_attn` excluded (needs MSVC, optional).
-> **Next:** functional rig test — `generate_skeleton → generate_skin → merge` on a Hunyuan mesh
-> (e.g. `monk_hy_game.glb`), then retarget a free clip set for animation. Run serially (GPU), keep
-> C: above ~15 GB free.
+> **Rig-test status (monk_hy_game.glb):** ran `generate_skeleton → skin → merge` via Git bash
+> (`scripts\3d\rig_test.ps1`). Fixed along the way: use **Git** bash not WSL's; pass **forward-slash**
+> paths (bash strips backslashes); install **torch_cluster/torch_sparse** (PyG). **Remaining hard
+> blocker:** UniRig's *skinning* model hard-imports **`flash_attn`** (`unirig_skin.py`), which needs
+> an MSVC compiler this box lacks — so the skin step can't run. Fix options: (a) a **prebuilt
+> flash-attn Windows wheel** for py3.11/torch2.4/cu121, (b) install **VS Build Tools** and build it,
+> or (c) patch `unirig_skin.py` to use torch SDPA instead of flash-attn MHA. Skeleton generation +
+> the wrapper/deps are otherwise working. Then retarget a free clip set for animation.

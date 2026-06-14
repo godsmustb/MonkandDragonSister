@@ -5,6 +5,7 @@ import { startIntro } from '../game/quest.js';
 import { initAudioOnGesture, toggleMute, audioLabel, sfx } from '../audio/audio.js';
 import { saveBindings, resetBindings, DEFAULT_BINDINGS } from '../game/bindings.js';
 import { LANDS } from '../game/campaign.js';
+import { gamepadsConnected } from '../game/gamepad.js';
 // On mobile (touch-primary) there's no room/multitouch for split-screen, so we
 // offer 1-Player only (Monk or Sister); desktop keeps the full 1P/2P choice.
 import { IS_TOUCH } from '../config.js';
@@ -981,6 +982,7 @@ function _prettyCode(code) {
 export function showControls() {
   if (_ctrlEl && _ctrlEl.parentNode) {
     // Rebuild to reflect any binding changes since last open
+    if (_ctrlEl._detInt) clearInterval(_ctrlEl._detInt);
     document.body.removeChild(_ctrlEl);
     if (_ctrlEl._keyHandler) {
       document.removeEventListener('keydown', _ctrlEl._keyHandler);
@@ -1021,6 +1023,34 @@ export function showControls() {
     _editLayoutBtn.style.fontSize = 'clamp(13px,1.6vw,16px)';
     _editLayoutBtn.style.flexShrink = '0';
   }
+
+  // ── Input mode (keyboard / gamepad) + detected controllers + animated viewer ──
+  const inputBox = document.createElement('div');
+  inputBox.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:18px;flex-shrink:0;';
+  const modeRow = document.createElement('div'); modeRow.style.cssText = 'display:flex;align-items:center;gap:12px;';
+  const modeLbl = document.createElement('span'); modeLbl.textContent = 'INPUT:'; modeLbl.style.cssText = 'color:var(--text-muted);font-size:12px;letter-spacing:2px;';
+  const kbBtn = _makeMenuBtn('⌨ KEYBOARD', () => _setInputMode(false));
+  const padBtn = _makeMenuBtn('🎮 GAMEPAD', () => _setInputMode(true));
+  [kbBtn, padBtn].forEach(b => { b.style.fontSize = '13px'; b.style.padding = '6px 16px'; });
+  modeRow.appendChild(modeLbl); modeRow.appendChild(kbBtn); modeRow.appendChild(padBtn);
+  const detected = document.createElement('div'); detected.style.cssText = 'color:var(--text-dim);font-size:11px;letter-spacing:1px;';
+  const viewBtn = _makeMenuBtn('▶  VIEW CONTROLS & POWERS', () => {
+    try { sfx.menuSelect(); } catch {}
+    import('./onboarding.js').then(m => m.runTutorial(() => {})).catch(() => {});
+  });
+  viewBtn.style.fontSize = '13px';
+  inputBox.appendChild(modeRow); inputBox.appendChild(detected); inputBox.appendChild(viewBtn);
+  const _refreshInput = () => {
+    const n = gamepadsConnected();
+    detected.textContent = n ? `🎮 ${n} controller(s) detected` : 'No gamepad detected — connect one and press a button';
+    kbBtn.classList.toggle('selected', !ctx.gamepadEnabled);
+    padBtn.classList.toggle('selected', !!ctx.gamepadEnabled);
+  };
+  const _setInputMode = (usePad) => { try { sfx.menuTick(); } catch {} ctx.gamepadEnabled = !!usePad; try { localStorage.setItem('mds_gamepad', usePad ? '1' : '0'); } catch (_) {} _refreshInput(); };
+  _refreshInput();
+  _ctrlEl._detInt = setInterval(_refreshInput, 1000);
+  window.addEventListener('gamepadconnected', _refreshInput);
+  window.addEventListener('gamepaddisconnected', _refreshInput);
 
   const cols = document.createElement('div');
   cols.style.cssText = 'display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;justify-content:center;flex-shrink:0;';
@@ -1130,6 +1160,7 @@ export function showControls() {
 
   _ctrlEl.appendChild(h);
   _ctrlEl.appendChild(hint);
+  _ctrlEl.appendChild(inputBox);
   if (_editLayoutBtn) _ctrlEl.appendChild(_editLayoutBtn); // touch-only layout editor entry
   _ctrlEl.appendChild(cols);
   _ctrlEl.appendChild(btnRow);

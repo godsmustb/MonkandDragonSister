@@ -34,7 +34,8 @@ import { spawnMovementDust } from './combat/projectiles.js';
 setDealDamageToPlayer(dealDamageToPlayer);
 // Gamepad: wire the action dispatch + pause toggle; enabled by default (keyboard still works).
 setGamepadHooks((pid, action) => dispatchPlayerAction(pid, action), togglePause);
-ctx.gamepadEnabled = (ctx.gamepadEnabled !== false);
+// Default ON (keyboard works alongside); persisted preference from the controls page.
+try { ctx.gamepadEnabled = (localStorage.getItem('mds_gamepad') !== '0'); } catch (_) { ctx.gamepadEnabled = true; }
 setShowDamageNumber(showDamageNumber);
 setFxTimersRef(_fxTimers);
 

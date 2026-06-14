@@ -45,6 +45,34 @@ Music + voice are **commercially safe** (ACE-Step = MIT, Kokoro = Apache).
 - **Longer music loops** — the 30 s tracks loop with a faint seam; regenerate at 60–90 s when convenient (`scripts\audio\music.ps1 -Duration 90`).
 - **More VO** — boss taunts, wave callouts (Kokoro is near-free; add keys to `manifest.voice`).
 
+## Session addendum — rigging automation + 2D extension
+
+**Rigging — the manual-Mixamo hole is solved on paper, see `docs/RIGGING_AUTOMATION.md`.**
+Compared AccuRig / Rigify / UniRig / Mixamo. **Winner: UniRig** (VAST-AI/Tripo + Tsinghua,
+SIGGRAPH'25) — **MIT (commercial-safe), full CLI, 8 GB-fit, rigs non-humanoids, same lab as
+Hunyuan3D** so our meshes feed straight in. AccuRig is GUI-only (no CLI); Rigify needs manual
+per-mesh metarig fitting; Mixamo is web-only. UniRig replaces the manual step:
+`Flux → Hunyuan mesh → UniRig (skeleton+skin, CLI) → rigged FBX`. The only residual is
+*animation clips* (UniRig rigs but doesn't animate) — retarget a one-time free Mixamo/CMU clip
+set onto the UniRig skeleton (scriptable), not per-hero manual work.
+
+- **UniRig install caveat (this no-compiler box):** `flash_attn` fails to build (needs MSVC) —
+  it's optional for UniRig inference, so exclude it. Also install **serially** (the first attempt
+  ran concurrently with Forge and starved both — torch didn't finish in the UniRig venv). Re-run
+  `scripts\3d\install_unirig.ps1` alone, then re-pin torch if needed.
+
+**2D extension (demons/bosses/extra backgrounds) — blocked by a Forge CUDA degradation.** After
+the heavy session GPU churn (Forge + Hunyuan + ACE-Step + the failed concurrent installs), Forge's
+diffusion completes but the final VAE decode throws `RuntimeError: GET was unable to find an engine
+to execute this computation` (a cuDNN/VRAM-state error), at 1344×768 **and** 1024². A fresh Forge
+process didn't clear it → needs a **machine reboot** to reset CUDA. The earlier 2D pack (menu BG,
+key art, portraits) was generated *before* the degradation and is live. **After a reboot**, run
+`scripts\gen_2d_pack.ps1` (alone, Forge only) to finish the demon/boss/background art — Forge itself
+is fixed (the sd-models patch holds).
+
+> **Hard lesson reinforced:** keep GPU work serial. Running the UniRig install *while* Forge
+> generated starved both and contributed to the CUDA degradation. One engine at a time.
+
 ## Run-it-yourself (regenerate / extend)
 
 ```powershell

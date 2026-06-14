@@ -43,5 +43,7 @@ both). To stay free + automated, retarget a **free clip library onto the UniRig 
 So: **UniRig for rigging (fully automated), one-time clip library + scripted retarget for
 animation.** No per-hero manual step.
 
-> Status: UniRig selected; install + a `rig_character.ps1` wrapper are the next pipeline
-> addition (see `OVERNIGHT_REPORT.md`).
+> Status: UniRig **selected**. Installer scaffolded (`scripts\3d\install_unirig.ps1`).
+> Install caveat on this no-compiler box: `flash_attn` won't build (needs MSVC) — it's
+> optional for inference, exclude it; and install **serially** (running it alongside Forge
+> starved both). Functional rig test pending a clean serial install. See `OVERNIGHT_REPORT.md`.

@@ -60,9 +60,23 @@ export function buildMenu() {
     overflow:hidden;
   `;
 
+  // Optional Flux key-art behind the menu. Gated by assets/manifest.json (always present
+  // → no 404 / no console error / E2E-safe). When menuArt is true, the image fades in
+  // over the gradient. Generate it, set "menuArt": true in the manifest, and redeploy.
+  const bgArt = document.createElement('div');
+  bgArt.id = 'menu-bg-art';
+  bgArt.style.cssText = 'position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;transition:opacity 1.4s ease;pointer-events:none;z-index:0;';
+  _menuEl.appendChild(bgArt);
+  fetch('assets/manifest.json').then(r => r.ok ? r.json() : null).then(mf => {
+    if (!mf || !mf.menuArt) return;
+    const img = new Image();
+    img.onload = () => { bgArt.style.backgroundImage = `url(${img.src})`; bgArt.style.opacity = '0.5'; };
+    img.src = 'assets/ui/menu_bg.png';
+  }).catch(() => {});
+
   // Title
   const titleWrap = document.createElement('div');
-  titleWrap.style.cssText = 'text-align:center;margin-bottom:60px;';
+  titleWrap.style.cssText = 'text-align:center;margin-bottom:60px;position:relative;z-index:1;';
 
   const logo = document.createElement('h1');
   logo.textContent = 'The Monk & The Dragon Sister';
@@ -85,7 +99,7 @@ export function buildMenu() {
 
   // Menu items
   const itemsWrap = document.createElement('div');
-  itemsWrap.style.cssText = 'display:flex;flex-direction:column;gap:18px;align-items:center;';
+  itemsWrap.style.cssText = 'display:flex;flex-direction:column;gap:18px;align-items:center;position:relative;z-index:1;';
   const _itemEls = [];
 
   MENU_ITEMS.forEach((label, idx) => {

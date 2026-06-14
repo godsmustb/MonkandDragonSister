@@ -16,7 +16,7 @@ import { toggleLockOn, camExtra } from './game/camera.js';
 import { saveBindings } from './game/bindings.js';
 import { getDDA, LANDS } from './game/campaign.js';
 import { getSuddenDeathElapsed } from './game/suddendeath.js';
-import { musicState } from './audio/audio.js';
+import { musicState, setRecordedMusic as _setRecordedMusic } from './audio/audio.js';
 
 export function setupDebugAPI() {
   // Expose raw ctx for VFX testing / screenshot scripts
@@ -135,6 +135,10 @@ export function setupDebugAPI() {
       return !!on;
     },
     get gltfHeroes() { return !!ctx.useGltfHeroes; },
+
+    // Recorded-music layer (ACE-Step tracks in assets/music/). Off by default; enable
+    // after deploying the .mp3s. Persisted; also via ?music=1. See audio.setRecordedMusic.
+    setRecordedMusic(on) { try { return _setRecordedMusic(on); } catch { return false; } },
 
     // Score system
     get score() { return ctx.gameState.score || 0; },

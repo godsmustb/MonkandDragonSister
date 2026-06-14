@@ -43,6 +43,20 @@ let _tensionDroneGain = null;
 let _tensionDroneOsc2 = null;  // 2nd, detuned partner for a beating/unease effect
 let _lastTheme = 1;            // last theme we re-pitched drones to
 
+// ── Recorded-music layer (optional ACE-Step tracks) ──────────────────────────
+// If audio/music/<key>.mp3 files exist they crossfade in over the procedural music
+// (one track per land + a boss track). With no files present, nothing changes — the
+// procedural generator plays exactly as before (E2E-safe). Keys: theme1/2/3 + boss.
+let _recEl = null;          // HTMLAudioElement currently playing
+let _recSrc = null;         // MediaElementAudioSourceNode
+let _recGain = null;        // gain for the recorded track (→ master)
+let _recKey = null;         // currently-loaded track key
+let _recDisabled = false;   // set true once a key 404s so we don't retry forever per key
+let _recEnabled = false;    // master opt-in (localStorage mds_recorded_music=1 or ?music=1)
+const _recMissing = {};     // keys known to be absent → skip
+const _SYNTH_DUCK = 0.12;   // _musicBus gain while a recorded track owns the mix
+const _SYNTH_FULL = 0.55;   // normal procedural music bus gain
+
 // Per-theme musical mood. The generative engine is reused verbatim — only the
 // melodic scale, drone roots and tempo feel shift per land so L2 reads colder /
 // higher and L3 darker / lower / dissonant. Level 1 = the original zen values.
@@ -144,6 +158,13 @@ function _ensureContext() {
   _combatGain = _ac.createGain(); _combatGain.gain.value = 0; _combatGain.connect(_musicBus);
   _bossGain = _ac.createGain(); _bossGain.gain.value = 0; _bossGain.connect(_musicBus);
 
+  // Recorded-music opt-in (off by default → procedural only → E2E-safe). Enable after
+  // deploying assets/music/<theme1|2|3|boss>.mp3 via ?music=1 or setRecordedMusic(true).
+  try {
+    _recEnabled = localStorage.getItem('mds_recorded_music') === '1';
+    if (new URLSearchParams(location.search).get('music') === '1') _recEnabled = true;
+  } catch (_) {}
+
   // Expose audioReady flag
   if (window.__game) window.__game.audioReady = true;
   else window._audioReady = true;
@@ -165,6 +186,15 @@ function _saveMuteState(m) {
 }
 
 _muted = _readMuteState();
+
+// Opt into the recorded-music layer (persisted). Takes effect immediately if the
+// AudioContext is live; otherwise on the next gesture. Returns the saved value.
+export function setRecordedMusic(on) {
+  try { localStorage.setItem('mds_recorded_music', on ? '1' : '0'); } catch (_) {}
+  _recEnabled = !!on;
+  if (!on) { _setSynthDuck(false); _recKey = null; if (_recEl) { try { _recEl.pause(); } catch {} _recEl = null; } }
+  return _recEnabled;
+}
 
 export function toggleMute() {
   _muted = !_muted;
@@ -977,10 +1007,66 @@ function _updateMusicLayer() {
     _lastTheme = _activeTheme;
   }
 
+  // Optional recorded-music layer (crossfade ACE-Step tracks if present).
+  _updateRecordedMusic();
+
   // Continuous per-tick fine-tune: even within 'combat', scale the combat layer by
   // live intensity so a near-cleared arena thins toward calm; ramp every tick.
   _applyContinuousMix();
   _applyTensionDrone();
+}
+
+// Pick the recorded-track key for the current state: boss overrides; else per-land.
+function _wantedRecKey() {
+  if (_bossActive) return 'boss';
+  return 'theme' + (_activeTheme === 2 ? 2 : _activeTheme === 3 ? 3 : 1);
+}
+
+// Crossfade the optional recorded-music layer toward the wanted key. Fully guarded:
+// no AudioContext, muted, or a missing file all no-op and leave procedural music alone.
+function _updateRecordedMusic() {
+  if (!_recEnabled || !_ac || _recDisabled) return;
+  const key = _wantedRecKey();
+  if (key === _recKey) return;          // already on the right track
+  if (_recMissing[key]) {               // known-absent → ensure synth is full, bail
+    if (!_recEl) _setSynthDuck(false);
+    return;
+  }
+  // Lazily create the recorded gain bus on first real use.
+  if (!_recGain) { _recGain = _ac.createGain(); _recGain.gain.value = 0; _recGain.connect(_masterGain); }
+
+  const el = new Audio();
+  el.loop = true; el.crossOrigin = 'anonymous'; el.preload = 'auto';
+  el.src = `assets/music/${key}.mp3`;
+  el.addEventListener('canplaythrough', () => {
+    // A new wanted key may have superseded this one while loading.
+    if (_wantedRecKey() !== key) { try { el.pause(); } catch {} return; }
+    try {
+      const src = _ac.createMediaElementSource(el);
+      src.connect(_recGain);
+      // Fade out the old track, fade in the new; duck the synth music.
+      const t = _ac.currentTime;
+      if (_recEl) { const old = _recEl; try { _recGain.gain.cancelScheduledValues(t); } catch {} setTimeout(() => { try { old.pause(); } catch {} }, 1600); }
+      _recGain.gain.setValueAtTime(_recGain.gain.value, t);
+      _recGain.gain.linearRampToValueAtTime(0.6, t + 1.5);
+      _setSynthDuck(true);
+      el.play().catch(() => {});
+      _recEl = el; _recSrc = src; _recKey = key;
+    } catch (_) { /* MediaElementSource can throw if reused; ignore */ }
+  }, { once: true });
+  el.addEventListener('error', () => { _recMissing[key] = true; if (!_recEl) _setSynthDuck(false); }, { once: true });
+  // If NO track ever loads (all missing), the first error marks it; nothing else changes.
+}
+
+// Duck (or restore) the procedural music bus so a recorded track can sit on top.
+function _setSynthDuck(duck) {
+  if (!_musicBus || !_ac) return;
+  const t = _ac.currentTime;
+  try {
+    _musicBus.gain.cancelScheduledValues(t);
+    _musicBus.gain.setValueAtTime(_musicBus.gain.value, t);
+    _musicBus.gain.linearRampToValueAtTime(duck ? _SYNTH_DUCK : _SYNTH_FULL, t + 1.2);
+  } catch {}
 }
 
 // Glide the persistent drone oscillators to the active theme's roots (called only
@@ -1184,6 +1270,8 @@ export function musicState() {
     ultActive: _ultActive,
     theme: _activeTheme,
     running: _schedulerInterval !== null,
+    recordedEnabled: _recEnabled,
+    recordedKey: _recKey,
   };
 }
 

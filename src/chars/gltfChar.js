@@ -3,8 +3,9 @@
 // exposes a tiny state machine the player update can drive, and stays compatible
 // with the game's `currentMesh()`/transform expectations.
 //
-// Requires GLTFLoader in the importmap (see FIRSTGAME_HERO_GLB_INTEGRATION.md):
-//   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/"
+// GLTFLoader resolves via the existing importmap `three/addons/` → vendored r160
+// (vendor/three/addons/), so it works fully offline — no CDN. Its only addon dep
+// (utils/BufferGeometryUtils.js) is already vendored.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 

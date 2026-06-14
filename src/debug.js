@@ -119,6 +119,16 @@ export function setupDebugAPI() {
      */
     startLevel(n) { _startLevel(n); },
 
+    // ── Rigged-GLB heroes (v1.5 ContentGenAI pipeline) ──
+    // Persist the opt-in; takes effect on the NEXT load (the flag is read once at
+    // boot). Returns the saved value. Use after dropping the animated GLBs into
+    // assets/ — or just load with ?glb=1.
+    setGltfHeroes(on) {
+      try { localStorage.setItem('mds_gltf_heroes', on ? '1' : '0'); } catch (_) {}
+      return !!on;
+    },
+    get gltfHeroes() { return !!ctx.useGltfHeroes; },
+
     // Score system
     get score() { return ctx.gameState.score || 0; },
 

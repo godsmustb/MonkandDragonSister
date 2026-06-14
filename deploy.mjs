@@ -21,7 +21,7 @@ const onlyArg      = process.argv.slice(2).find(a => a.startsWith('--only='));
 const only         = onlyArg ? onlyArg.slice(7).split(',').map(s => s.trim()) : null;
 
 const FILES = ['index.html'];
-const DIRS  = ['src', 'api'];
+const DIRS  = ['src', 'api', 'assets'];   // assets/ holds rigged-GLB heroes (v1.5 pipeline)
 if (uploadVendor) DIRS.push('vendor');
 
 const client = new Client(30000);

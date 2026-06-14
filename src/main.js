@@ -463,10 +463,16 @@ function init() {
   gameState.p1 = new Player(1, new THREE.Vector3(-3, 0, 5));
   gameState.p2 = new Player(2, new THREE.Vector3(3, 0, 5));
 
-  // ContentGenAI v1.5: optional rigged-GLB heroes. OFF by default — set true after
-  // placing assets/monk_animated.glb + sister_animated.glb (see assets/README.md).
+  // ContentGenAI v1.5: optional rigged-GLB heroes. OFF by default — enable WITHOUT
+  // editing code via either the saved setting (localStorage `mds_gltf_heroes` = '1',
+  // toggled by `window.__game.setGltfHeroes(true)` + reload) or the URL `?glb=1`.
   // Dynamic import => with the flag off, gltfChar.js / GLTFLoader never load (E2E-safe).
-  ctx.useGltfHeroes = ctx.useGltfHeroes ?? false;
+  if (ctx.useGltfHeroes === undefined) {
+    let on = false;
+    try { on = localStorage.getItem('mds_gltf_heroes') === '1'; } catch (_) {}
+    try { if (new URLSearchParams(location.search).get('glb') === '1') on = true; } catch (_) {}
+    ctx.useGltfHeroes = on;
+  }
   ctx.heroGlb = ctx.heroGlb || {};
   ctx.HERO_SCALE = ctx.HERO_SCALE ?? 1.0;
   if (ctx.useGltfHeroes) {

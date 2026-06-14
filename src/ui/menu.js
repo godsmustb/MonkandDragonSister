@@ -371,20 +371,51 @@ function _showModeSelect() {
   _modeEl.className = 'mds-scrim';
   _modeEl.style.cssText = 'z-index:160;';
 
+  _modeEl.style.cssText = 'z-index:160;gap:18px;';   // consistent vertical rhythm (was staggered)
+
+  // One-time tile hover styles (animated lift + glow, on theme).
+  if (!document.getElementById('_modeStyle')) {
+    const st = document.createElement('style'); st.id = '_modeStyle';
+    st.textContent = `
+      .mode-tile{transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;}
+      .mode-tile:hover,.mode-tile.selected{transform:translateY(-6px) scale(1.04);box-shadow:0 10px 30px rgba(0,0,0,0.55),0 0 22px rgba(var(--gold-rgb),0.35);}`;
+    document.head.appendChild(st);
+  }
+
   const h = document.createElement('h2');
   h.className = 'mds-heading';
   h.textContent = 'SELECT MODE';
-  h.style.cssText = 'font-size:28px;margin-bottom:40px;';
+  h.style.cssText = 'font-size:28px;margin:0;';
 
   const btnRow = document.createElement('div');
-  btnRow.style.cssText = 'display:flex;gap:30px;align-items:center;margin-bottom:30px;';
+  btnRow.style.cssText = 'display:flex;gap:28px;align-items:stretch;justify-content:center;';
 
-  const btn1P = _makeMenuBtn('1 PLAYER', () => {
+  // Caption updates on hover (placeholder for future per-tile gameplay-footage preview).
+  const caption = document.createElement('div');
+  caption.style.cssText = 'min-height:20px;color:#cbb;font-size:13px;font-style:italic;text-align:center;max-width:440px;';
+  caption.textContent = 'Choose how you face the demons.';
+
+  const _modeTile = (icon, title, sub, cap, onClick) => {
+    const t = document.createElement('div');
+    t.className = 'mds-btn mode-tile';
+    t.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;width:210px;padding:26px 18px;text-align:center;';
+    t.innerHTML = `<div style="font-size:40px;line-height:1;">${icon}</div><div style="font-size:18px;letter-spacing:3px;color:inherit;">${title}</div><div style="font-size:11px;color:#bbb;letter-spacing:1px;">${sub}</div>`;
+    t.addEventListener('mouseenter', () => { caption.textContent = cap; });
+    t.addEventListener('click', onClick);
+    return t;
+  };
+
+  // Level selector (applies to the 2-player path; 1-player picks its own on char-select)
+  const levelRow = _makeLevelRow(ctx.startLevel || 1);
+
+  const btn1P = _modeTile('🧘', '1 PLAYER', 'Solo or AI partner',
+    'Face the demons alone — or summon an AI ally to fight at your side.', () => {
     try { sfx.menuSelect(); } catch {}
     _hideModeSelect();
     _showCharSelect();
   });
-  const btn2P = _makeMenuBtn('2 PLAYERS', () => {
+  const btn2P = _modeTile('⚔️', '2 PLAYERS', 'Split-screen co-op',
+    'You and a friend, side by side — two heroes against the horde.', () => {
     try { sfx.menuSelect(); } catch {}
     ctx.mode = '2p'; ctx.soloChar = null; ctx.aiPartner = false;
     ctx.startLevel = levelRow.get();
@@ -401,11 +432,9 @@ function _showModeSelect() {
   btnRow.appendChild(btn1P);
   btnRow.appendChild(btn2P);
 
-  // Level selector (applies to the 2-player path; 1-player picks its own on char-select)
-  const levelRow = _makeLevelRow(ctx.startLevel || 1);
-
   _modeEl.appendChild(h);
   _modeEl.appendChild(btnRow);
+  _modeEl.appendChild(caption);
   _modeEl.appendChild(levelRow.wrap);
   _modeEl.appendChild(btnBack);
   document.body.appendChild(_modeEl);

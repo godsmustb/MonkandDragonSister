@@ -1,0 +1,22 @@
+# Cache policy for The Monk & The Dragon Sister (Hostinger / Apache).
+# The game is ES-modules: index.html loads ~35 .js files. Without this, browsers
+# cache those JS files and keep running last night's build even after a new deploy.
+# Revalidate code + the asset manifest on every load; cache heavy media briefly.
+<IfModule mod_headers.c>
+  # Code + manifest + sourcemaps: always revalidate so new deploys load immediately.
+  <FilesMatch "\.(html|js|mjs|json|map)$">
+    Header set Cache-Control "no-cache, must-revalidate, max-age=0"
+  </FilesMatch>
+  # Static media: cache for an hour (updated art/audio appears within 60 min,
+  # code that references new filenames updates instantly via the no-cache above).
+  <FilesMatch "\.(png|jpe?g|webp|gif|svg|mp3|ogg|wav|glb|gltf|fbx|woff2?|ttf|eot)$">
+    Header set Cache-Control "public, max-age=3600"
+  </FilesMatch>
+</IfModule>
+
+# Correct MIME types (some hosts mis-serve .mjs / .glb)
+<IfModule mod_mime.c>
+  AddType application/javascript .js .mjs
+  AddType model/gltf-binary .glb
+  AddType application/json .json
+</IfModule>

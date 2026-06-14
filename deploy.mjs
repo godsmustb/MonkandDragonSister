@@ -20,7 +20,7 @@ const uploadVendor = cfg.uploadVendor !== false;            // default true
 const onlyArg      = process.argv.slice(2).find(a => a.startsWith('--only='));
 const only         = onlyArg ? onlyArg.slice(7).split(',').map(s => s.trim()) : null;
 
-const FILES = ['index.html'];
+const FILES = ['index.html', '.htaccess'];   // .htaccess = cache policy so deploys load immediately
 const DIRS  = ['src', 'api', 'assets'];   // assets/ holds rigged-GLB heroes (v1.5 pipeline)
 if (uploadVendor) DIRS.push('vendor');
 

@@ -111,6 +111,15 @@ function _markOnboardSeen() { try { localStorage.setItem('mds_onboard_seen', '1'
 
 // The actual "intro is over, begin the level" logic — shared by the tap-dismiss path
 // and the onboarding-complete path.
+// Advance to the next campaign level with an animated travel transition (the
+// hero "runs" from the old world into the new as the backdrop morphs), then start it.
+function _advanceToLevel(target) {
+  const from = gameState.level || 1;
+  import('../ui/onboarding.js')
+    .then(m => m.runLevelTransition(from, target, () => startLevel(target)))
+    .catch(() => startLevel(target));
+}
+
 function _beginAfterIntro() {
   const sl = ctx.startLevel || 1;
   if (sl === 2 || sl === 3) {
@@ -573,7 +582,7 @@ export function questCompleteL3() {
 function _submitQuestScore(stage, title) {
   const score = (gameState && gameState.score) || 0;
   // Stages 1 & 2 have a next campaign level (→2, →3); stage 3 is the last.
-  const onNext = (stage === 1 || stage === 2) ? () => startLevel(stage + 1) : null;
+  const onNext = (stage === 1 || stage === 2) ? () => _advanceToLevel(stage + 1) : null;
   import('./leaderboard.js').then(async lb => {
     // Prompt name if not yet stored; always silent
     await lb.promptPlayerName().catch(() => {});
@@ -620,7 +629,7 @@ function _wireCompleteButtons() {
       btnNextLevel.removeEventListener('click', btnNextLevel._nextLevelHandler);
     }
     const targetLevel = (gameState.level || 1) + 1;
-    btnNextLevel._nextLevelHandler = () => startLevel(targetLevel);
+    btnNextLevel._nextLevelHandler = () => _advanceToLevel(targetLevel);
     btnNextLevel.addEventListener('click', btnNextLevel._nextLevelHandler);
     btnNextLevel._wired = true;
   }

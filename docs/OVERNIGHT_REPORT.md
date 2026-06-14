@@ -32,7 +32,7 @@ Music + voice are **commercially safe** (ACE-Step = MIT, Kokoro = Apache).
 | **Kokoro** (voice) | CPU | ✅ **working** | GPU-exempt. Apache, ship-safe. Narration came from here. |
 | **Forge / Flux** (2D images) | GPU | ✅ **FIXED + working** | Was crashing on `/sdapi/v1/sd-models` (`ResponseValidationError`). Root cause: pydantic-v2 treats `Optional[str]` without a default as *required-but-nullable*, and the Flux checkpoint omits `config`. Fix: gave the nullable fields a `None` default in `forge/webui/modules/api/models.py` (`SDModelItem.config/hash/sha256`). sd-models now returns 200; generated the full 2D pack. |
 | **TripoSR** (image→3D) | GPU | ⚠️ **init error** | Fails at "Initializing model" (not VRAM). Dependency/version issue in `tools/3d/venv`. Heroes also need manual Mixamo rigging regardless. |
-| **Hunyuan3D-2** (HQ image→3D) | GPU | ⏳ **installing** | New HQ path (`install_3d_hq.ps1`, ASCII-fixed) installing this session for the TripoSR-vs-Hunyuan comparison. |
+| **Hunyuan3D-2** (HQ image→3D) | GPU | ✅ **working + WINS** | Installed (`install_3d_hq.ps1`), dep matrix resolved (torch 2.4.1+cu121 / transformers 4.49 / numpy 2.1), generated a monk mesh. **Result is dramatically better than TripoSR** — a clean full humanoid (head/topknot, staff, torso, legs, A-pose, Mixamo-ready) vs TripoSR's blobby back-facing lump. ~30 s/gen on 8 GB (low_vram + flashvdm). **Recommend Hunyuan for all heroes/bosses.** |
 
 ### Two environment gotchas worth fixing in ContentGenAI
 1. **`gpu_guard` doesn't free Ollama.** Ollama's `llama-server.exe` held ~4.6 GB VRAM, which made ACE-Step crash (`STATUS_STACK_BUFFER_OVERRUN`) until I killed it manually. `Free-Gpu` only kills the paths in `GpuModelPaths` — **add Ollama** (or `ollama stop`) to that guard, or the 8 GB card OOMs whenever Ollama has a model resident. *(I unloaded it; Ollama auto-reloads on next request.)*
@@ -41,7 +41,7 @@ Music + voice are **commercially safe** (ACE-Step = MIT, Kokoro = Apache).
 ## What's left for full AAA launch
 
 - **2D pack (Flux)** — blocked until Forge boots. Fix the `sd-models` pydantic error (pin gradio/pydantic to the versions Forge expects, or make `config` optional / patch the model cache), then run `scripts\build_game_library.ps1 -Stage images` for key art, menu BG, portraits, store art. Game-side menu-art slot is already wired (`manifest.menuArt`).
-- **Hero GLBs** — fix the TripoSR venv (or install Hunyuan via `install_3d_hq.ps1`), then mesh → **manual Mixamo rig** → `assets/<name>_animated.glb`; the `?glb=1` swap is already wired. (Hunyuan comparison still pending — heavy install, deferred.)
+- **Hero GLBs — use Hunyuan (it won the comparison).** `scripts\3d\image_to_3d_hq.ps1 -Image <flux_hero>.png -Name <name>` → clean mesh → **manual Mixamo rig** (`docs/MIXAMO_GUIDE.md`) → `mixamo_merge.py` → drop `assets/<name>_animated.glb`; the `?glb=1` swap is already wired. The dep matrix is now fixed in `tools/3d-hq/venv` (torch 2.4.1+cu121 / transformers 4.49 / numpy 2.1) — note the editable `hy3dgen` install will try to pull conflicting versions, so re-pin after any reinstall. First mesh: `pipeline/output/3d/monk_hy/`.
 - **Longer music loops** — the 30 s tracks loop with a faint seam; regenerate at 60–90 s when convenient (`scripts\audio\music.ps1 -Duration 90`).
 - **More VO** — boss taunts, wave callouts (Kokoro is near-free; add keys to `manifest.voice`).
 

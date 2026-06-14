@@ -9,6 +9,14 @@ const _v = new THREE.Vector3();
 export function _animateCharacter(player, dt, moving) {
   const cm = player.currentMesh();
   if (!cm) return;
+  if (cm._isGltf && cm._char) {           // ContentGenAI v1.5: rigged-GLB hero -> clip state machine
+    const c = cm._char;
+    if (player.isKO) c.play('death', 0.12);
+    else if (player._attackCd > 0 && player._comboCount > 0) c.play('attack' + Math.min(3, player._comboCount));
+    else c.setLocomotion(moving, false);
+    c.update(dt);
+    return;
+  }
   if (player.isKO) return; // kneel pose is a static transform set elsewhere
 
   const phase = player._animPhase;

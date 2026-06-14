@@ -463,6 +463,23 @@ function init() {
   gameState.p1 = new Player(1, new THREE.Vector3(-3, 0, 5));
   gameState.p2 = new Player(2, new THREE.Vector3(3, 0, 5));
 
+  // ContentGenAI v1.5: optional rigged-GLB heroes. OFF by default — set true after
+  // placing assets/monk_animated.glb + sister_animated.glb (see assets/README.md).
+  // Dynamic import => with the flag off, gltfChar.js / GLTFLoader never load (E2E-safe).
+  ctx.useGltfHeroes = ctx.useGltfHeroes ?? false;
+  ctx.heroGlb = ctx.heroGlb || {};
+  ctx.HERO_SCALE = ctx.HERO_SCALE ?? 1.0;
+  if (ctx.useGltfHeroes) {
+    import('./chars/gltfChar.js').then(m => {
+      m.loadGltfCharacter('assets/monk_animated.glb', { scale: ctx.HERO_SCALE, forwardYaw: Math.PI })
+        .then(c => { ctx.heroGlb.monk = c; gameState.p1._swapHeroMesh(c.group); })
+        .catch(e => console.warn('[glb] monk load failed', e));
+      m.loadGltfCharacter('assets/sister_animated.glb', { scale: ctx.HERO_SCALE, forwardYaw: Math.PI })
+        .then(c => { ctx.heroGlb.sister = c; gameState.p2._swapHeroMesh(c.group); })
+        .catch(e => console.warn('[glb] sister load failed', e));
+    }).catch(e => console.warn('[glb] module load failed', e));
+  }
+
   camState.p1.pos.set(-3, 6, 15);
   camState.p2.pos.set(3, 6, 15);
 

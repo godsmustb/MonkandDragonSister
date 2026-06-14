@@ -257,6 +257,16 @@ export class Player {
     this.mesh.position.copy(this.pos);
   }
 
+  // ContentGenAI v1.5: replace the human-hero mesh with a loaded rigged GLB group.
+  // currentMesh() returns this.mesh for the monk (id 1) and the sister's human form.
+  _swapHeroMesh(group) {
+    if (!group) return;
+    if (this.mesh) ctx.scene.remove(this.mesh);
+    group.position.copy(this.pos);
+    this.mesh = group;
+    ctx.scene.add(group);
+  }
+
   getElement() {
     if (this.id === 1) return 'neutral';
     return this.form === 'human' ? 'neutral' : this.form;

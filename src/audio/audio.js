@@ -204,6 +204,27 @@ export function setRecordedMusic(on) {
   return _recEnabled;
 }
 
+// One-shot voice-over (Kokoro narration). Self-contained + manifest-gated: only plays
+// keys listed in assets/manifest.json `voice` AND respects mute → never 404s in E2E.
+let _voiceManifestP = null;
+function _voiceManifest() {
+  if (!_voiceManifestP) _voiceManifestP = fetch('assets/manifest.json').then(r => r.ok ? r.json() : {}).catch(() => ({}));
+  return _voiceManifestP;
+}
+let _voiceEl = null;
+export function playVoice(key) {
+  if (_muted) return;
+  _voiceManifest().then(mf => {
+    if (!mf || !Array.isArray(mf.voice) || !mf.voice.includes(key)) return;
+    try {
+      if (_voiceEl) { try { _voiceEl.pause(); } catch {} }
+      _voiceEl = new Audio(`assets/voice/${key}.mp3`);
+      _voiceEl.volume = 0.95;
+      _voiceEl.play().catch(() => {});  // autoplay may reject pre-gesture; harmless
+    } catch (_) {}
+  });
+}
+
 export function toggleMute() {
   _muted = !_muted;
   _saveMuteState(_muted);

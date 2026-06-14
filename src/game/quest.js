@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { ctx } from '../state.js';
 import { clearAllFx, _fxTimers, _fxEffects, spawnGoldCelebration } from '../combat/projectiles.js';
-import { sfx } from '../audio/audio.js';
+import { sfx, playVoice } from '../audio/audio.js';
 import { spawnSpirits, spawnBoss, spawnDemonLord, spawnBossScaled, spawnDemonLordScaled,
   spawnBossScaledL3, spawnDemonLordScaledL3 } from '../combat/spirits.js';
 import { spawnRelicDrop } from './progression.js';
@@ -111,6 +111,8 @@ export function startIntro() {
   gameState.score = 0;
   const introEl = document.getElementById('intro-screen');
   if (introEl) introEl.style.display = 'flex';
+  // Narrated opening (Kokoro VO; manifest-gated, no-op if absent).
+  try { playVoice('intro'); } catch (_) {}
   // Dismiss on ANY tap/click. Listen for pointerup + touchend + click because a
   // synthesized `click` is unreliable on touch (esp. with touch-action:none).
   // Guard on state so it fires once. Keyboard path stays in main.js. A document-
@@ -437,6 +439,7 @@ export function questComplete() {
   gameState._completed = true;
   clearAllFx();
   gameState.state = 'COMPLETE';
+  try { playVoice('victory'); } catch (_) {}
   gameState.level = 1; // ensure level is recorded as 1 when showing complete screen
   document.getElementById('complete-screen').style.display = 'block';
   spawnGoldCelebration();

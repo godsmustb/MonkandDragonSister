@@ -33,9 +33,29 @@ export class GltfChar {
     this.group._isGltf = true;               // anim.js checks this to skip procedural posing
     this.group._char = this;
 
-    // Forward/scale alignment to the game's conventions (tune per project).
+    // Optional explicit pitch (rare — only if a specific mesh imports lying down).
+    if (opts.pitchX != null) gltf.scene.rotation.x = opts.pitchX;
+    // Forward yaw to the game's conventions.
     gltf.scene.rotation.y = opts.forwardYaw ?? 0;
-    if (opts.scale) gltf.scene.scale.setScalar(opts.scale);
+
+    // AUTO-NORMALIZE: Hunyuan/TripoSR meshes arrive at arbitrary scale + offset.
+    // Scale so the character is a consistent in-game height (targetHeight, default
+    // 1.6 units) and sit its feet on the ground (y=0), so it looks right regardless
+    // of the source mesh. opts.scale (if given) multiplies on top.
+    gltf.scene.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(gltf.scene);
+    const size = new THREE.Vector3(); box.getSize(size);
+    const meshH = Math.max(size.y, 1e-3);
+    const target = (opts.targetHeight ?? 1.6) * (opts.scale ?? 1);
+    const k = target / meshH;
+    gltf.scene.scale.multiplyScalar(k);
+    // Re-measure after scaling and drop feet to y=0, center XZ.
+    gltf.scene.updateWorldMatrix(true, true);
+    const box2 = new THREE.Box3().setFromObject(gltf.scene);
+    const ctr = new THREE.Vector3(); box2.getCenter(ctr);
+    gltf.scene.position.x -= ctr.x;
+    gltf.scene.position.z -= ctr.z;
+    gltf.scene.position.y -= box2.min.y;
 
     // Optional cel-shade match: swap to the game's toon material if provided.
     if (opts.toonify) gltf.scene.traverse(o => { if (o.isMesh) opts.toonify(o); });

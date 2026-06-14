@@ -1,6 +1,6 @@
 {
   "_comment": "Declares which optional ContentGenAI assets are present so the game only loads what exists (no 404s, E2E-safe). Flip a flag to true / add a key after generating + deploying the file, then redeploy. See docs/ASSET_LIBRARY_PLAN.md.",
   "menuArt": false,
-  "music": [],
+  "music": ["theme1", "theme2", "theme3", "boss"],
   "heroes": false
 }

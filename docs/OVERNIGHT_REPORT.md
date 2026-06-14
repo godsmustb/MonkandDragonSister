@@ -61,17 +61,25 @@ set onto the UniRig skeleton (scriptable), not per-hero manual work.
   ran concurrently with Forge and starved both — torch didn't finish in the UniRig venv). Re-run
   `scripts\3d\install_unirig.ps1` alone, then re-pin torch if needed.
 
-**2D extension (demons/bosses/extra backgrounds) — blocked by a Forge CUDA degradation.** After
-the heavy session GPU churn (Forge + Hunyuan + ACE-Step + the failed concurrent installs), Forge's
-diffusion completes but the final VAE decode throws `RuntimeError: GET was unable to find an engine
-to execute this computation` (a cuDNN/VRAM-state error), at 1344×768 **and** 1024². A fresh Forge
-process didn't clear it → needs a **machine reboot** to reset CUDA. The earlier 2D pack (menu BG,
-key art, portraits) was generated *before* the degradation and is live. **After a reboot**, run
-`scripts\gen_2d_pack.ps1` (alone, Forge only) to finish the demon/boss/background art — Forge itself
-is fixed (the sd-models patch holds).
+**RESOLVED — the real root cause was a full disk, not a CUDA bug.** C: was at **0.1 GB free**
+(953 GB, 99.99% full). With no temp space, Forge's VAE decode threw
+`RuntimeError: GET was unable to find an engine to execute this computation`, the UniRig install
+corrupted torch mid-download (`WinError 127: c10_cuda.dll`), and pip hit `Errno 28: No space left`.
+Freed ~15 GB (pip cache purge + the corrupt venv; the user freed more). Then, **serially**:
 
-> **Hard lesson reinforced:** keep GPU work serial. Running the UniRig install *while* Forge
-> generated starved both and contributed to the CUDA degradation. One engine at a time.
+- **UniRig — installed + imports clean.** torch 2.4.1+cu121 (CUDA), **spconv-cu121** (the cu120
+  wheel mismatched → DLL-load fail; cu121 + `os.add_dll_directory(torch/lib)` fixed it), trimesh /
+  transformers / lightning, and the CLI scripts (`generate_skeleton/skin/merge.sh`). flash_attn
+  excluded (optional, no compiler). Auto-rig is functionally installed; a full rig-test on a mesh
+  is the next step.
+- **2D pack — DONE + live.** Forge generated fine once disk was freed (~48 s/image). 8 images:
+  3 world backgrounds + 5 demon/boss reference sheets. Backgrounds wired so the char-select
+  backdrop swaps to the chosen START LEVEL's world art; boss portraits + flat-gray 3D-source
+  sheets staged. Deployed.
+
+> **Hard lesson reinforced (twice):** keep GPU work serial **and** watch disk headroom. Running
+> the UniRig install *while* Forge generated starved both; and the near-full disk was the silent
+> killer behind every "CUDA" symptom. One engine at a time, and keep C: above ~15 GB free.
 
 ## Run-it-yourself (regenerate / extend)
 

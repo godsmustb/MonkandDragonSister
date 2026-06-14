@@ -43,7 +43,10 @@ both). To stay free + automated, retarget a **free clip library onto the UniRig 
 So: **UniRig for rigging (fully automated), one-time clip library + scripted retarget for
 animation.** No per-hero manual step.
 
-> Status: UniRig **selected**. Installer scaffolded (`scripts\3d\install_unirig.ps1`).
-> Install caveat on this no-compiler box: `flash_attn` won't build (needs MSVC) — it's
-> optional for inference, exclude it; and install **serially** (running it alongside Forge
-> starved both). Functional rig test pending a clean serial install. See `OVERNIGHT_REPORT.md`.
+> Status: UniRig **selected + installed, imports clean** (`scripts\3d\install_unirig.ps1`).
+> Working stack in `tools\unirig\venv`: torch 2.4.1+cu121, **spconv-cu121** (the cu120 wheel
+> DLL-load-failed — use cu121 and add `os.add_dll_directory(<torch>/lib)` before importing spconv),
+> trimesh/transformers/lightning, CLI scripts present. `flash_attn` excluded (needs MSVC, optional).
+> **Next:** functional rig test — `generate_skeleton → generate_skin → merge` on a Hunyuan mesh
+> (e.g. `monk_hy_game.glb`), then retarget a free clip set for animation. Run serially (GPU), keep
+> C: above ~15 GB free.

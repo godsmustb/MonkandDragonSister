@@ -27,7 +27,7 @@ export const LANDS = [
     subtitle: 'Quest II — The Frozen Summit',
     themeElement: 'ice',
     counterDragon: 'fire',     // Fire beats Ice
-    comingSoon: true,
+    comingSoon: false,         // PLAYABLE — Level 2 now AAA-complete + directly selectable
     description: 'Ancient ice fortresses guarded by frost warlords. Fire dragon required.',
   },
   {

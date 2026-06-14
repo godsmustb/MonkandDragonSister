@@ -489,6 +489,26 @@ function _showCharSelect() {
     charRow.querySelectorAll('img[data-src]').forEach(im => { im.src = im.dataset.src; });
   }).catch(() => {});
 
+  // ── Character info panel: role, powers, and level-unlock progression ──
+  const infoPanel = document.createElement('div');
+  infoPanel.id = 'char-info';
+  infoPanel.style.cssText = `
+    position:relative;z-index:1;max-width:560px;width:90%;
+    background:rgba(10,8,4,0.62);border:1px solid rgba(var(--gold-rgb),0.35);border-radius:10px;
+    padding:14px 20px;backdrop-filter:blur(2px);`;
+  const _updateCharInfo = (who) => {
+    const d = CHAR_INFO[who] || CHAR_INFO.monk;
+    const powers = d.powers.map(p => `<div style="margin:3px 0;"><span style="color:var(--gold-bright);font-weight:bold;">${p[0]}</span> <span style="color:#bbb;">— ${p[1]}</span></div>`).join('');
+    const unlocks = d.unlocks.map(u => `<div style="margin:3px 0;"><span style="color:var(--jade);letter-spacing:1px;">${u[0]}</span> <span style="color:#ccc;">${u[1]}</span></div>`).join('');
+    infoPanel.innerHTML = `
+      <div style="color:var(--gold);font-size:13px;letter-spacing:2px;margin-bottom:2px;">${d.role.toUpperCase()}</div>
+      <div style="color:#ddd;font-size:12px;font-style:italic;margin-bottom:10px;">${d.blurb}</div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap;text-align:left;">
+        <div style="flex:1;min-width:220px;"><div style="color:var(--text-muted);font-size:11px;letter-spacing:2px;margin-bottom:4px;">POWERS</div>${powers}</div>
+        <div style="flex:1;min-width:180px;"><div style="color:var(--text-muted);font-size:11px;letter-spacing:2px;margin-bottom:4px;">UNLOCKS BY LEVEL</div>${unlocks}</div>
+      </div>`;
+  };
+
   // Partner toggle
   const partnerWrap = document.createElement('div');
   partnerWrap.style.cssText = 'display:flex;align-items:center;gap:16px;';
@@ -538,6 +558,7 @@ function _showCharSelect() {
 
   _charEl.appendChild(h);
   _charEl.appendChild(charRow);
+  _charEl.appendChild(infoPanel);
   // AI Partner is a split-screen / desktop feature (an AI plays the second hero).
   // Mobile is single-player only, so don't offer the Solo/AI toggle there.
   if (!IS_TOUCH) _charEl.appendChild(partnerWrap);
@@ -559,6 +580,7 @@ function _showCharSelect() {
   function _refreshCharButtons() {
     _styleSelectable(btnMonk, _selectedChar === 'monk');
     _styleSelectable(btnSister, _selectedChar === 'sister');
+    _updateCharInfo(_selectedChar);
   }
   function _refreshPartnerButtons() {
     _styleSelectable(btnSolo, !_aiPartnerFlag);
@@ -599,6 +621,42 @@ function _hideCharSelect() {
 // get() yields the chosen level (1-3). Levels 2/3 auto-unlock all dragon forms
 // (handled in quest.endIntro). Default selection = 1.
 const LEVEL_NAMES = { 1: 'ZEN GARDEN', 2: 'GLACIAL PEAKS', 3: 'VENOM ABYSS' };
+
+// Character info shown in the select screen: role, powers, and what unlocks per level.
+const CHAR_INFO = {
+  monk: {
+    role: 'Support · Control',
+    blurb: 'A Zen warrior who bends chi to shield, heal, and stagger demons.',
+    powers: [
+      ['Staff Combo', 'Light + heavy strikes; finisher knocks back'],
+      ['Chi Shield', 'Absorbs hits; reflects on a timed parry'],
+      ['Healing Pulse', 'Restores party HP'],
+      ['Block / Parry', 'Time it to negate damage + stagger'],
+    ],
+    unlocks: [
+      ['Lv 1', 'Staff combos · Chi Shield · Dodge'],
+      ['Lv 3', 'Healing Pulse'],
+      ['Lv 5', 'Shikai — Ultimate (10s super)'],
+    ],
+  },
+  sister: {
+    role: 'Damage · Elements',
+    blurb: 'A girl who transforms into four elemental dragons. Master the ring.',
+    powers: [
+      ['Fire Dragon', 'Strong vs Ice'],
+      ['Ice Dragon', 'Strong vs Poison'],
+      ['Poison Dragon', 'Strong vs Water'],
+      ['Water Dragon', 'Strong vs Fire'],
+    ],
+    unlocks: [
+      ['Lv 1', 'Fire Dragon'],
+      ['Lv 2', '+ Poison Dragon'],
+      ['Lv 3', '+ Ice Dragon'],
+      ['Lv 4', '+ Water Dragon (all forms)'],
+      ['Lv 5', 'Shikai — Ultimate'],
+    ],
+  },
+};
 function _makeLevelRow(initial = 1, onPick = null) {
   let _lvl = initial;
   const wrap = document.createElement('div');
@@ -763,6 +821,20 @@ export function showCampaignPreview(fromComplete = false) {
     card.appendChild(cardSub);
     card.appendChild(cardDesc);
     card.appendChild(cardMeta);
+
+    // Playable stages get a PLAY button → launches THIS stage directly via the normal
+    // mode/character flow (which honors ctx.startLevel). Fixes "can't select Level 2".
+    if (playable) {
+      const playBtn = _makeMenuBtn('▶  PLAY THIS STAGE', () => {
+        try { sfx.menuSelect(); } catch {}
+        ctx.startLevel = land.id;
+        _hideCampaignPreview();
+        hideMenu();
+        if (IS_TOUCH) { ctx.mode = '1p'; _showCharSelect(); } else _showModeSelect();
+      });
+      playBtn.style.cssText += ';margin-top:12px;align-self:flex-start;font-size:13px;';
+      card.appendChild(playBtn);
+    }
     grid.appendChild(card);
   });
 

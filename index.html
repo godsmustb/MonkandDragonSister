@@ -677,6 +677,12 @@ body,#game-container{
   to  {opacity:1;transform:translateY(0)     scale(1);}
 }
 @keyframes toastFade{to{opacity:0;transform:translateY(-8px) scale(0.95);}}
+/* Onboarding (cinematic / tutorial / transition) animations */
+@keyframes mdsBob{0%,100%{transform:translateY(0);}50%{transform:translateY(-8px);}}
+@keyframes mdsPulse{0%,100%{box-shadow:0 0 0 0 rgba(200,160,0,0);transform:scale(1);}50%{box-shadow:0 0 18px 2px rgba(200,160,0,0.35);transform:scale(1.03);}}
+@keyframes mdsSpin{to{transform:rotate(360deg);}}
+@keyframes mdsSpinR{to{transform:rotate(-360deg);}}
+@keyframes mdsRun{0%{transform:translateX(-46vw) scaleX(1);}100%{transform:translateX(46vw) scaleX(1);}}
 /* Unlock banner variant */
 .toast.unlock{
   border-color:rgba(var(--gold-rgb),0.9);

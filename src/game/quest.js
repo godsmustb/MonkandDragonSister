@@ -105,10 +105,40 @@ export function startLevel(n) {
   updateHUD();
 }
 
+// localStorage flag so the onboarding (cinematic + tutorial) only auto-plays once.
+function _onboardSeen() { try { return localStorage.getItem('mds_onboard_seen') === '1'; } catch { return false; } }
+function _markOnboardSeen() { try { localStorage.setItem('mds_onboard_seen', '1'); } catch (_) {} }
+
+// The actual "intro is over, begin the level" logic — shared by the tap-dismiss path
+// and the onboarding-complete path.
+function _beginAfterIntro() {
+  const sl = ctx.startLevel || 1;
+  if (sl === 2 || sl === 3) {
+    if (gameState.p2) ['fire', 'ice', 'poison', 'water'].forEach(f => gameState.p2.unlockForm && gameState.p2.unlockForm(f));
+    startLevel(sl);
+    return;
+  }
+  startWave(1);
+}
+
 export function startIntro() {
   gameState.state = 'INTRO';
   gameState.wave = 0;
   gameState.score = 0;
+  // Fresh Level-1 play from the menu → cinematic intro + 3-slide tutorial, then waves.
+  // Gated by ctx.showOnboarding (set by the menu BEGIN/PLAY buttons, NOT by the
+  // programmatic __game.startGame() the E2E uses) so the test flow is unaffected.
+  const lvl = ctx.startLevel || 1;
+  if (ctx.showOnboarding && lvl === 1 && !_onboardSeen()) {
+    ctx.showOnboarding = false;
+    const introElH = document.getElementById('intro-screen');
+    if (introElH) introElH.style.display = 'none';
+    try { playVoice('intro'); } catch (_) {}
+    import('../ui/onboarding.js').then(m => {
+      m.runIntroCinematic(() => m.runTutorial(() => { _markOnboardSeen(); _beginAfterIntro(); }));
+    }).catch(() => { _beginAfterIntro(); });
+    return;
+  }
   const introEl = document.getElementById('intro-screen');
   if (introEl) introEl.style.display = 'flex';
   // Narrated opening (Kokoro VO; manifest-gated, no-op if absent).
@@ -134,16 +164,7 @@ export function startIntro() {
 
 export function endIntro() {
   document.getElementById('intro-screen').style.display = 'none';
-  // Level Selector: if the player chose to start at level 2/3 from the menu, jump
-  // straight there. Those levels assume all dragon forms are unlocked, so grant them
-  // (mirrors __game.unlockAll). Default (startLevel 1 / unset) keeps the normal flow.
-  const sl = ctx.startLevel || 1;
-  if (sl === 2 || sl === 3) {
-    if (gameState.p2) ['fire', 'ice', 'poison', 'water'].forEach(f => gameState.p2.unlockForm && gameState.p2.unlockForm(f));
-    startLevel(sl);
-    return;
-  }
-  startWave(1);
+  _beginAfterIntro();
 }
 
 export function startWave(n) {

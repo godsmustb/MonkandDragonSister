@@ -385,6 +385,7 @@ function _showModeSelect() {
     try { sfx.menuSelect(); } catch {}
     ctx.mode = '2p'; ctx.soloChar = null; ctx.aiPartner = false;
     ctx.startLevel = levelRow.get();
+    ctx.showOnboarding = true;
     _hideModeSelect();
     startGame();
   });
@@ -542,6 +543,7 @@ function _showCharSelect() {
     try { sfx.menuSelect(); } catch {}
     ctx.mode = '1p'; ctx.soloChar = _selectedChar; ctx.aiPartner = _aiPartnerFlag;
     ctx.startLevel = levelRow.get();
+    ctx.showOnboarding = true;
     _hideCharSelect();
     startGame();
   });

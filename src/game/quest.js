@@ -132,6 +132,15 @@ export function startIntro() {
 
 export function endIntro() {
   document.getElementById('intro-screen').style.display = 'none';
+  // Level Selector: if the player chose to start at level 2/3 from the menu, jump
+  // straight there. Those levels assume all dragon forms are unlocked, so grant them
+  // (mirrors __game.unlockAll). Default (startLevel 1 / unset) keeps the normal flow.
+  const sl = ctx.startLevel || 1;
+  if (sl === 2 || sl === 3) {
+    if (gameState.p2) ['fire', 'ice', 'poison', 'water'].forEach(f => gameState.p2.unlockForm && gameState.p2.unlockForm(f));
+    startLevel(sl);
+    return;
+  }
   startWave(1);
 }
 

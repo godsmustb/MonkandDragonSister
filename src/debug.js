@@ -119,6 +119,13 @@ export function setupDebugAPI() {
      */
     startLevel(n) { _startLevel(n); },
 
+    // ── Level Selector (menu) ──
+    // The level the game will START at when the intro is dismissed (endIntro reads
+    // ctx.startLevel; 2/3 auto-unlock all dragon forms). The menu sets this via the
+    // START LEVEL row; this lets tests/automation drive it before startGame().
+    get startLevel2() { return ctx.startLevel || 1; },
+    setStartLevel(n) { if (n === 1 || n === 2 || n === 3) ctx.startLevel = n; return ctx.startLevel; },
+
     // ── Rigged-GLB heroes (v1.5 ContentGenAI pipeline) ──
     // Persist the opt-in; takes effect on the NEXT load (the flag is read once at
     // boot). Returns the saved value. Use after dropping the animated GLBs into

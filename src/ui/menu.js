@@ -370,6 +370,7 @@ function _showModeSelect() {
   const btn2P = _makeMenuBtn('2 PLAYERS', () => {
     try { sfx.menuSelect(); } catch {}
     ctx.mode = '2p'; ctx.soloChar = null; ctx.aiPartner = false;
+    ctx.startLevel = levelRow.get();
     _hideModeSelect();
     startGame();
   });
@@ -382,13 +383,17 @@ function _showModeSelect() {
   btnRow.appendChild(btn1P);
   btnRow.appendChild(btn2P);
 
+  // Level selector (applies to the 2-player path; 1-player picks its own on char-select)
+  const levelRow = _makeLevelRow(ctx.startLevel || 1);
+
   _modeEl.appendChild(h);
   _modeEl.appendChild(btnRow);
+  _modeEl.appendChild(levelRow.wrap);
   _modeEl.appendChild(btnBack);
   document.body.appendChild(_modeEl);
 
-  // Keyboard navigation: 1 PLAYER ↔ 2 PLAYERS ↔ BACK; Enter activates; Esc backs out.
-  _modeEl._navButtons = [btn1P, btn2P, btnBack];
+  // Keyboard navigation: 1 PLAYER ↔ 2 PLAYERS ↔ levels ↔ BACK; Enter activates; Esc backs out.
+  _modeEl._navButtons = [btn1P, btn2P, ...levelRow.buttons, btnBack];
   _modeEl._navOnEscape = () => { _hideModeSelect(); showMenu(); };
   _installNav(_modeEl);
 }
@@ -459,6 +464,9 @@ function _showCharSelect() {
   partnerWrap.appendChild(btnSolo);
   partnerWrap.appendChild(btnAI);
 
+  // Level selector row (jump to Zen / Glacial / Venom)
+  const levelRow = _makeLevelRow(ctx.startLevel || 1);
+
   // Action row
   const actionRow = document.createElement('div');
   actionRow.style.cssText = 'display:flex;gap:20px;align-items:center;';
@@ -466,6 +474,7 @@ function _showCharSelect() {
   const btnBegin = _makeMenuBtn('BEGIN', () => {
     try { sfx.menuSelect(); } catch {}
     ctx.mode = '1p'; ctx.soloChar = _selectedChar; ctx.aiPartner = _aiPartnerFlag;
+    ctx.startLevel = levelRow.get();
     _hideCharSelect();
     startGame();
   });
@@ -485,6 +494,7 @@ function _showCharSelect() {
   // AI Partner is a split-screen / desktop feature (an AI plays the second hero).
   // Mobile is single-player only, so don't offer the Solo/AI toggle there.
   if (!IS_TOUCH) _charEl.appendChild(partnerWrap);
+  _charEl.appendChild(levelRow.wrap);
   _charEl.appendChild(actionRow);
   document.body.appendChild(_charEl);
 
@@ -517,7 +527,7 @@ function _showCharSelect() {
   // BEGIN ↔ BACK. Enter selects/activates the focused button; Esc backs out.
   const navBtns = [btnMonk, btnSister];
   if (!IS_TOUCH) navBtns.push(btnSolo, btnAI);
-  navBtns.push(btnBegin, btnBack);
+  navBtns.push(...levelRow.buttons, btnBegin, btnBack);
   _charEl._navButtons = navBtns;
   _charEl._navOnEscape = () => {
     _hideCharSelect();
@@ -534,6 +544,43 @@ function _hideCharSelect() {
       _charEl._keyHandler = null;
     }
   }
+}
+
+// ── Shared LEVEL selector row ─────────────────────────────────────────────
+// Lets testers/players jump straight to Level 1 (Zen), 2 (Glacial) or 3 (Venom)
+// without clearing the earlier levels first. Returns { wrap, buttons, get } where
+// get() yields the chosen level (1-3). Levels 2/3 auto-unlock all dragon forms
+// (handled in quest.endIntro). Default selection = 1.
+const LEVEL_NAMES = { 1: 'ZEN GARDEN', 2: 'GLACIAL PEAKS', 3: 'VENOM ABYSS' };
+function _makeLevelRow(initial = 1) {
+  let _lvl = initial;
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center;';
+  const label = document.createElement('span');
+  label.textContent = 'START LEVEL:';
+  label.style.cssText = 'color:var(--text-muted);font-size:14px;letter-spacing:3px;';
+  wrap.appendChild(label);
+  const buttons = [];
+  const refresh = () => buttons.forEach((b, i) => {
+    const sel = (i + 1) === _lvl;
+    b._selected = sel;
+    b.classList.toggle('selected', sel);
+    b.style.color = sel ? '#ffdd55' : '';
+    b.style.borderColor = sel ? 'rgba(200,160,0,0.7)' : '';
+    b.style.background = sel ? 'rgba(200,160,0,0.12)' : '';
+  });
+  [1, 2, 3].forEach(n => {
+    const b = _makeMenuBtn(`${n} · ${LEVEL_NAMES[n]}`, () => {
+      _lvl = n; try { sfx.menuTick(); } catch {}
+      refresh();
+    });
+    b.style.fontSize = 'clamp(11px,1.3vw,15px)';
+    b.style.padding = '6px 14px';
+    buttons.push(b);
+    wrap.appendChild(b);
+  });
+  refresh();
+  return { wrap, buttons, get: () => _lvl };
 }
 
 // ── Shared styled button helper ───────────────────────────────────────────

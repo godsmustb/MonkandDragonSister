@@ -1,0 +1,11 @@
+import { chromium } from 'playwright';
+const b=await chromium.launch(); const p=await b.newPage({viewport:{width:1280,height:800}});
+await p.goto('http://localhost:8321/index.html',{waitUntil:'load'});
+await p.waitForFunction(()=>window.__game&&window.__game.state,null,{timeout:20000});
+await p.evaluate(()=>window.__game.startGame()); await p.keyboard.press('Space'); await new Promise(r=>setTimeout(r,500));
+await p.evaluate(()=>{window.__game.consumeLife();window.__game.consumeLife();window.__game.consumeLife();});
+await new Promise(r=>setTimeout(r,600));
+const has = await p.evaluate(()=>({over:!!document.getElementById('gameover-screen'), retry:document.body.innerText.includes('RETRY'),giveup:document.body.innerText.includes('GIVE UP'),blessings:document.body.innerText.includes('Blessings')}));
+console.log('death screen:', JSON.stringify(has));
+await p.screenshot({path:'shots/launch/death-screen.png'});
+await b.close();

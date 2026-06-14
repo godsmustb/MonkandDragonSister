@@ -643,11 +643,13 @@ function _wireCompleteButtons() {
 // Mode/char selection persists across reload via sessionStorage.
 // Note: always restarts Level 1 (the initial quest).
 export function restartQuest() {
-  // Persist the current mode settings so after reload they are restored
+  // Persist the current mode settings + level so after reload they are restored
+  // (Retry & Continue resumes at the SAME level, not back at Level 1).
   try {
     sessionStorage.setItem('mds_restart_mode',      ctx.mode      || '2p');
     sessionStorage.setItem('mds_restart_soloChar',  ctx.soloChar  || '');
     sessionStorage.setItem('mds_restart_aiPartner', ctx.aiPartner ? '1' : '0');
+    sessionStorage.setItem('mds_restart_level',     String(gameState.level || 1));
     sessionStorage.setItem('mds_restart_pending',   '1');
   } catch (_) {}
   location.reload();

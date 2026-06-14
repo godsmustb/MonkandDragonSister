@@ -256,19 +256,42 @@ function _showGameOverScreen() {
 
   const sub = document.createElement('p');
   sub.textContent = 'The sanctuary has fallen…';
-  sub.style.cssText = 'font-size:18px;color:var(--text-dim);font-style:italic;margin-bottom:40px;';
+  sub.style.cssText = 'font-size:18px;color:var(--text-dim);font-style:italic;margin-bottom:24px;';
 
-  const hint = document.createElement('p');
-  hint.textContent = 'Press any key or click to return to menu';
-  hint.style.cssText = 'font-size:13px;color:#666;';
+  // 10-second countdown — the spirits close in. Reach 0 and the dark side wins.
+  const count = document.createElement('div');
+  count.style.cssText = 'font-size:54px;color:var(--gold-bright);text-shadow:0 0 24px rgba(var(--gold-rgb),0.7);margin-bottom:8px;font-variant-numeric:tabular-nums;';
+  const countLabel = document.createElement('div');
+  countLabel.textContent = 'seconds until the darkness takes hold';
+  countLabel.style.cssText = 'font-size:12px;color:#888;letter-spacing:2px;margin-bottom:28px;';
+
+  // Two themed choices
+  const btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:22px;flex-wrap:wrap;justify-content:center;';
+  const _choiceBtn = (heading, flavor, accent) => {
+    const b = document.createElement('div');
+    b.className = 'mds-btn';
+    b.style.cssText = `display:flex;flex-direction:column;align-items:center;gap:4px;padding:16px 26px;border-color:${accent};min-width:230px;`;
+    b.innerHTML = `<div style="font-size:17px;letter-spacing:2px;color:${accent};">${heading}</div><div style="font-size:11px;color:#bbb;font-style:italic;letter-spacing:1px;">${flavor}</div>`;
+    return b;
+  };
+  let _done = false;
+  const _cleanup = () => { _done = true; clearInterval(_tick); };
+  const retryBtn = _choiceBtn('RETRY &amp; CONTINUE', '1000-Year Blessings Received', 'var(--jade)');
+  const giveUpBtn = _choiceBtn('GIVE UP', 'Let the dark side win this time', 'var(--danger-soft)');
+  retryBtn.addEventListener('click', () => { if (_done) return; _cleanup(); try { sfx.menuSelect(); } catch {} import('./quest.js').then(m => m.restartQuest()).catch(() => location.reload()); });
+  giveUpBtn.addEventListener('click', () => { if (_done) return; _cleanup(); try { sfx.menuTick(); } catch {} _returnToMenu(); });
+  btnRow.appendChild(retryBtn);
+  btnRow.appendChild(giveUpBtn);
 
   overlay.appendChild(livesRow);
   overlay.appendChild(title);
   overlay.appendChild(sub);
-  overlay.appendChild(hint);
+  overlay.appendChild(count);
+  overlay.appendChild(countLabel);
+  overlay.appendChild(btnRow);
   document.body.appendChild(overlay);
 
-  // Add fade-in keyframe
   if (!document.getElementById('_goStyle')) {
     const s = document.createElement('style');
     s.id = '_goStyle';
@@ -276,11 +299,15 @@ function _showGameOverScreen() {
     document.head.appendChild(s);
   }
 
-  // After 4 s or key press → back to menu
-  const _goTimeout = setTimeout(_returnToMenu, 4000);
-  const _goKey = () => { clearTimeout(_goTimeout); _returnToMenu(); };
-  document.addEventListener('keydown', _goKey, { once: true });
-  overlay.addEventListener('click', _goKey, { once: true });
+  // Countdown: 10 → 0; at 0, the dark side wins (return to menu).
+  let _secs = 10;
+  count.textContent = _secs;
+  const _tick = setInterval(() => {
+    _secs -= 1;
+    count.textContent = Math.max(0, _secs);
+    if (_secs <= 3) count.style.color = 'var(--danger-soft)';
+    if (_secs <= 0) { _cleanup(); _returnToMenu(); }
+  }, 1000);
 }
 
 function _returnToMenu() {

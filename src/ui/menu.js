@@ -166,9 +166,12 @@ export function buildMenu() {
       const mode     = sessionStorage.getItem('mds_restart_mode')      || '2p';
       const soloChar = sessionStorage.getItem('mds_restart_soloChar')  || null;
       const aiP      = sessionStorage.getItem('mds_restart_aiPartner') === '1';
+      const rLevel   = parseInt(sessionStorage.getItem('mds_restart_level') || '1', 10);
       ctx.mode = mode;
       ctx.soloChar = soloChar || null;
       ctx.aiPartner = aiP;
+      ctx.startLevel = (rLevel === 2 || rLevel === 3) ? rLevel : 1;  // Retry & Continue resumes the level
+      try { sessionStorage.removeItem('mds_restart_level'); } catch (_) {}
       // Slight delay so players are constructed before _applyModeSetup
       setTimeout(() => { startGame(); }, 50);
     }

@@ -424,9 +424,15 @@ export function createWeaponTrail(color, duration = 0.22, width = 0.06) {
 export function updateWeaponTrail(trail, tipPos, dt, stopRecording = false) {
   if (!trail || !trail.alive) return;
   if (!stopRecording) {
-    // Push new sample
-    trail.points.unshift(tipPos.clone());
-    if (trail.points.length > MAX_TRAIL_POSITIONS) trail.points.pop();
+    // Push new sample — but never a non-finite one. A NaN tip (e.g. a weapon whose
+    // world matrix is momentarily degenerate right after a hard teleport) would write
+    // NaN vertices into the ribbon geometry and make computeBoundingSphere() spam
+    // "radius is NaN" every frame forever. Dropping the bad sample keeps the trail
+    // valid and silent. (Caught via the autonomous playtest harness.)
+    if (tipPos && Number.isFinite(tipPos.x) && Number.isFinite(tipPos.y) && Number.isFinite(tipPos.z)) {
+      trail.points.unshift(tipPos.clone());
+      if (trail.points.length > MAX_TRAIL_POSITIONS) trail.points.pop();
+    }
   } else {
     trail._fading = true;
   }

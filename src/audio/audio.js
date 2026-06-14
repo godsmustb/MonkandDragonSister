@@ -1061,9 +1061,6 @@ function _updateRecordedMusic() {
     if (!_recEl) _setSynthDuck(false);
     return;
   }
-  // Lazily create the recorded gain bus on first real use.
-  if (!_recGain) { _recGain = _ac.createGain(); _recGain.gain.value = 0; _recGain.connect(_masterGain); }
-
   const el = new Audio();
   el.loop = true; el.crossOrigin = 'anonymous'; el.preload = 'auto';
   el.src = `assets/music/${key}.mp3`;
@@ -1071,16 +1068,29 @@ function _updateRecordedMusic() {
     // A new wanted key may have superseded this one while loading.
     if (_wantedRecKey() !== key) { try { el.pause(); } catch {} return; }
     try {
+      // PROPER CROSSFADE: each track gets its OWN gain node so the old can fade out
+      // while the new fades in (the old code shared one gain → both played at the same
+      // level then the old hard-cut, which is why boss transitions felt abrupt/weird).
+      // Boss swaps get a slightly quicker, dramatic fade; land swaps are gentle.
+      const FADE = (key === 'boss' || _recKey === 'boss') ? 1.8 : 2.6;
+      const newGain = _ac.createGain();
+      newGain.gain.value = 0;
+      newGain.connect(_masterGain);
       const src = _ac.createMediaElementSource(el);
-      src.connect(_recGain);
-      // Fade out the old track, fade in the new; duck the synth music.
+      src.connect(newGain);
       const t = _ac.currentTime;
-      if (_recEl) { const old = _recEl; try { _recGain.gain.cancelScheduledValues(t); } catch {} setTimeout(() => { try { old.pause(); } catch {} }, 1600); }
-      _recGain.gain.setValueAtTime(_recGain.gain.value, t);
-      _recGain.gain.linearRampToValueAtTime(0.6, t + 1.5);
+      // Fade OUT the previous track on its own gain, then stop + disconnect it.
+      if (_recEl && _recGain) {
+        const oldEl = _recEl, oldGain = _recGain;
+        try { oldGain.gain.cancelScheduledValues(t); oldGain.gain.setValueAtTime(oldGain.gain.value, t); oldGain.gain.linearRampToValueAtTime(0, t + FADE); } catch {}
+        setTimeout(() => { try { oldEl.pause(); } catch {} try { oldGain.disconnect(); } catch {} }, (FADE + 0.25) * 1000);
+      }
+      // Fade IN the new track.
+      newGain.gain.setValueAtTime(0, t);
+      newGain.gain.linearRampToValueAtTime(0.62, t + FADE);
       _setSynthDuck(true);
       el.play().catch(() => {});
-      _recEl = el; _recSrc = src; _recKey = key;
+      _recEl = el; _recSrc = src; _recKey = key; _recGain = newGain;
     } catch (_) { /* MediaElementSource can throw if reused; ignore */ }
   }, { once: true });
   el.addEventListener('error', () => { _recMissing[key] = true; if (!_recEl) _setSynthDuck(false); }, { once: true });

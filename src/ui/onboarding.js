@@ -135,21 +135,45 @@ function _slidePowers(who) {
 }
 function _slideElements() {
   return { build(p) {
-    const w = _slideShell('ELEMENT RING', 'Water ▸ Fire ▸ Ice ▸ Poison ▸ Water');
-    const ring = document.createElement('div'); ring.style.cssText = 'position:relative;width:300px;height:300px;margin-top:4px;animation:mdsSpin 18s linear infinite;';
+    const w = _slideShell('ELEMENTS', 'Pick the element that BEATS your enemy');
+    // ── The chain (static, readable): each element beats the next ──
+    const chain = document.createElement('div');
+    chain.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:center;margin:6px 0 4px;';
     const els = [['💧','Water','#4ea8ff'],['🔥','Fire','#ff7a3c'],['❄','Ice','#9fe8ff'],['☠','Poison','#9bdb3c']];
     els.forEach(([ic, nm, col], k) => {
-      const ang = (k / els.length) * Math.PI * 2 - Math.PI / 2;
-      const x = 150 + Math.cos(ang) * 110, y = 150 + Math.sin(ang) * 110;
       const node = document.createElement('div');
-      node.style.cssText = `position:absolute;left:${x - 38}px;top:${y - 38}px;width:76px;height:76px;border-radius:50%;border:2px solid ${col};background:rgba(10,10,14,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;animation:mdsSpinR 18s linear infinite;`;
-      node.innerHTML = `<div style="font-size:24px;">${ic}</div><div style="color:${col};font-size:10px;letter-spacing:1px;">${nm}</div>`;
-      ring.appendChild(node);
+      node.style.cssText = `display:flex;flex-direction:column;align-items:center;justify-content:center;width:66px;height:66px;border-radius:50%;border:2px solid ${col};background:rgba(10,10,14,0.85);`;
+      node.innerHTML = `<div style="font-size:22px;">${ic}</div><div style="color:${col};font-size:10px;">${nm}</div>`;
+      chain.appendChild(node);
+      const arr = document.createElement('div'); arr.innerHTML = 'beats&nbsp;▸'; arr.style.cssText = 'color:#888;font-size:11px;'; chain.appendChild(arr);
     });
-    const center = document.createElement('div'); center.style.cssText = 'position:absolute;left:110px;top:120px;width:80px;text-align:center;color:#ffdd88;font-size:12px;animation:mdsSpinR 18s linear infinite;'; center.innerHTML = 'each beats<br>the next →';
-    ring.appendChild(center);
-    w.appendChild(ring);
-    const legend = document.createElement('div'); legend.innerHTML = '<span style="color:var(--jade);">2.0×</span> when strong · <span style="color:#ff6b6b;">0.5×</span> when weak · 1× neutral'; legend.style.cssText = 'color:#ccc;font-size:13px;margin-top:6px;'; w.appendChild(legend);
+    const loop = document.createElement('div'); loop.innerHTML = '💧'; loop.style.cssText = 'font-size:18px;opacity:0.6;'; chain.appendChild(loop);
+    w.appendChild(chain);
+
+    // ── HP / damage visualization — show what each multiplier MEANS in damage ──
+    const hpLabel = document.createElement('div');
+    hpLabel.textContent = 'Same hit, three matchups (example: Fire attacks):';
+    hpLabel.style.cssText = 'color:var(--text-muted);font-size:12px;margin:14px 0 8px;';
+    w.appendChild(hpLabel);
+    const dmgBox = document.createElement('div'); dmgBox.style.cssText = 'display:flex;flex-direction:column;gap:10px;width:100%;max-width:520px;';
+    // [target, label, mult, dmg, barPct, color]
+    const rows = [
+      ['❄ Ice',   'STRONG',  '×2.0', 40, 100, 'var(--jade)'],
+      ['🔥 Fire',  'NEUTRAL', '×1.0', 20,  50, '#cccccc'],
+      ['💧 Water', 'WEAK',    '×0.5', 10,  25, 'var(--danger-soft)'],
+    ];
+    rows.forEach(([tgt, lab, mult, dmg, pct, col]) => {
+      const r = document.createElement('div'); r.style.cssText = 'display:flex;align-items:center;gap:10px;';
+      r.innerHTML = `
+        <div style="width:120px;text-align:right;font-size:13px;color:#ddd;">🔥 vs ${tgt}</div>
+        <div style="flex:1;height:18px;background:rgba(255,255,255,0.08);border-radius:9px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:${col};border-radius:9px;transition:width .6s;"></div>
+        </div>
+        <div style="width:150px;font-size:12px;color:${col};"><b>${lab}</b> ${mult} → <b>${dmg} dmg</b></div>`;
+      dmgBox.appendChild(r);
+    });
+    w.appendChild(dmgBox);
+    const tip = document.createElement('div'); tip.innerHTML = 'As the Sister, <b>cycle dragon forms</b> to match the enemy and hit for double.'; tip.style.cssText = 'color:#aa9;font-size:12px;margin-top:14px;'; w.appendChild(tip);
     p.appendChild(w);
   }};
 }
@@ -179,7 +203,7 @@ export function runIntroCinematic(onDone) {
   _runSlides([
     _cinePanel('assets/ui/bg_l1.jpg', 'THE MONK & THE DRAGON SISTER', 'A Garden of Stillness',
       'For a hundred years the Zen garden knew only peace. The Monk tended his chi; the Dragon Sister slept beside her four dragons. The villagers lived without fear.'),
-    _cinePanel('assets/ui/boss_inferno_lord.png', 'QUEST I — THE INITIAL COMPASSION', 'The Shadow Falls',
+    _cinePanel('assets/ui/boss_inferno_lord.png', 'QUEST I — THE VOW OF COMPASSION', 'The Shadow Falls',
       'Then the demons came. Shadow-spirits poured from the void, striking down the innocent at the garden\'s edge. The stillness shattered.'),
     _cinePanel('assets/ui/keyart_cover.jpg', 'RISE', 'Answer the Call',
       'The Monk takes up his staff. The Sister calls her dragons to her side. Compassion demands action — and the demons will learn its weight.'),

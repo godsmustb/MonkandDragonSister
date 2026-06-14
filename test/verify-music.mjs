@@ -15,7 +15,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await p.evaluate(() => window.__game.startGame());
   await p.keyboard.press('Space'); await sleep(800);
   const ms = await p.evaluate(() => window.__game.music);
-  ok(ms && ms.recordedEnabled === false, 'default: recorded music OFF', ms && ms.recordedEnabled);
+  ok(ms && ms.recordedEnabled === true, 'default: recorded music auto-ON (manifest)', ms && ms.recordedEnabled);
   ok(errs.length === 0, 'default: zero errors', errs.slice(0, 2).join(' | '));
   await p.close();
 }

@@ -500,9 +500,28 @@ function _showCharSelect() {
     position:relative;z-index:1;max-width:560px;width:90%;
     background:rgba(10,8,4,0.62);border:1px solid rgba(var(--gold-rgb),0.35);border-radius:10px;
     padding:14px 20px;backdrop-filter:blur(2px);`;
+  // One-time hover styles for the power rows (animated reveal of what each does + key).
+  if (!document.getElementById('_pwrStyle')) {
+    const s = document.createElement('style'); s.id = '_pwrStyle';
+    s.textContent = `
+      .pwr-row{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;cursor:default;transition:background .15s;}
+      .pwr-row:hover{background:rgba(var(--gold-rgb),0.12);}
+      .pwr-row .pwr-key{margin-left:auto;font-family:var(--font-ui,monospace);font-size:11px;color:#ffdd88;border:1px solid rgba(200,160,0,0.5);border-radius:4px;padding:1px 6px;background:rgba(20,16,8,0.8);white-space:nowrap;transition:transform .15s,box-shadow .15s;}
+      .pwr-row:hover .pwr-key{transform:scale(1.12);box-shadow:0 0 10px rgba(200,160,0,0.5);}
+      .pwr-row .pwr-desc{max-height:0;overflow:hidden;opacity:0;transition:max-height .25s,opacity .25s;flex-basis:100%;color:#cbb;font-size:11px;}
+      .pwr-row:hover .pwr-desc{max-height:40px;opacity:1;margin-top:2px;}`;
+    document.head.appendChild(s);
+  }
   const _updateCharInfo = (who) => {
     const d = CHAR_INFO[who] || CHAR_INFO.monk;
-    const powers = d.powers.map(p => `<div style="margin:3px 0;"><span style="color:var(--gold-bright);font-weight:bold;">${p[0]}</span> <span style="color:#bbb;">— ${p[1]}</span></div>`).join('');
+    // Each power: icon + name + key chip; hovering reveals "what it does" + pulses the key.
+    const powers = d.powers.map(p => `
+      <div class="pwr-row">
+        <span style="font-size:16px;">${p[3] || '◆'}</span>
+        <span style="color:var(--gold-bright);font-weight:bold;font-size:13px;">${p[0]}</span>
+        <span class="pwr-key">${p[2] || ''}</span>
+        <span class="pwr-desc">${p[1]}</span>
+      </div>`).join('');
     const unlocks = d.unlocks.map(u => `<div style="margin:3px 0;"><span style="color:var(--jade);letter-spacing:1px;">${u[0]}</span> <span style="color:#ccc;">${u[1]}</span></div>`).join('');
     infoPanel.innerHTML = `
       <div style="color:var(--gold);font-size:13px;letter-spacing:2px;margin-bottom:2px;">${d.role.toUpperCase()}</div>
@@ -633,10 +652,11 @@ const CHAR_INFO = {
     role: 'Support · Control',
     blurb: 'A Zen warrior who bends chi to shield, heal, and stagger demons.',
     powers: [
-      ['Staff Combo', 'Light + heavy strikes; finisher knocks back'],
-      ['Chi Shield', 'Absorbs hits; reflects on a timed parry'],
-      ['Healing Pulse', 'Restores party HP'],
-      ['Block / Parry', 'Time it to negate damage + stagger'],
+      ['Staff Combo', 'Light + heavy strikes; finisher knocks back', 'Space / U', '🥢'],
+      ['Chi Shield', 'Absorbs hits; reflects on a timed parry', 'J', '🛡'],
+      ['Healing Pulse', 'Restores party HP', 'L', '✚'],
+      ['Block / Parry', 'Time it to negate damage + stagger', 'G', '🌀'],
+      ['Ultimate', '10s super: i-frames + 2.5× damage', 'R', '⚡'],
     ],
     unlocks: [
       ['Lv 1', 'Staff combos · Chi Shield · Dodge'],
@@ -648,10 +668,11 @@ const CHAR_INFO = {
     role: 'Damage · Elements',
     blurb: 'A girl who transforms into four elemental dragons. Master the ring.',
     powers: [
-      ['Fire Dragon', 'Strong vs Ice'],
-      ['Ice Dragon', 'Strong vs Poison'],
-      ['Poison Dragon', 'Strong vs Water'],
-      ['Water Dragon', 'Strong vs Fire'],
+      ['Fire Dragon', 'Burns — strong vs Ice (2.0×)', 'Transform: Num4', '🔥'],
+      ['Ice Dragon', 'Freezes — strong vs Poison (2.0×)', 'Transform: Num4', '❄'],
+      ['Poison Dragon', 'Corrodes — strong vs Water (2.0×)', 'Transform: Num4', '☠'],
+      ['Water Dragon', 'Surges — strong vs Fire (2.0×)', 'Transform: Num4', '💧'],
+      ['Ultimate', '10s super: i-frames + 2.5× damage', 'Num✱', '⚡'],
     ],
     unlocks: [
       ['Lv 1', 'Fire Dragon'],

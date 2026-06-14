@@ -16,7 +16,7 @@ await p.waitForFunction(() => window.__game && window.__game.state, null, { time
 const click = async (t) => p.evaluate((tx) => { const e=[...document.querySelectorAll('.menu-item,.mds-btn')].find(x=>x.textContent.trim().toUpperCase().includes(tx)); if(e){e.click();return true} return false; }, t);
 await click('START GAME'); await sleep(150);
 await click('1 PLAYER'); await sleep(250);
-await click('BEGIN'); await sleep(700);
+await click("BEGIN"); await sleep(1300);
 
 // Intro cinematic overlay should be up (z-index 200 scrim with CONTINUE/▶).
 const cineUp = await p.evaluate(() => [...document.querySelectorAll('.mds-scrim')].some(s => s.style.zIndex === '200'));
@@ -38,8 +38,8 @@ const powUp = await p.evaluate(() => document.body.innerText.includes('POWERS'))
 ok(powUp, 'tutorial POWERS slide');
 await p.keyboard.press('ArrowRight'); await sleep(400); // ELEMENTS
 await p.screenshot({ path: 'shots/launch/onboard-tut-elements.png' });
-const elUp = await p.evaluate(() => document.body.innerText.includes('ELEMENT RING'));
-ok(elUp, 'tutorial ELEMENT RING slide');
+const elUp = await p.evaluate(() => document.body.innerText.includes('ELEMENTS'));
+ok(elUp, 'tutorial ELEMENTS slide');
 await p.keyboard.press('ArrowRight'); await sleep(900); // finish -> gameplay
 
 const st = await p.evaluate(() => window.__game.state);

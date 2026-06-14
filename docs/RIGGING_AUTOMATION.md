@@ -47,7 +47,22 @@ animation.** No per-hero manual step.
 > Working stack in `tools\unirig\venv`: torch 2.4.1+cu121, **spconv-cu121** (the cu120 wheel
 > DLL-load-failed — use cu121 and add `os.add_dll_directory(<torch>/lib)` before importing spconv),
 > trimesh/transformers/lightning, CLI scripts present. `flash_attn` excluded (needs MSVC, optional).
-> **Rig-test status (monk_hy_game.glb):** ran `generate_skeleton → skin → merge` via Git bash
+> **✅ LOOP CLOSED (2026-06-14):** `Flux → Hunyuan3D → UniRig → rigged FBX` runs fully automated,
+> no manual Mixamo. `monk_hy_rigged.fbx` (1.4 MB, skeleton + skin) produced from `monk_hy_game.glb`.
+> The flash_attn blocker was solved WITHOUT a compiler by (1) a **pure-torch SDPA shim** for
+> `flash_attn` (`venv/.../flash_attn/` — matches the module/param layout so trained weights load;
+> `bert_padding`/varlen not needed) + a `.dist-info` so `importlib.metadata` resolves it, and
+> (2) patching `configs/model/unirig_ar_350m_...yaml` `_attn_implementation: flash_attention_2 → sdpa`.
+> Also needed: Git bash (not WSL), forward-slash paths, `torch_cluster`/`torch_sparse`,
+> `--force_override true` + clean stale state. Wrapper: `scripts\3d\rig_test.ps1`.
+>
+> **Remaining for an in-game ANIMATED hero:** UniRig gives rig+skin but NO animation clips, and
+> the mesh is untextured (gray). So a full hero swap still needs: texture (project the Flux image
+> in Blender) + animation clips (retarget a free Mixamo/CMU set onto the UniRig skeleton). Demons/
+> bosses need neither rig nor clips (transform-animated) — just mesh + texture + an enemy GLB loader.
+>
+> ---
+> _Earlier status (now superseded):_
 > (`scripts\3d\rig_test.ps1`). Fixed along the way: use **Git** bash not WSL's; pass **forward-slash**
 > paths (bash strips backslashes); install **torch_cluster/torch_sparse** (PyG). **Remaining hard
 > blocker:** UniRig's *skinning* model hard-imports **`flash_attn`** (`unirig_skin.py`), which needs

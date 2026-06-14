@@ -16,3 +16,4 @@ api/data/analytics.jsonl
 
 # Unrelated sibling project — never track from this repo
 white-feather-finance/
+playtest-report.json

@@ -430,6 +430,20 @@ function _showCharSelect() {
   _charEl.className = 'mds-scrim';
   _charEl.style.cssText = 'z-index:161;gap:24px;';
 
+  // World-art backdrop that swaps with the chosen START LEVEL (manifest.levelArt-gated).
+  const csBg = document.createElement('div');
+  csBg.id = 'charselect-bg-art';
+  csBg.style.cssText = 'position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;transition:opacity .6s ease;pointer-events:none;z-index:0;';
+  _charEl.appendChild(csBg);
+  let _levelArtOn = false;
+  fetch('assets/manifest.json').then(r => r.ok ? r.json() : null).then(mf => { _levelArtOn = !!(mf && mf.levelArt); if (_levelArtOn) _setLevelBg(ctx.startLevel || 1); }).catch(() => {});
+  const _setLevelBg = (n) => {
+    if (!_levelArtOn) return;
+    const img = new Image();
+    img.onload = () => { csBg.style.backgroundImage = `url(${img.src})`; csBg.style.opacity = '0.4'; };
+    img.src = `assets/ui/bg_l${n}.jpg`;
+  };
+
   const h = document.createElement('h2');
   h.className = 'mds-heading';
   h.textContent = 'SELECT CHARACTER';
@@ -497,8 +511,8 @@ function _showCharSelect() {
   partnerWrap.appendChild(btnSolo);
   partnerWrap.appendChild(btnAI);
 
-  // Level selector row (jump to Zen / Glacial / Venom)
-  const levelRow = _makeLevelRow(ctx.startLevel || 1);
+  // Level selector row (jump to Zen / Glacial / Venom) — swaps the world backdrop.
+  const levelRow = _makeLevelRow(ctx.startLevel || 1, _setLevelBg);
 
   // Action row
   const actionRow = document.createElement('div');
@@ -585,7 +599,7 @@ function _hideCharSelect() {
 // get() yields the chosen level (1-3). Levels 2/3 auto-unlock all dragon forms
 // (handled in quest.endIntro). Default selection = 1.
 const LEVEL_NAMES = { 1: 'ZEN GARDEN', 2: 'GLACIAL PEAKS', 3: 'VENOM ABYSS' };
-function _makeLevelRow(initial = 1) {
+function _makeLevelRow(initial = 1, onPick = null) {
   let _lvl = initial;
   const wrap = document.createElement('div');
   wrap.style.cssText = 'display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center;';
@@ -606,6 +620,7 @@ function _makeLevelRow(initial = 1) {
     const b = _makeMenuBtn(`${n} · ${LEVEL_NAMES[n]}`, () => {
       _lvl = n; try { sfx.menuTick(); } catch {}
       refresh();
+      if (onPick) try { onPick(n); } catch {}
     });
     b.style.fontSize = 'clamp(11px,1.3vw,15px)';
     b.style.padding = '6px 14px';

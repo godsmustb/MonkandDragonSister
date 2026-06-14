@@ -18,6 +18,7 @@ import { updateRelicDrops } from './game/progression.js';
 import { updateHUD, updateObjective, showDamageNumber, setFxTimersRef, updateBossBar } from './ui/hud.js';
 import { setupDebugAPI } from './debug.js';
 import { buildMenu, startGame, togglePause, isPaused, isMenuVisible } from './ui/menu.js';
+import { pollGamepads, setGamepadHooks } from './game/gamepad.js';
 import { initLives, consumeLife, _updateLivesHUD } from './game/lives.js';
 import { updateCamera as updateCameraV2, toggleLockOn, clearLockTargets, camExtra } from './game/camera.js';
 import { buildPostFX, renderPostFX, resizePostFX, postFxEnabled, disposePostFX } from './fx/postfx.js';
@@ -31,6 +32,9 @@ import { spawnMovementDust } from './combat/projectiles.js';
 
 // ---- Wire up lazy cross-module references ----
 setDealDamageToPlayer(dealDamageToPlayer);
+// Gamepad: wire the action dispatch + pause toggle; enabled by default (keyboard still works).
+setGamepadHooks((pid, action) => dispatchPlayerAction(pid, action), togglePause);
+ctx.gamepadEnabled = (ctx.gamepadEnabled !== false);
 setShowDamageNumber(showDamageNumber);
 setFxTimersRef(_fxTimers);
 
@@ -330,6 +334,10 @@ function animate() {
 
   const frameDt = Math.min(game.clock.getDelta(), 0.2);
   game._lastDt = frameDt;
+
+  // Gamepad: poll every frame (synthesizes ctx.keys for movement/block + dispatches
+  // press actions; Start toggles pause in any state). Keyboard works alongside.
+  try { pollGamepads(); } catch (_) {}
 
   // JUICE: advance the time-scale manager on REAL dt and read the scalar. This
   // ALWAYS returns to exactly 1 once no effect is active (no drift / stuck-slow).

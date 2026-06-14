@@ -158,11 +158,19 @@ function _ensureContext() {
   _combatGain = _ac.createGain(); _combatGain.gain.value = 0; _combatGain.connect(_musicBus);
   _bossGain = _ac.createGain(); _bossGain.gain.value = 0; _bossGain.connect(_musicBus);
 
-  // Recorded-music opt-in (off by default → procedural only → E2E-safe). Enable after
-  // deploying assets/music/<theme1|2|3|boss>.mp3 via ?music=1 or setRecordedMusic(true).
+  // Recorded-music opt-in. Auto-enabled when assets/manifest.json lists tracks (so real
+  // players get the soundtrack); a stored '0' or absent manifest keeps it procedural-only.
+  // ?music=1 / ?music=0 force it. The manifest is always served → no 404 → E2E-safe.
   try {
-    _recEnabled = localStorage.getItem('mds_recorded_music') === '1';
-    if (new URLSearchParams(location.search).get('music') === '1') _recEnabled = true;
+    const stored = localStorage.getItem('mds_recorded_music');
+    if (stored === '1') _recEnabled = true;
+    else if (stored !== '0') {
+      fetch('assets/manifest.json').then(r => r.ok ? r.json() : null).then(mf => {
+        if (mf && Array.isArray(mf.music) && mf.music.length) _recEnabled = true;
+      }).catch(() => {});
+    }
+    const q = new URLSearchParams(location.search).get('music');
+    if (q === '1') _recEnabled = true; else if (q === '0') _recEnabled = false;
   } catch (_) {}
 
   // Expose audioReady flag

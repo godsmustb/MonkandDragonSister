@@ -71,7 +71,7 @@ export function buildMenu() {
     if (!mf || !mf.menuArt) return;
     const img = new Image();
     img.onload = () => { bgArt.style.backgroundImage = `url(${img.src})`; bgArt.style.opacity = '0.5'; };
-    img.src = 'assets/ui/menu_bg.png';
+    img.src = 'assets/ui/menu_bg.jpg';
   }).catch(() => {});
 
   // Title
@@ -453,8 +453,27 @@ function _showCharSelect() {
     _refreshCharButtons();
   });
 
-  charRow.appendChild(btnMonk);
-  charRow.appendChild(btnSister);
+  // Character columns: optional Flux portrait above each name button (manifest-gated).
+  const _col = (btn, portraitFile) => {
+    const col = document.createElement('div');
+    col.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:12px;';
+    const img = document.createElement('img');
+    img.style.cssText = 'width:140px;height:140px;border-radius:12px;object-fit:cover;opacity:0;transition:opacity .6s;border:2px solid rgba(200,160,0,0.5);box-shadow:0 4px 18px rgba(0,0,0,0.5);display:none;';
+    img.onload = () => { img.style.display = 'block'; requestAnimationFrame(() => { img.style.opacity = '1'; }); };
+    img.dataset.src = `assets/ui/${portraitFile}`;
+    col.appendChild(img);
+    col.appendChild(btn);
+    return col;
+  };
+  const monkCol = _col(btnMonk, 'portrait_monk.png');
+  const sisterCol = _col(btnSister, 'portrait_sister.png');
+  charRow.appendChild(monkCol);
+  charRow.appendChild(sisterCol);
+  // Only request the images when the manifest says they exist (no 404 / E2E-safe).
+  fetch('assets/manifest.json').then(r => r.ok ? r.json() : null).then(mf => {
+    if (!mf || !mf.portraits) return;
+    charRow.querySelectorAll('img[data-src]').forEach(im => { im.src = im.dataset.src; });
+  }).catch(() => {});
 
   // Partner toggle
   const partnerWrap = document.createElement('div');

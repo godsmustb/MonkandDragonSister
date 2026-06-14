@@ -154,6 +154,11 @@ function updateGame(dt) {
   if (ctx.gameState._paused) return;
   if (ctx.gameState.state === 'MENU' || ctx.gameState.state === 'GAMEOVER') return;
 
+  // START GATE: while the intro/onboarding (cinematic + tutorial) overlays are up, the
+  // game is NOT really running — no enemies act, no damage, no life loss. The player
+  // should never lose a life before the actual gameplay screen appears.
+  const gameplayLive = ctx.gameState.state !== 'INTRO' && !ctx.onboardingActive;
+
   const allPlayers = [gameState.p1, gameState.p2];
   allPlayers.forEach(p => p && p.update(dt, keys, allPlayers));
 
@@ -164,7 +169,7 @@ function updateGame(dt) {
   // FIX 4: Each player's KO timer is handled independently so both get their
   // full 10-second revive window regardless of what the other player is doing.
   // The old special both-KO instant branch is removed — each timer fires separately.
-  allPlayers.forEach(p => {
+  if (gameplayLive) allPlayers.forEach(p => {
     if (!p || !p.isKO) return;
     if (p.inactive) return;  // Pass 12: inactive partner never KOs
     if (p._koTimer <= 0) {
@@ -173,7 +178,7 @@ function updateGame(dt) {
     }
   });
 
-  if (gameState.state !== 'INTRO') {
+  if (gameplayLive) {
     gameState.spirits.forEach(s => { if (s.alive) s.update(dt, allPlayers); });
     checkWaveComplete();
   }
@@ -257,7 +262,11 @@ window.addEventListener('keydown', (e) => {
 
   if (isPaused()) return;
 
-  if (gameState.state === 'INTRO') { endIntro(); return; }
+  // During INTRO: a tap/key dismisses the static intro screen → begins waves. But while
+  // the onboarding overlays (cinematic/tutorial) are up, their own arrow/Enter keys must
+  // NOT leak through to endIntro() (that was spawning the wave mid-tutorial). Always
+  // consume the key here so no player action fires during INTRO either.
+  if (gameState.state === 'INTRO') { if (!ctx.onboardingActive) endIntro(); return; }
 
   const p1 = gameState.p1, p2 = gameState.p2;
   if (!p1 || !p2) return;

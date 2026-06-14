@@ -15,7 +15,7 @@ export const LANDS = [
   {
     id: 1,
     name: 'The Zen Garden',
-    subtitle: 'Quest I — The Initial Compassion',
+    subtitle: 'Quest I — The Vow of Compassion',
     themeElement: 'neutral',   // W1 shadowlings, escalates to fire boss — full mix
     counterDragon: 'water',    // Water counters the fire final boss
     comingSoon: false,         // PLAYABLE — this is the current Trial

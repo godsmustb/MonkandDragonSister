@@ -140,12 +140,14 @@ export function startIntro() {
   const lvl = ctx.startLevel || 1;
   if (ctx.showOnboarding && lvl === 1 && !_onboardSeen()) {
     ctx.showOnboarding = false;
+    ctx.onboardingActive = true;   // freeze the gameplay sim + block stray key→endIntro
     const introElH = document.getElementById('intro-screen');
     if (introElH) introElH.style.display = 'none';
     try { playVoice('intro'); } catch (_) {}
+    const finishOnboarding = () => { ctx.onboardingActive = false; _markOnboardSeen(); _beginAfterIntro(); };
     import('../ui/onboarding.js').then(m => {
-      m.runIntroCinematic(() => m.runTutorial(() => { _markOnboardSeen(); _beginAfterIntro(); }));
-    }).catch(() => { _beginAfterIntro(); });
+      m.runIntroCinematic(() => m.runTutorial(finishOnboarding));
+    }).catch(() => finishOnboarding());
     return;
   }
   const introEl = document.getElementById('intro-screen');
@@ -160,6 +162,7 @@ export function startIntro() {
     introEl._tapWired = true;
     const dismiss = (e) => {
       if (!gameState || gameState.state !== 'INTRO') return;
+      if (ctx.onboardingActive) return;   // taps belong to the onboarding overlay, not endIntro
       if (e && e.cancelable) e.preventDefault();
       endIntro();
     };

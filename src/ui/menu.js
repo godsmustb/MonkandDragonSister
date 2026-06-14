@@ -88,7 +88,7 @@ export function buildMenu() {
   `;
 
   const sub = document.createElement('p');
-  sub.textContent = 'Quest I — The Initial Compassion';
+  sub.textContent = 'Quest I — The Vow of Compassion';
   sub.style.cssText = `
     font-size:clamp(13px,1.5vw,18px);color:var(--text-dim);
     font-style:italic;letter-spacing:2px;

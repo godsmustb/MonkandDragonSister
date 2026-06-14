@@ -253,7 +253,7 @@ export function showLeaderboardOverlay(onClose) {
   statusEl.textContent = 'Loading…';
 
   const stages = [
-    { id: 1, label: 'Stage 1', sub: 'Quest I — The Initial Compassion' },
+    { id: 1, label: 'Stage 1', sub: 'Quest I — The Vow of Compassion' },
     { id: 2, label: 'Stage 2', sub: 'Quest II — The Glacial Peaks' },
     { id: 3, label: 'Stage 3', sub: 'Quest III — The Venom Abyss' },
     { id: 9, label: 'Endless', sub: 'Survival Gauntlet' },

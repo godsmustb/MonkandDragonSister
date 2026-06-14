@@ -51,6 +51,11 @@ export function showToast(msg, duration = 2300, variant = '', side) {
 // Convenience: a notification that belongs to a specific player (id 1 or 2),
 // rendered on that player's side of the split screen.
 export function showPlayerToast(playerId, msg, duration = 2300, variant = '') {
+  // Suppress notifications for the INACTIVE hero in solo 1P. XP is shared so the
+  // unselected hero also levels up, but the player only chose one — they shouldn't
+  // see the other's level-up / unlock / ability toasts. (2P + AI-partner = both active.)
+  const p = ctx.gameState && ctx.gameState['p' + playerId];
+  if (p && p.inactive) return;
   showToast(msg, duration, variant, 'p' + playerId);
 }
 

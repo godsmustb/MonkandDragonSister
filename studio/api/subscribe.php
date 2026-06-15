@@ -33,8 +33,11 @@ function count_subs($file) {
 // Optional vanity floor so the count reads healthy from launch (real signups add on top).
 $BASE = 0;
 
+// NOTE: subscriber emails (PII) are intentionally NOT exposed via any web endpoint.
+// Retrieve the list securely via Hostinger File Manager / FTP at
+// /public_html/studio/api/data/subscribers.csv (the dir is also .htaccess deny-all).
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-  echo json_encode(['ok' => true, 'count' => $BASE + count_subs($FILE)]);
+  echo json_encode(['ok' => true, 'count' => $BASE + count_subs($FILE)]);  // count only
   exit;
 }
 

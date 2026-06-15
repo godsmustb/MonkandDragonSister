@@ -486,19 +486,30 @@ function init() {
   // toggled by `window.__game.setGltfHeroes(true)` + reload) or the URL `?glb=1`.
   // Dynamic import => with the flag off, gltfChar.js / GLTFLoader never load (E2E-safe).
   if (ctx.useGltfHeroes === undefined) {
-    let on = false;
-    try { on = localStorage.getItem('mds_gltf_heroes') === '1'; } catch (_) {}
-    try { if (new URLSearchParams(location.search).get('glb') === '1') on = true; } catch (_) {}
+    let on = true;   // 3D Hunyuan heroes ON by default now (assets present + deployed)
+    try { const s = localStorage.getItem('mds_gltf_heroes'); if (s === '0') on = false; else if (s === '1') on = true; } catch (_) {}
+    try { const q = new URLSearchParams(location.search).get('glb'); if (q === '0') on = false; else if (q === '1') on = true; } catch (_) {}
     ctx.useGltfHeroes = on;
   }
   ctx.heroGlb = ctx.heroGlb || {};
   ctx.HERO_SCALE = ctx.HERO_SCALE ?? 1.0;
   if (ctx.useGltfHeroes) {
+    // Orientation/size tuning via URL so the Hunyuan meshes stand correctly:
+    // ?pitch=<rad> (X rotation to stand up), ?yaw=<rad> (face), ?hscale=<n> (height).
+    let _pitch = -Math.PI / 2, _yaw = Math.PI, _hsc = 1.7;   // Hunyuan meshes import on their side → stand up
+    try {
+      const q = new URLSearchParams(location.search);
+      if (q.get('pitch') != null) _pitch = parseFloat(q.get('pitch'));
+      if (q.get('yaw') != null) _yaw = parseFloat(q.get('yaw'));
+      if (q.get('hscale') != null) _hsc = parseFloat(q.get('hscale'));
+    } catch (_) {}
+    const _opt = { scale: ctx.HERO_SCALE, forwardYaw: _yaw, targetHeight: _hsc };
+    if (_pitch != null) _opt.pitchX = _pitch;
     import('./chars/gltfChar.js').then(m => {
-      m.loadGltfCharacter('assets/monk_animated.glb', { scale: ctx.HERO_SCALE, forwardYaw: Math.PI })
+      m.loadGltfCharacter('assets/monk_animated.glb', _opt)
         .then(c => { ctx.heroGlb.monk = c; gameState.p1._swapHeroMesh(c.group); })
         .catch(e => console.warn('[glb] monk load failed', e));
-      m.loadGltfCharacter('assets/sister_animated.glb', { scale: ctx.HERO_SCALE, forwardYaw: Math.PI })
+      m.loadGltfCharacter('assets/sister_animated.glb', _opt)
         .then(c => { ctx.heroGlb.sister = c; gameState.p2._swapHeroMesh(c.group); })
         .catch(e => console.warn('[glb] sister load failed', e));
     }).catch(e => console.warn('[glb] module load failed', e));

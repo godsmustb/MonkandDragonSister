@@ -517,6 +517,14 @@ function init() {
       m.loadGltfCharacter('assets/sister_animated.glb', _opt)
         .then(c => { ctx.heroGlb.sister = c; gameState.p2._swapHeroMesh(c.group); })
         .catch(e => console.warn('[glb] sister load failed', e));
+      // Sister's 4 elemental dragon forms → 3D GLBs (clip-less; procedural bob via
+      // GltfChar, driven from _updateDragonSpine). Swap each in when it loads.
+      const _dopt = { forwardYaw: Math.PI, targetHeight: 3.0 };
+      ['fire', 'ice', 'poison', 'water'].forEach(el => {
+        m.loadGltfCharacter(`assets/dragon_${el}.glb`, _dopt)
+          .then(c => { gameState.p2._swapDragonMesh(el, c); })
+          .catch(() => { /* fail-silent → procedural dragon */ });
+      });
     }).catch(e => console.warn('[glb] module load failed', e));
   }
 

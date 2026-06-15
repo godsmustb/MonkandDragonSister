@@ -257,6 +257,22 @@ export class Player {
     this.mesh.position.copy(this.pos);
   }
 
+  // ContentGenAI breadth: replace a procedural dragon form with a loaded 3D GLB.
+  // `char` is the GltfChar (clip-less → procedural idle/walk bob via its own update,
+  // driven from _updateDragonSpine). Handles the case where this form is on-screen now.
+  _swapDragonMesh(el, char) {
+    if (!char || !char.group || !this._dragonMeshes) return;
+    const group = char.group;
+    group._gltfCharInst = char;
+    group._isGlbDragon = true;
+    const old = this._dragonMeshes[el];
+    const wasActive = old && old.parent;
+    if (old && old.parent) ctx.scene.remove(old);
+    if (old && old._trail && old._trail.parent) ctx.scene.remove(old._trail);
+    this._dragonMeshes[el] = group;
+    if (wasActive) { group.position.copy(this.pos); ctx.scene.add(group); }
+  }
+
   // ContentGenAI v1.5: replace the human-hero mesh with a loaded rigged GLB group.
   // currentMesh() returns this.mesh for the monk (id 1) and the sister's human form.
   _swapHeroMesh(group) {
@@ -515,7 +531,7 @@ export class Player {
     _animateCharacter(this, dt, moveVec.lengthSq() > 0.001);
 
     if (this.id === 2 && this.form !== 'human') {
-      this._updateDragonSpine(dt);
+      this._updateDragonSpine(dt, moveVec.lengthSq() > 0.001);
     }
 
     if (this._shieldMesh) {
@@ -552,9 +568,15 @@ export class Player {
     // block is intentionally removed to fix the "enemies never hurt players" bug.
   }
 
-  _updateDragonSpine(dt) {
+  _updateDragonSpine(dt, moving) {
     const dm = this._dragonMeshes[this.form];
-    if (!dm || !dm._segments) return;
+    if (!dm) return;
+    if (dm._gltfCharInst) {                  // 3D GLB dragon → procedural clip-less anim
+      dm._gltfCharInst.setLocomotion(!!moving, false);
+      dm._gltfCharInst.update(dt);
+      return;
+    }
+    if (!dm._segments) return;
     const segs = dm._segments;
     const n = segs.length;
     const phase = this._animPhase;
@@ -1119,7 +1141,7 @@ export class Player {
     _animateCharacter(this, dt, moveVec.lengthSq() > 0.001);
 
     if (this.id === 2 && this.form !== 'human') {
-      this._updateDragonSpine(dt);
+      this._updateDragonSpine(dt, moveVec.lengthSq() > 0.001);
     }
 
     if (this._shieldMesh) {

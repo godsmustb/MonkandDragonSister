@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moonlit Ronin Studios — The Monk &amp; The Dragon Sister</title>
+<meta name="description" content="A 2-player co-op anime action saga. A Zen garden invaded by demons, a monk and his dragon-sister stand against the dark. Join the awakening — early access June 2026.">
+<meta name="theme-color" content="#070f18">
+<!-- Open Graph / social share -->
+<meta property="og:title" content="The Monk &amp; The Dragon Sister — Moonlit Ronin Studios">
+<meta property="og:description" content="A 2-player co-op anime action saga. Wishlist now — early access June 2026.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="assets/img/keyart_cover.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%23ffae42'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="studio.css">
+<script type="importmap">
+{"imports":{"three":"/vendor/three/build/three.module.js","three/addons/":"/vendor/three/addons/"}}
+</script>
+</head>
+<body>
+<canvas id="fx"></canvas>
+
+<!-- ============ NAV ============ -->
+<nav class="nav" id="nav">
+  <a class="brand" href="#top"><span class="dot"></span> MOONLIT&nbsp;<b>RONIN</b></a>
+  <div class="nav-links" id="navlinks">
+    <a href="#game">The Game</a>
+    <a href="#heroes">Heroes</a>
+    <a href="#dragons">Dragons</a>
+    <a href="#worlds">Worlds</a>
+    <a href="#bosses">Demons</a>
+    <a class="btn btn-amber nav-cta" href="#join">Get Early Access</a>
+  </div>
+  <button class="burger" id="burger" aria-label="menu">☰</button>
+</nav>
+
+<!-- ============ HERO ============ -->
+<header class="hero" id="top">
+  <div class="hero-bg" id="heroBg" style="background-image:url('assets/img/menu_bg.jpg')"></div>
+  <div class="hero-inner">
+    <p class="eyebrow reveal">Moonlit Ronin Studios presents</p>
+    <h1 class="reveal d1"><span class="l1">The Monk &amp;</span><span class="l2">The Dragon Sister</span></h1>
+    <p class="tag reveal d2">A two-player co-op anime action saga. A Zen garden falls to demons — a monk and the girl who becomes four elemental dragons stand alone against the dark.</p>
+    <div class="badge-row reveal d3">
+      <span class="badge"><span class="ic">◈</span> Local Co-op</span>
+      <span class="badge"><span class="ic">⚔</span> Cel-shaded Action</span>
+      <span class="badge"><span class="ic">🐉</span> 4 Elemental Dragons</span>
+      <span class="badge"><span class="ic">▶</span> Plays in your browser</span>
+    </div>
+    <form class="signup reveal d4" data-source="hero" novalidate>
+      <input type="email" name="email" placeholder="Your email for early access" autocomplete="email" required>
+      <button class="btn btn-amber" type="submit">Join the Awakening</button>
+    </form>
+    <div class="form-msg reveal d4" data-msg></div>
+    <div class="social-proof reveal d4">
+      <span class="avatars"><i style="background-image:url('assets/img/portrait_monk.png')"></i><i style="background-image:url('assets/img/portrait_sister.png')"></i><i style="background-image:url('assets/img/boss_venom_oni.png');background-color:#1a2a3a"></i></span>
+      <span><b data-count>—</b> warriors have already joined · founding members get the exclusive <b style="color:var(--jade)">Jade Dragon skin</b> + OST</span>
+    </div>
+  </div>
+  <a class="scroll-cue" href="#game">Scroll to enter<span>⌄</span></a>
+</header>
+
+<!-- ============ GAME SHOWCASE ============ -->
+<section class="section" id="game">
+  <div class="wrap">
+    <div class="split">
+      <div class="media reveal">
+        <a href="https://slategray-marten-643793.hostingersite.com/" target="_blank" rel="noopener">
+          <img src="assets/img/keyart_cover.jpg" alt="The Monk and the Dragon Sister key art">
+          <span class="play"><b>▶</b></span>
+        </a>
+      </div>
+      <div class="reveal d1">
+        <p class="eyebrow">Quest I — The Initial Compassion</p>
+        <h2>An action saga you play together.</h2>
+        <p class="muted">Five waves of demons. Five archetypes that each punish a careless dragon and reward the right one. Two multi-phase bosses. One Zen garden worth saving. Fight side-by-side in split-screen, or solo with an AI partner — every blow lands with hit-stop, bloom and cherry-blossom dust.</p>
+        <div class="stat-row">
+          <span class="stat"><b>5</b><span>Story waves</span></span>
+          <span class="stat"><b>11</b><span>Demon &amp; boss types</span></span>
+          <span class="stat"><b>3</b><span>Themed worlds</span></span>
+          <span class="stat"><b>2</b><span>Players, one screen</span></span>
+        </div>
+        <p style="margin-top:26px"><a class="btn btn-ghost btn-lg" href="https://slategray-marten-643793.hostingersite.com/" target="_blank" rel="noopener">▶ Play the live demo</a></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ HEROES ============ -->
+<section class="section" id="heroes" style="background:linear-gradient(180deg,var(--ink),var(--ink-2))">
+  <div class="wrap">
+    <div class="shead center reveal">
+      <p class="eyebrow">Two souls, one bond</p>
+      <h2>Meet your heroes</h2>
+      <p>Support and storm. Master one, or move as two.</p>
+    </div>
+    <div class="grid grid-2">
+      <article class="card reveal">
+        <div class="pic"><img src="assets/img/portrait_monk.png" alt="The Monk"></div>
+        <div class="body">
+          <div class="role">Player 1 — Support · Control</div>
+          <h3>The Monk</h3>
+          <p>A wandering staff-master who fights to protect. Weaves combos, raises a chi shield, heals his sister and meditates to turn the tide. Calm in the storm.</p>
+          <div class="tags"><span class="tag">Staff Combos</span><span class="tag">Chi Shield</span><span class="tag">Healing</span><span class="tag">Parry</span></div>
+        </div>
+      </article>
+      <article class="card reveal d1">
+        <div class="pic"><img src="assets/img/portrait_sister.png" alt="The Dragon Sister"></div>
+        <div class="body">
+          <div class="role">Player 2 — Power · Burst</div>
+          <h3>The Dragon Sister</h3>
+          <p>A girl with a dragon's heart. She transforms between four elemental dragons — Fire, Ice, Poison and Water — each strong against the next. Raw, shifting power.</p>
+          <div class="tags"><span class="tag fire">Fire</span><span class="tag ice">Ice</span><span class="tag poison">Poison</span><span class="tag water">Water</span></div>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DRAGONS — 3D ============ -->
+<section class="section" id="dragons">
+  <div class="wrap">
+    <div class="shead center reveal">
+      <p class="eyebrow">Transform · Strike · Transform again</p>
+      <h2>Four dragons. One ring of power.</h2>
+      <p>Drag to rotate. Water beats Fire, Fire beats Ice, Ice beats Poison, Poison beats Water — read the demon, pick the dragon.</p>
+    </div>
+    <div class="dragon-stage reveal">
+      <canvas id="dragon3d"></canvas>
+      <div class="stage-hint">drag to rotate · scroll-locked 3D preview</div>
+    </div>
+    <div class="dragon-pick reveal d1">
+      <button data-el="fire" class="on">🔥 Fire</button>
+      <button data-el="ice">❄ Ice</button>
+      <button data-el="poison">☠ Poison</button>
+      <button data-el="water">🌊 Water</button>
+    </div>
+    <div class="ring reveal d2" aria-label="elemental ring">
+      <span class="el"><b style="border-color:#ff7a3c;color:#ff7a3c">🔥</b>Fire</span><span class="arrow">→</span>
+      <span class="el"><b style="border-color:#7fd0ff;color:#7fd0ff">❄</b>Ice</span><span class="arrow">→</span>
+      <span class="el"><b style="border-color:#9be15d;color:#9be15d">☠</b>Poison</span><span class="arrow">→</span>
+      <span class="el"><b style="border-color:#5aa9ff;color:#5aa9ff">🌊</b>Water</span><span class="arrow">↺</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ WORLDS ============ -->
+<section class="section" id="worlds" style="background:linear-gradient(180deg,var(--ink-2),var(--ink))">
+  <div class="wrap">
+    <div class="shead center reveal">
+      <p class="eyebrow">Three lands, re-forged per level</p>
+      <h2>Worlds worth saving</h2>
+    </div>
+    <div class="grid grid-3">
+      <div class="world reveal"><div class="bg" style="background-image:url('assets/img/bg_l1.jpg')"></div>
+        <div class="cap"><span>Land I</span><h3>Zen Garden</h3><p class="muted">Moonlit sand &amp; koi — where the compassion begins.</p></div></div>
+      <div class="world reveal d1"><div class="bg" style="background-image:url('assets/img/bg_l2.jpg')"></div>
+        <div class="cap"><span>Land II</span><h3>Glacial Peaks</h3><p class="muted">Aurora shrines and frozen wraiths under the ice.</p></div></div>
+      <div class="world reveal d2"><div class="bg" style="background-image:url('assets/img/bg_l3.jpg')"></div>
+        <div class="cap"><span>Land III</span><h3>Venom Abyss</h3><p class="muted">A toxic deep where the poison oni reigns.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ BOSSES / DEMONS ============ -->
+<section class="section" id="bosses">
+  <div class="wrap">
+    <div class="shead center reveal">
+      <p class="eyebrow">They are waiting</p>
+      <h2>The demons of the dark</h2>
+      <p>Multi-phase bosses that shift element mid-fight. Read the tell. Counter, or fall.</p>
+    </div>
+    <div class="grid grid-2">
+      <div class="boss reveal">
+        <img src="assets/img/boss_venom_oni.png" alt="Venom Oni">
+        <div><span class="tag poison">Poison · Mini-boss</span><h3>Venom Oni</h3>
+          <div class="hp"><i style="width:72%"></i></div>
+          <p class="muted">A four-armed brute that floods the arena with venom pools and summons its kin. Bring Ice.</p></div>
+      </div>
+      <div class="boss reveal d1">
+        <img src="assets/img/boss_inferno_lord.png" alt="Inferno Demon Lord">
+        <div><span class="tag fire">Fire → Ice · Final Boss</span><h3>Inferno Demon Lord</h3>
+          <div class="hp"><i style="width:96%"></i></div>
+          <p class="muted">The end of Quest I. Rains embers, then freezes its own heart to ice in phase three. Only Water — then Fire — will end him.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MECHANICS ============ -->
+<section class="section" id="mechanics" style="background:linear-gradient(180deg,var(--ink),var(--ink-2))">
+  <div class="wrap">
+    <div class="shead center reveal"><p class="eyebrow">Feel every hit</p><h2>Built to play, not just to watch</h2></div>
+    <div class="grid grid-3">
+      <div class="feat reveal"><span class="ic">⚔</span><div><h3>Deep melee combat</h3><p>Light &amp; heavy combos, block, timed parry, dodge i-frames, lock-on — with hit-stop and screen-shake on impact.</p></div></div>
+      <div class="feat reveal d1"><span class="ic">🐉</span><div><h3>Elemental dragon ring</h3><p>Four forms in a strength triangle. Swap mid-combo to punish the demon in front of you.</p></div></div>
+      <div class="feat reveal d2"><span class="ic">⚡</span><div><h3>Bleach-style ultimate</h3><p>Fill the resonance meter, awaken your Shikai, and unleash a named 10-second super.</p></div></div>
+      <div class="feat reveal"><span class="ic">👥</span><div><h3>True local co-op</h3><p>Split-screen for two, or full-screen solo with a smart AI partner. Share three team lives.</p></div></div>
+      <div class="feat reveal d1"><span class="ic">🎵</span><div><h3>Adaptive soundtrack</h3><p>An original score that swells with intensity — boss phases, low-HP tension, per-world moods.</p></div></div>
+      <div class="feat reveal d2"><span class="ic">∞</span><div><h3>Endless &amp; leaderboards</h3><p>After the quest, a collapsing-arena sudden-death mode and a cross-device high-score board.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ BIG CTA / EMAIL ============ -->
+<section class="section" id="join">
+  <div class="wrap">
+    <div class="cta reveal">
+      <div class="bg" style="background-image:url('assets/img/menu_bg.jpg')"></div>
+      <p class="eyebrow center">The awakening — June 2026</p>
+      <h2>Be there when the lanterns light.</h2>
+      <p class="muted" style="max-width:560px;margin:0 auto">Join the founding circle. We'll send one email when early access opens — no spam, ever — and founders get an exclusive Jade Dragon skin and the full original soundtrack, free.</p>
+      <div class="countdown" id="countdown" aria-label="countdown to launch">
+        <div class="cd"><b data-cd="d">—</b><span>Days</span></div>
+        <div class="cd"><b data-cd="h">—</b><span>Hours</span></div>
+        <div class="cd"><b data-cd="m">—</b><span>Minutes</span></div>
+        <div class="cd"><b data-cd="s">—</b><span>Seconds</span></div>
+      </div>
+      <form class="signup" data-source="cta" novalidate>
+        <input type="email" name="email" placeholder="you@email.com" autocomplete="email" required>
+        <button class="btn btn-amber btn-lg" type="submit">Claim Early Access</button>
+      </form>
+      <div class="form-msg" data-msg></div>
+      <p class="form-note">Join <b data-count>—</b> warriors awaiting the awakening. Unsubscribe anytime.</p>
+      <div class="perks">
+        <span class="perk"><span class="ic">✦</span> Exclusive Jade Dragon skin</span>
+        <span class="perk"><span class="ic">✦</span> Full original soundtrack</span>
+        <span class="perk"><span class="ic">✦</span> First into early access</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ STUDIO ============ -->
+<section class="section" id="studio">
+  <div class="wrap">
+    <div class="studio-band">
+      <div class="reveal">
+        <p class="eyebrow">Moonlit Ronin Studios</p>
+        <h2>A new kind of studio.</h2>
+        <p class="muted">We build worlds with our own AI-native production pipeline — art, music, voice and 3D, forged in-house. The Monk &amp; The Dragon Sister is our first saga, and only the beginning.</p>
+        <div class="stat-row">
+          <span class="stat"><b>100%</b><span>In-house pipeline</span></span>
+          <span class="stat"><b>AAA</b><span>2D art &amp; original score</span></span>
+          <span class="stat"><b>∞</b><span>More quests coming</span></span>
+        </div>
+      </div>
+      <div class="media reveal d1"><img src="assets/shots/cap_menu.png" alt="In-game menu" onerror="this.src='assets/img/menu_bg.jpg'"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="wrap foot">
+    <div>
+      <a class="brand" href="#top"><span class="dot"></span> MOONLIT&nbsp;<b>RONIN</b></a>
+      <p><small>© 2026 Moonlit Ronin Studios. The Monk &amp; The Dragon Sister.</small></p>
+    </div>
+    <div class="foot-links">
+      <a href="https://slategray-marten-643793.hostingersite.com/" target="_blank" rel="noopener">Play Demo</a>
+      <a href="#heroes">Heroes</a><a href="#dragons">Dragons</a><a href="#join">Early Access</a>
+      <a href="#" data-share>Share ↗</a>
+    </div>
+  </div>
+</footer>
+
+<script type="module" src="studio.js"></script>
+</body>
+</html>

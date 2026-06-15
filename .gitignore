@@ -17,3 +17,6 @@ api/data/analytics.jsonl
 # Unrelated sibling project — never track from this repo
 white-feather-finance/
 playtest-report.json
+
+# studio email capture runtime data (never commit subscriber emails)
+studio/api/data/

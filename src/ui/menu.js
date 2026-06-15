@@ -135,9 +135,28 @@ export function buildMenu() {
     pointer-events:none;white-space:nowrap;font-family:var(--font-ui);
   `;
 
+  // Studio / official site link — top-right, opens the company landing page in a new tab.
+  // Kept OUT of MENU_ITEMS so it never affects keyboard nav, selection, or E2E counts.
+  const siteLink = document.createElement('a');
+  siteLink.id = 'studio-link';
+  siteLink.href = '/studio/';
+  siteLink.target = '_blank';
+  siteLink.rel = 'noopener';
+  siteLink.innerHTML = '◈ Official Site ↗';
+  siteLink.title = 'Moonlit Ronin Studios — news, dragons & early access';
+  siteLink.style.cssText = `
+    position:absolute;top:16px;right:18px;z-index:5;
+    font-family:var(--font-ui);font-size:12px;font-weight:700;letter-spacing:1px;
+    color:#ffd9a0;text-decoration:none;padding:7px 13px;border-radius:999px;
+    background:rgba(10,18,28,0.5);border:1px solid rgba(255,180,90,0.35);
+    backdrop-filter:blur(6px);transition:all .2s ease;text-transform:uppercase;`;
+  siteLink.addEventListener('mouseenter', () => { siteLink.style.background = 'rgba(255,160,60,0.92)'; siteLink.style.color = '#1a0d00'; siteLink.style.transform = 'translateY(-1px)'; });
+  siteLink.addEventListener('mouseleave', () => { siteLink.style.background = 'rgba(10,18,28,0.5)'; siteLink.style.color = '#ffd9a0'; siteLink.style.transform = 'none'; });
+
   _menuEl.appendChild(titleWrap);
   _menuEl.appendChild(itemsWrap);
   _menuEl.appendChild(privacyNote);
+  _menuEl.appendChild(siteLink);
   document.body.appendChild(_menuEl);
 
   // Keyboard navigation

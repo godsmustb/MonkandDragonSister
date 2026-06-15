@@ -8,6 +8,7 @@ import { triggerHitstop, triggerBossSlowmo } from '../game/juice.js';
 import { initMeleeAI, updateMeleeAI, xzDist } from './ai.js';
 import { DEMON_BUILDERS, DEMON_DEATH_TINT } from './demons.js';
 import { scaleHp, scaleAtk } from '../game/campaign.js';
+import { getEnemyMesh } from './enemyGlb.js';
 
 // Forward-declare: set by abilities.js after it imports us (avoids circular dep).
 export let dealDamageToPlayer = null;
@@ -100,6 +101,24 @@ export class Spirit {
     if (this._body && this._body.material && !this._body.material._mdsHitClone) {
       this._body.material = this._body.material.clone();
       this._body.material._mdsHitClone = true;
+    }
+
+    // ContentGenAI: swap to a 3D-GLB demon mesh when enabled + available (non-boss
+    // only — bosses keep procedural telegraph/element-shift poses). _parts is cleared
+    // so the procedural part-animation in _animateIdle safely no-ops; the per-spirit
+    // bob + hit-flash still drive the GLB.
+    if (ctx.useGltfEnemies && !this._isBoss) {
+      const glb = getEnemyMesh(this._type);
+      if (glb) {
+        ctx.scene && this.mesh && ctx.scene.remove(this.mesh);
+        this.mesh = glb;
+        this._parts = {};
+        this._body = glb._enemyBody || null;
+        if (this._body && this._body.material && !this._body.material._mdsHitClone) {
+          this._body.material = this._body.material.clone();
+          this._body.material._mdsHitClone = true;
+        }
+      }
     }
   }
 

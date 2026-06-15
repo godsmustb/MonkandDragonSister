@@ -520,6 +520,19 @@ function init() {
     }).catch(e => console.warn('[glb] module load failed', e));
   }
 
+  // ContentGenAI breadth: optional 3D-GLB demon meshes (non-boss). ON by default;
+  // fail-silent per-type (missing GLB → procedural fallback). Disable with
+  // localStorage `mds_gltf_enemies`='0' or URL `?glbenemy=0`.
+  if (ctx.useGltfEnemies === undefined) {
+    let on = true;
+    try { const s = localStorage.getItem('mds_gltf_enemies'); if (s === '1') on = true; else if (s === '0') on = false; } catch (_) {}
+    try { const q = new URLSearchParams(location.search).get('glbenemy'); if (q === '1') on = true; else if (q === '0') on = false; } catch (_) {}
+    ctx.useGltfEnemies = on;
+  }
+  if (ctx.useGltfEnemies) {
+    import('./combat/enemyGlb.js').then(m => m.preloadEnemyGlbs()).catch(e => console.warn('[glb] enemy preload failed', e));
+  }
+
   camState.p1.pos.set(-3, 6, 15);
   camState.p2.pos.set(3, 6, 15);
 

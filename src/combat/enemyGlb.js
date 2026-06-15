@@ -1,25 +1,20 @@
-// src/combat/enemyGlb.js — optional 3D-GLB demon meshes (ContentGenAI breadth pass).
-// Mirrors the hero GLB swap (gltfChar.js) but for enemies: preload a demon GLB per
-// type, then hand out per-instance clones scaled to the demon's in-game height. The
-// meshes are clip-less (Hunyuan shape), so the existing per-spirit bob in spirits.js
-// keeps them alive — no skeleton/clip machinery (cheap: many demons on screen at once).
-//
-// Fail-silent: if a type has no GLB (404) the loader simply never caches it, and
-// Spirit._buildMesh falls back to the procedural builder. GLTFLoader resolves via the
-// vendored importmap (offline, no CDN). Bosses are intentionally NOT swapped — their
-// procedural telegraph/element-shift poses are gameplay tells.
+// src/combat/enemyGlb.js — 3D-GLB enemies (demons + bosses), now SKELETAL.
+// Preloads a rigged+animated GLB per type, then hands out per-instance animators:
+// each demon/boss gets its own skinned-mesh clone (SkeletonUtils) wrapped in a GltfChar
+// so it plays real walk/attack/hit/death clips independently. If a type's GLB has no
+// clips, GltfChar falls back to its procedural bob — and a missing GLB (404) leaves the
+// procedural builder in place. GLTFLoader resolves via the vendored importmap (offline).
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
+import { GltfChar } from '../chars/gltfChar.js';
 import { DEMON_TABLE } from '../config.js';
 
 const _loader = new GLTFLoader();
-const _templates = new Map();   // type -> gltf.scene template (cloned per instance)
+const _templates = new Map();   // type -> { scene, animations }
 let _started = false;
 
-// Common (non-boss) demons get the 3D swap in Spirit._buildMesh.
 export const ENEMY_GLB_TYPES = ['shadowling', 'frostimp', 'tidewraith'];
-// Bosses are swapped separately in BossBase (mesh-agnostic telegraph preserves the
-// wind-up tell). Preloaded here so getEnemyMesh() can serve them too.
 export const BOSS_GLB_TYPES = ['venomoni', 'infernolord'];
 
 export function preloadEnemyGlbs() {
@@ -28,7 +23,7 @@ export function preloadEnemyGlbs() {
   for (const type of [...ENEMY_GLB_TYPES, ...BOSS_GLB_TYPES]) {
     _loader.load(
       `assets/demon_${type}.glb`,
-      (gltf) => { _templates.set(type, gltf.scene); },
+      (gltf) => { _templates.set(type, { scene: gltf.scene, animations: gltf.animations || [] }); },
       undefined,
       () => { /* fail-silent → procedural fallback */ }
     );
@@ -37,30 +32,19 @@ export function preloadEnemyGlbs() {
 
 export function hasEnemyGlb(type) { return _templates.has(type); }
 
-// Per-instance clone, scaled to the demon's intended height, feet at y=0, centered XZ.
-// Returns null when no template is loaded (→ caller keeps the procedural mesh).
-export function getEnemyMesh(type) {
+// Per-instance animator. Returns a GltfChar (clip-driven if the GLB has animations,
+// else procedural bob), scaled to the type's DEMON_TABLE height. null if not loaded.
+export function getEnemyChar(type) {
   const tmpl = _templates.get(type);
   if (!tmpl) return null;
-  const group = new THREE.Group();
-  const scene = tmpl.clone(true);
-  group.add(scene);
-
   const cfg = DEMON_TABLE[type] || {};
-  const targetH = cfg.height || 1.2;
-  scene.updateWorldMatrix(true, true);
-  const box = new THREE.Box3().setFromObject(scene);
-  const size = new THREE.Vector3(); box.getSize(size);
-  scene.scale.multiplyScalar(targetH / Math.max(size.y, 1e-3));
-  scene.updateWorldMatrix(true, true);
-  const box2 = new THREE.Box3().setFromObject(scene);
-  const ctr = new THREE.Vector3(); box2.getCenter(ctr);
-  scene.position.x -= ctr.x;
-  scene.position.z -= ctr.z;
-  scene.position.y -= box2.min.y;
-
+  const scene = tmpl.animations.length ? cloneSkinned(tmpl.scene) : tmpl.scene.clone(true);
+  const char = new GltfChar(
+    { scene, animations: tmpl.animations },
+    { targetHeight: cfg.height || 1.2, forwardYaw: Math.PI }
+  );
   let body = null;
-  group.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = true; if (!body) body = o; } });
-  group._enemyBody = body;
-  return group;
+  char.group.traverse(o => { if (o.isMesh && !body) body = o; });
+  char.group._enemyBody = body;
+  return char;
 }

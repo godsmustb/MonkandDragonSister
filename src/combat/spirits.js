@@ -8,7 +8,7 @@ import { triggerHitstop, triggerBossSlowmo } from '../game/juice.js';
 import { initMeleeAI, updateMeleeAI, xzDist } from './ai.js';
 import { DEMON_BUILDERS, DEMON_DEATH_TINT } from './demons.js';
 import { scaleHp, scaleAtk } from '../game/campaign.js';
-import { getEnemyMesh } from './enemyGlb.js';
+import { getEnemyChar } from './enemyGlb.js';
 
 // Forward-declare: set by abilities.js after it imports us (avoids circular dep).
 export let dealDamageToPlayer = null;
@@ -108,12 +108,13 @@ export class Spirit {
     // so the procedural part-animation in _animateIdle safely no-ops; the per-spirit
     // bob + hit-flash still drive the GLB.
     if (ctx.useGltfEnemies && !this._isBoss) {
-      const glb = getEnemyMesh(this._type);
-      if (glb) {
-        ctx.scene && this.mesh && ctx.scene.remove(this.mesh);
-        this.mesh = glb;
+      const char = getEnemyChar(this._type);
+      if (char) {
+        ctx.scene && this.mesh && this.mesh.parent && ctx.scene.remove(this.mesh);
+        this._glbChar = char;
+        this.mesh = char.group;
         this._parts = {};
-        this._body = glb._enemyBody || null;
+        this._body = char.group._enemyBody || null;
         if (this._body && this._body.material && !this._body.material._mdsHitClone) {
           this._body.material = this._body.material.clone();
           this._body.material._mdsHitClone = true;
@@ -212,32 +213,31 @@ export class Spirit {
     }
   }
 
-  // Mesh-agnostic boss telegraph for 3D-GLB bosses (which have no part poses to raise).
-  // Reads the melee-AI state: 'telegraph' rears the boss back + grows it + pulses an
-  // emissive flash (clear "big attack incoming" tell); 'strike' lunges it forward; idle
-  // eases back. Ground-AOE circles, element-shift label/light/banner are unaffected.
-  _animateGlbBoss(dt) {
-    const m = this.mesh;
-    const tele = this._aiState === 'telegraph';
-    const strike = this._aiState === 'strike';
-    const k = Math.min(1, dt * 10);
-    const tScale = tele ? 1.12 : 1.0;
-    m.scale.x += (tScale - m.scale.x) * k;
-    m.scale.y = m.scale.z = m.scale.x;
-    const leanTarget = tele ? -0.22 : strike ? 0.3 : 0;
-    m._lean = (m._lean || 0) + (leanTarget - (m._lean || 0)) * Math.min(1, dt * 12);
-    m.rotation.x = m._lean;
-    const mat = this._body && this._body.material;
-    if (mat && mat.emissive) {
-      const base = mat._mdsBaseEmissive;
-      if (tele) {
-        const f = 0.45 + Math.sin(this._idlePhase * 20) * 0.35;
-        mat.emissive.setRGB(f, f * 0.18, 0);
-        mat.emissiveIntensity = 1.0;
-      } else if (base) {
-        mat.emissive.lerp(base, k);
+  // Drive a 3D-GLB enemy's skeletal clip state machine from the melee-AI state:
+  //   telegraph → 'cast'  (wind-up: arms raise = clear "attack incoming" tell)
+  //   strike    → 'attack1' (the actual swing)
+  //   pursue    → walk/run; else idle.
+  // Hit/death one-shots are fired from takeDamage(). For bosses, an extra emissive
+  // flash during telegraph adds readability on top of the skeletal wind-up. The
+  // element-shift + ground-AOE tells are unaffected (label/light/banner/circles).
+  _updateGlbAnim(dt) {
+    const c = this._glbChar;
+    const st = this._aiState;
+    if (st !== this._glbLastAi) {
+      if (st === 'telegraph') c.play('cast', 0.1);
+      else if (st === 'strike') c.play('attack1', 0.06);
+      this._glbLastAi = st;
+    }
+    if (st !== 'telegraph' && st !== 'strike') c.setLocomotion(st === 'pursue', false);
+    if (this.mesh._isGlbBoss) {
+      const mat = this._body && this._body.material;
+      if (mat && mat.emissive) {
+        const base = mat._mdsBaseEmissive;
+        if (st === 'telegraph') { const f = 0.4 + Math.sin(this._idlePhase * 20) * 0.3; mat.emissive.setRGB(f, f * 0.18, 0); }
+        else if (base) mat.emissive.lerp(base, Math.min(1, dt * 8));
       }
     }
+    c.update(dt);
   }
 
   _rippleHem(dt, freq) {
@@ -280,7 +280,7 @@ export class Spirit {
     this.mesh.position.copy(this.pos);
     this._light.position.copy(this.pos);
     this._animateIdle(dt);
-    if (this.mesh._isGlbBoss) this._animateGlbBoss(dt);
+    if (this._glbChar) this._updateGlbAnim(dt);
 
     let nearest = null, nearXZDist = Infinity;
     players.forEach(p => {
@@ -391,6 +391,9 @@ export class Spirit {
 
     // JUICE — dt-driven enemy hit-flash (pooled, restores base, no leak/setTimeout).
     if (this._body && this._body.material) spawnHitFlash(this._body.material, 0.12);
+    // 3D-GLB enemies: brief skeletal flinch (one-shot; survivors only). hp already
+    // reduced above, so >0 means it lives.
+    if (this._glbChar && this.hp > 0) this._glbChar.play('hit', 0.08);
 
     // JUICE — HITSTOP on impactful hits: ANY hit on a boss freezes the beat.
     // Heavy/finisher/special/ultimate hits on normal demons trigger hitstop
@@ -440,19 +443,20 @@ class BossBase extends Spirit {
     this.mesh.scale.setScalar(cfg.scale);
     this._pools = [];
 
-    // ContentGenAI: swap the boss body to a 3D GLB when enabled + available. The
+    // ContentGenAI: swap the boss body to a 3D rigged GLB when enabled + available. The
     // procedural part-pose telegraph (e.g. clubArm raise) becomes a no-op (_parts={}),
-    // replaced by a mesh-agnostic telegraph in _animateGlbBoss (rear-back + flash on
-    // 'telegraph', lunge on 'strike'). Element-shift/ground-AOE tells are unaffected
+    // replaced by a SKELETAL telegraph in _updateGlbAnim ('cast' wind-up on telegraph +
+    // emissive flash, 'attack1' on strike). Element-shift/ground-AOE tells are unaffected
     // (HP label + boss light + banner + separate warning circles).
     if (ctx.useGltfBosses) {
-      const glb = getEnemyMesh(type);
-      if (glb) {
+      const char = getEnemyChar(type);
+      if (char) {
         ctx.scene && this.mesh && this.mesh.parent && ctx.scene.remove(this.mesh);
-        this.mesh = glb;
+        this._glbChar = char;
+        this.mesh = char.group;
         this.mesh._isGlbBoss = true;
         this._parts = {};
-        this._body = glb._enemyBody || null;
+        this._body = char.group._enemyBody || null;
         if (this._body && this._body.material && !this._body.material._mdsHitClone) {
           this._body.material = this._body.material.clone();
           this._body.material._mdsHitClone = true;

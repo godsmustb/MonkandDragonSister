@@ -574,6 +574,13 @@ export class Player {
     if (dm._gltfCharInst) {                  // 3D GLB dragon → procedural clip-less anim
       dm._gltfCharInst.setLocomotion(!!moving, false);
       dm._gltfCharInst.update(dt);
+      // Richer floating-dragon motion (a serpentine GLB is one rigid mesh, so we animate
+      // the whole group): hover above ground + lazy body sway + slow undulation. Position
+      // was just set to this.pos by the caller; we add the hover/coil on top.
+      const ph = this._animPhase;
+      dm.position.y = this.pos.y + 0.35 + Math.sin(ph * 0.8) * 0.14;
+      dm.rotation.z = Math.sin(ph * 0.7) * 0.07;
+      dm.rotation.x = Math.sin(ph * 1.15) * 0.05;
       return;
     }
     if (!dm._segments) return;

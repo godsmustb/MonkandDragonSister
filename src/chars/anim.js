@@ -11,9 +11,24 @@ export function _animateCharacter(player, dt, moving) {
   if (!cm) return;
   if (cm._isGltf && cm._char) {           // ContentGenAI v1.5: rigged-GLB hero -> clip state machine
     const c = cm._char;
-    if (player.isKO) c.play('death', 0.12);
-    else if (player._attackCd > 0 && player._comboCount > 0) c.play('attack' + Math.min(3, player._comboCount));
-    else c.setLocomotion(moving, false);
+    if (player.isKO) { c.play('death', 0.12); c.update(dt); return; }
+    // One-shots fire ONCE on their rising edge (re-calling play() every frame would
+    // reset the clip to frame 0 and freeze it). Priority: hit > dodge > attack > move.
+    const now = performance.now() / 1000;
+    const newHit = player._lastHitTime !== undefined && player._lastHitTime !== player._glbHitSeen
+      && (now - player._lastHitTime) < 0.2;
+    const dodging = player._dodgeTimer > 0;
+    const newCombo = player._attackCd > 0 && player._comboCount > 0 && player._comboCount !== player._glbComboSeen;
+    if (newHit) { player._glbHitSeen = player._lastHitTime; c.play('hit'); }
+    else if (dodging && !player._glbDodging) { player._glbDodging = true; c.play('dodge'); }
+    else if (newCombo) { player._glbComboSeen = player._comboCount; c.play('attack' + Math.min(3, player._comboCount)); }
+    else {
+      // walk for the first ~0.35s of movement, then ramp to a run cycle.
+      player._moveDur = moving ? (player._moveDur || 0) + dt : 0;
+      c.setLocomotion(moving, player._moveDur > 0.35);
+    }
+    if (!dodging) player._glbDodging = false;
+    if (player._lastHitTime !== undefined && player._glbHitSeen === undefined) player._glbHitSeen = player._lastHitTime;
     c.update(dt);
     return;
   }

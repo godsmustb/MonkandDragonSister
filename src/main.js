@@ -486,12 +486,14 @@ function init() {
   // toggled by `window.__game.setGltfHeroes(true)` + reload) or the URL `?glb=1`.
   // Dynamic import => with the flag off, gltfChar.js / GLTFLoader never load (E2E-safe).
   if (ctx.useGltfHeroes === undefined) {
-    // 3D Hunyuan heroes are now ON by default. Orientation is robust: meshes are
-    // PCA-uprighted at export (texture_project.py auto-stands lying meshes, leaves upright
-    // ones alone, disambiguates head/feet) so both monk + sister stand correctly. They use
-    // procedural animation (idle/walk/attack/dodge bob+lean) until skeletal clips are
-    // retargeted. Disable with localStorage `mds_gltf_heroes`='0' or URL `?glb=0`.
-    let on = true;
+    // 3D Hunyuan heroes are OFF by default again (reverted). Two real quality gaps in the
+    // auto-3D pipeline make the polished PROCEDURAL characters the better default for now:
+    //  (1) Single-view planar texture → the BACK/sides of every mesh are uncoloured (white),
+    //      very visible when a character faces away from the camera. Needs multi-view bake.
+    //  (2) Auto-authored clips on auto-rigs read stiff/snappy in motion.
+    // The 3D system stays fully wired + opt-in for continued dev: enable per-layer with
+    // URL `?glb=1` or localStorage `mds_gltf_heroes`='1'.
+    let on = false;
     try { const s = localStorage.getItem('mds_gltf_heroes'); if (s === '1') on = true; else if (s === '0') on = false; } catch (_) {}
     try { const q = new URLSearchParams(location.search).get('glb'); if (q === '1') on = true; else if (q === '0') on = false; } catch (_) {}
     ctx.useGltfHeroes = on;
@@ -532,7 +534,7 @@ function init() {
   // fail-silent per-type (missing GLB → procedural fallback). Disable with
   // localStorage `mds_gltf_enemies`='0' or URL `?glbenemy=0`.
   if (ctx.useGltfEnemies === undefined) {
-    let on = true;
+    let on = false;  // reverted to procedural demons (same texture/anim gaps as heroes)
     try { const s = localStorage.getItem('mds_gltf_enemies'); if (s === '1') on = true; else if (s === '0') on = false; } catch (_) {}
     try { const q = new URLSearchParams(location.search).get('glbenemy'); if (q === '1') on = true; else if (q === '0') on = false; } catch (_) {}
     ctx.useGltfEnemies = on;
@@ -540,7 +542,7 @@ function init() {
   // 3D-GLB bosses (venomoni/infernolord) with a mesh-agnostic telegraph. Default ON;
   // disable with localStorage `mds_gltf_bosses`='0' or URL `?glbboss=0`.
   if (ctx.useGltfBosses === undefined) {
-    let on = true;
+    let on = false;  // reverted to procedural bosses (keeps the rich phase/telegraph visuals)
     try { const s = localStorage.getItem('mds_gltf_bosses'); if (s === '1') on = true; else if (s === '0') on = false; } catch (_) {}
     try { const q = new URLSearchParams(location.search).get('glbboss'); if (q === '1') on = true; else if (q === '0') on = false; } catch (_) {}
     ctx.useGltfBosses = on;

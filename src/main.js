@@ -486,9 +486,14 @@ function init() {
   // toggled by `window.__game.setGltfHeroes(true)` + reload) or the URL `?glb=1`.
   // Dynamic import => with the flag off, gltfChar.js / GLTFLoader never load (E2E-safe).
   if (ctx.useGltfHeroes === undefined) {
-    let on = true;   // 3D Hunyuan heroes ON by default now (assets present + deployed)
-    try { const s = localStorage.getItem('mds_gltf_heroes'); if (s === '0') on = false; else if (s === '1') on = true; } catch (_) {}
-    try { const q = new URLSearchParams(location.search).get('glb'); if (q === '0') on = false; else if (q === '1') on = true; } catch (_) {}
+    // 3D Hunyuan heroes are DEMO-on-request (?glb=1) for now: the pipeline + procedural
+    // animation work, but per-mesh upright orientation isn't robust yet (the monk stands
+    // at pitchX=-90deg, but the sister's mesh + long hair orient differently), so shipping
+    // them on-by-default would show a mis-oriented hero. Default OFF → polished procedural
+    // heroes (no regression). Re-enable per-character once orientation is normalized.
+    let on = false;
+    try { const s = localStorage.getItem('mds_gltf_heroes'); if (s === '1') on = true; else if (s === '0') on = false; } catch (_) {}
+    try { const q = new URLSearchParams(location.search).get('glb'); if (q === '1') on = true; else if (q === '0') on = false; } catch (_) {}
     ctx.useGltfHeroes = on;
   }
   ctx.heroGlb = ctx.heroGlb || {};

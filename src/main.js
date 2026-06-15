@@ -486,12 +486,12 @@ function init() {
   // toggled by `window.__game.setGltfHeroes(true)` + reload) or the URL `?glb=1`.
   // Dynamic import => with the flag off, gltfChar.js / GLTFLoader never load (E2E-safe).
   if (ctx.useGltfHeroes === undefined) {
-    // 3D Hunyuan heroes are DEMO-on-request (?glb=1) for now: the pipeline + procedural
-    // animation work, but per-mesh upright orientation isn't robust yet (the monk stands
-    // at pitchX=-90deg, but the sister's mesh + long hair orient differently), so shipping
-    // them on-by-default would show a mis-oriented hero. Default OFF → polished procedural
-    // heroes (no regression). Re-enable per-character once orientation is normalized.
-    let on = false;
+    // 3D Hunyuan heroes are now ON by default. Orientation is robust: meshes are
+    // PCA-uprighted at export (texture_project.py auto-stands lying meshes, leaves upright
+    // ones alone, disambiguates head/feet) so both monk + sister stand correctly. They use
+    // procedural animation (idle/walk/attack/dodge bob+lean) until skeletal clips are
+    // retargeted. Disable with localStorage `mds_gltf_heroes`='0' or URL `?glb=0`.
+    let on = true;
     try { const s = localStorage.getItem('mds_gltf_heroes'); if (s === '1') on = true; else if (s === '0') on = false; } catch (_) {}
     try { const q = new URLSearchParams(location.search).get('glb'); if (q === '1') on = true; else if (q === '0') on = false; } catch (_) {}
     ctx.useGltfHeroes = on;
@@ -501,7 +501,7 @@ function init() {
   if (ctx.useGltfHeroes) {
     // Orientation/size tuning via URL so the Hunyuan meshes stand correctly:
     // ?pitch=<rad> (X rotation to stand up), ?yaw=<rad> (face), ?hscale=<n> (height).
-    let _pitch = -Math.PI / 2, _yaw = Math.PI, _hsc = 1.7;   // Hunyuan meshes import on their side → stand up
+    let _pitch = 0, _yaw = Math.PI, _hsc = 1.7;   // meshes are PCA-uprighted at export → no pitch needed
     try {
       const q = new URLSearchParams(location.search);
       if (q.get('pitch') != null) _pitch = parseFloat(q.get('pitch'));

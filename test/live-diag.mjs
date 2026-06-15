@@ -1,0 +1,17 @@
+import { chromium } from 'playwright';
+const b = await chromium.launch();
+const p = await b.newPage({ viewport:{width:1280,height:800} });
+const fails=[]; p.on('requestfailed',r=>fails.push(r.url()+' :: '+(r.failure()?.errorText||'')));
+const resp404=[]; p.on('response',r=>{ if(r.status()>=400) resp404.push(r.status()+' '+r.url()); });
+const errs=[]; p.on('console',m=>{if(m.type()==='error')errs.push(m.text())});
+await p.goto('https://slategray-marten-643793.hostingersite.com/index.html',{waitUntil:'load'});
+await p.waitForFunction(()=>window.__game&&window.__game.state,null,{timeout:25000});
+const click=async t=>p.evaluate(tx=>{const e=[...document.querySelectorAll('.menu-item,.mds-btn')].find(x=>x.textContent.trim().toUpperCase().includes(tx));if(e){e.click();return true}return false},t);
+await click('START GAME'); await new Promise(r=>setTimeout(r,200));
+await click('1 PLAYER'); await new Promise(r=>setTimeout(r,1800));
+const powers=await p.evaluate(()=>document.body.innerText.includes('UNLOCKS BY LEVEL'));
+console.log('powers panel:', powers);
+console.log('4xx/5xx responses:', resp404.length?resp404.join('\n  '):'none');
+console.log('request failures:', fails.length?fails.join('\n  '):'none');
+console.log('console errors:', errs.join(' | ')||'none');
+await b.close();

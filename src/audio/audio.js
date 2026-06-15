@@ -53,6 +53,21 @@ let _recGain = null;        // gain for the recorded track (→ master)
 let _recKey = null;         // currently-loaded track key
 let _recDisabled = false;   // set true once a key 404s so we don't retry forever per key
 let _recEnabled = false;    // master opt-in (localStorage mds_recorded_music=1 or ?music=1)
+let _recSettleAt = 0;       // time the current track's fade-in finishes (loop-dip gate)
+
+// Smooth the loop seam: ease the recorded gain down just before the track ends and
+// back up just after it restarts, so a short track loops without an audible cut.
+function _smoothRecLoop() {
+  if (!_recEnabled || !_recEl || !_recGain || !_ac) return;
+  if (_ac.currentTime < _recSettleAt) return;     // don't fight an in-progress crossfade
+  const dur = _recEl.duration;
+  if (!dur || isNaN(dur) || dur < 4) return;
+  const t = _recEl.currentTime, EDGE = 0.8, FULL = 0.62;
+  let target = FULL;
+  if (t > dur - EDGE) target = FULL * Math.max(0.2, (dur - t) / EDGE);
+  else if (t < EDGE) target = FULL * Math.max(0.2, t / EDGE);
+  try { _recGain.gain.setTargetAtTime(target, _ac.currentTime, 0.08); } catch (_) {}
+}
 const _recMissing = {};     // keys known to be absent → skip
 const _SYNTH_DUCK = 0.12;   // _musicBus gain while a recorded track owns the mix
 const _SYNTH_FULL = 0.55;   // normal procedural music bus gain
@@ -1038,6 +1053,7 @@ function _updateMusicLayer() {
 
   // Optional recorded-music layer (crossfade ACE-Step tracks if present).
   _updateRecordedMusic();
+  _smoothRecLoop();   // dip the gain across the loop seam so 30s tracks loop cleanly
 
   // Continuous per-tick fine-tune: even within 'combat', scale the combat layer by
   // live intensity so a near-cleared arena thins toward calm; ramp every tick.
@@ -1091,6 +1107,7 @@ function _updateRecordedMusic() {
       _setSynthDuck(true);
       el.play().catch(() => {});
       _recEl = el; _recSrc = src; _recKey = key; _recGain = newGain;
+      _recSettleAt = t + FADE;   // smooth-loop dip only takes over once the fade-in settles
     } catch (_) { /* MediaElementSource can throw if reused; ignore */ }
   }, { once: true });
   el.addEventListener('error', () => { _recMissing[key] = true; if (!_recEl) _setSynthDuck(false); }, { once: true });

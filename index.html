@@ -1088,10 +1088,18 @@ body,#game-container{
 </div>
 
 <script>
-  // Build marker — open DevTools Console: if you DON'T see this exact line, your
-  // browser is serving a CACHED old build (hard-refresh / clear site data once).
-  window.__BUILD__ = 'v2.1-dev · 2026-06-14c';
+  // Build marker — also shown on-screen (bottom-right) so you can confirm the version
+  // at a glance. If it doesn't match the latest, your browser cached an old build.
+  window.__BUILD__ = 'v2.1-d · 2026-06-14e';
   console.log('%cThe Monk & The Dragon Sister — build ' + window.__BUILD__, 'color:#ffcc44;font-weight:bold;font-size:13px');
+  (function(){
+    var v = document.createElement('div');
+    v.id = 'build-tag';
+    v.textContent = window.__BUILD__;
+    v.style.cssText = 'position:fixed;bottom:6px;right:8px;z-index:9999;font:10px/1 monospace;color:rgba(255,221,120,0.55);background:rgba(0,0,0,0.35);padding:2px 6px;border-radius:4px;pointer-events:none;letter-spacing:0.5px;';
+    if (document.body) document.body.appendChild(v);
+    else document.addEventListener('DOMContentLoaded', function(){ document.body.appendChild(v); });
+  })();
 </script>
 <script type="importmap">
 {"imports":{"three":"./vendor/three/build/three.module.js","three/addons/":"./vendor/three/addons/"}}

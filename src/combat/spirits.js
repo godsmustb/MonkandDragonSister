@@ -105,7 +105,14 @@ export class Spirit {
 
   _makeHpBar() {
     const g = new THREE.Group();
-    const w = this._isBoss ? 2.0 : 1.0;
+    const w = this._isBoss ? 2.2 : 1.0;
+    const elCol = ELEMENT_COLORS[this.element] || 0xffffff;
+    // Element-tinted frame behind the bar so you can read the demon's element at a glance.
+    const frame = new THREE.Mesh(
+      new THREE.PlaneGeometry(w + 0.08, 0.2),
+      new THREE.MeshBasicMaterial({ color: elCol })
+    );
+    frame.position.z = -0.002;
     const bg = new THREE.Mesh(
       new THREE.PlaneGeometry(w, 0.12),
       new THREE.MeshBasicMaterial({ color: 0x220000 })
@@ -115,9 +122,34 @@ export class Spirit {
       new THREE.MeshBasicMaterial({ color: 0xff4444 })
     );
     fill.position.z = 0.001;
-    g.add(bg); g.add(fill);
+    g.add(frame); g.add(bg); g.add(fill);
     g._fill = fill; g._w = w;
+    // Bosses (and the mini-boss) get a floating "ELEMENT · NN%" label so you know how
+    // much HP is left and which dragon counters them.
+    if (this._isBoss) {
+      const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64;
+      const tex = new THREE.CanvasTexture(cv);
+      const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+      spr.scale.set(2.4, 0.6, 1); spr.position.y = 0.32;
+      g.add(spr);
+      g._label = { cv, ctx: cv.getContext('2d'), tex, sprite: spr, last: -1 };
+    }
     return g;
+  }
+
+  // Redraw the boss label "ELEMENT · NN%" (throttled to whole-percent changes).
+  _updateHpLabel(pct) {
+    const L = this._hpBar && this._hpBar._label;
+    if (!L) return;
+    const p = Math.round(pct * 100);
+    if (p === L.last) return; L.last = p;
+    const c = L.ctx; c.clearRect(0, 0, 256, 64);
+    const hex = '#' + ('000000' + ((ELEMENT_COLORS[this.element] || 0xffffff).toString(16))).slice(-6);
+    c.font = 'bold 26px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.shadowColor = 'rgba(0,0,0,0.9)'; c.shadowBlur = 4;
+    c.fillStyle = hex; c.fillText((this.element || 'neutral').toUpperCase(), 128, 18);
+    c.fillStyle = p > 25 ? '#ffffff' : '#ff7777'; c.fillText(p + '%', 128, 46);
+    L.tex.needsUpdate = true;
   }
 
   updateHpBar(camera) {
@@ -129,6 +161,7 @@ export class Spirit {
     const pct = Math.max(0, this.hp / this.maxHp);
     this._hpBar._fill.scale.x = pct;
     this._hpBar._fill.position.x = (pct - 1) * (this._hpBar._w / 2);
+    if (this._hpBar._label) this._updateHpLabel(pct);
   }
 
   // ── Idle menace + telegraph pose animation (per demon type) ──

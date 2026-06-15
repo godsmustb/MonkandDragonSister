@@ -27,6 +27,23 @@ export function setupDebugAPI() {
     spawnWave(n) {
       import('./game/quest.js').then(m => m.startWave(n)).catch(() => {});
     },
+    // Directly spawn a real boss (clears current spirits first) — for visual/3D checks.
+    testBoss(which) {
+      import('./combat/spirits.js').then(m => {
+        (ctx.gameState.spirits || []).forEach(s => s.cleanup && s.cleanup());
+        ctx.gameState.spirits = [];
+        (which === 'lord' ? m.spawnDemonLord : m.spawnBoss)();
+      }).catch(() => {});
+    },
+    // 3D-GLB swap status: which layers are enabled + whether a GLB boss is live.
+    get glb() {
+      let glbBoss = 0;
+      try { ctx.scene && ctx.scene.traverse(o => { if (o._isGlbBoss) glbBoss++; }); } catch (_) {}
+      return {
+        heroes: !!ctx.useGltfHeroes, enemies: !!ctx.useGltfEnemies,
+        bosses: !!ctx.useGltfBosses, glbBossInScene: glbBoss,
+      };
+    },
     // ── Core state getters ──────────────────────────────────────────────
     get state()   { return ctx.gameState.state; },
     get wave()    { return ctx.gameState.wave; },

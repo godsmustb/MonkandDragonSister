@@ -16,13 +16,16 @@ const _loader = new GLTFLoader();
 const _templates = new Map();   // type -> gltf.scene template (cloned per instance)
 let _started = false;
 
-// Common (non-boss) demons get the 3D swap.
+// Common (non-boss) demons get the 3D swap in Spirit._buildMesh.
 export const ENEMY_GLB_TYPES = ['shadowling', 'frostimp', 'tidewraith'];
+// Bosses are swapped separately in BossBase (mesh-agnostic telegraph preserves the
+// wind-up tell). Preloaded here so getEnemyMesh() can serve them too.
+export const BOSS_GLB_TYPES = ['venomoni', 'infernolord'];
 
 export function preloadEnemyGlbs() {
   if (_started) return;
   _started = true;
-  for (const type of ENEMY_GLB_TYPES) {
+  for (const type of [...ENEMY_GLB_TYPES, ...BOSS_GLB_TYPES]) {
     _loader.load(
       `assets/demon_${type}.glb`,
       (gltf) => { _templates.set(type, gltf.scene); },

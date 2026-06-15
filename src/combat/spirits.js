@@ -212,6 +212,34 @@ export class Spirit {
     }
   }
 
+  // Mesh-agnostic boss telegraph for 3D-GLB bosses (which have no part poses to raise).
+  // Reads the melee-AI state: 'telegraph' rears the boss back + grows it + pulses an
+  // emissive flash (clear "big attack incoming" tell); 'strike' lunges it forward; idle
+  // eases back. Ground-AOE circles, element-shift label/light/banner are unaffected.
+  _animateGlbBoss(dt) {
+    const m = this.mesh;
+    const tele = this._aiState === 'telegraph';
+    const strike = this._aiState === 'strike';
+    const k = Math.min(1, dt * 10);
+    const tScale = tele ? 1.12 : 1.0;
+    m.scale.x += (tScale - m.scale.x) * k;
+    m.scale.y = m.scale.z = m.scale.x;
+    const leanTarget = tele ? -0.22 : strike ? 0.3 : 0;
+    m._lean = (m._lean || 0) + (leanTarget - (m._lean || 0)) * Math.min(1, dt * 12);
+    m.rotation.x = m._lean;
+    const mat = this._body && this._body.material;
+    if (mat && mat.emissive) {
+      const base = mat._mdsBaseEmissive;
+      if (tele) {
+        const f = 0.45 + Math.sin(this._idlePhase * 20) * 0.35;
+        mat.emissive.setRGB(f, f * 0.18, 0);
+        mat.emissiveIntensity = 1.0;
+      } else if (base) {
+        mat.emissive.lerp(base, k);
+      }
+    }
+  }
+
   _rippleHem(dt, freq) {
     const p = this._parts;
     if (!p.hem || !p.hem.geometry || !p.hem.geometry._hemReady) return;
@@ -252,6 +280,7 @@ export class Spirit {
     this.mesh.position.copy(this.pos);
     this._light.position.copy(this.pos);
     this._animateIdle(dt);
+    if (this.mesh._isGlbBoss) this._animateGlbBoss(dt);
 
     let nearest = null, nearXZDist = Infinity;
     players.forEach(p => {
@@ -410,6 +439,29 @@ class BossBase extends Spirit {
     const cfg = DEMON_TABLE[type];
     this.mesh.scale.setScalar(cfg.scale);
     this._pools = [];
+
+    // ContentGenAI: swap the boss body to a 3D GLB when enabled + available. The
+    // procedural part-pose telegraph (e.g. clubArm raise) becomes a no-op (_parts={}),
+    // replaced by a mesh-agnostic telegraph in _animateGlbBoss (rear-back + flash on
+    // 'telegraph', lunge on 'strike'). Element-shift/ground-AOE tells are unaffected
+    // (HP label + boss light + banner + separate warning circles).
+    if (ctx.useGltfBosses) {
+      const glb = getEnemyMesh(type);
+      if (glb) {
+        ctx.scene && this.mesh && this.mesh.parent && ctx.scene.remove(this.mesh);
+        this.mesh = glb;
+        this.mesh._isGlbBoss = true;
+        this._parts = {};
+        this._body = glb._enemyBody || null;
+        if (this._body && this._body.material && !this._body.material._mdsHitClone) {
+          this._body.material = this._body.material.clone();
+          this._body.material._mdsHitClone = true;
+          if (this._body.material.emissive) this._body.material._mdsBaseEmissive = this._body.material.emissive.clone();
+        }
+        this.mesh.position.copy(this.pos);
+        if (!this.mesh.parent) ctx.scene.add(this.mesh);
+      }
+    }
 
     // ── Pass 16 — multi-phase / weighted-attack / enrage state ──
     this.phase = 1;            // 1..3 (exposed to HUD + debug)

@@ -537,7 +537,15 @@ function init() {
     try { const q = new URLSearchParams(location.search).get('glbenemy'); if (q === '1') on = true; else if (q === '0') on = false; } catch (_) {}
     ctx.useGltfEnemies = on;
   }
-  if (ctx.useGltfEnemies) {
+  // 3D-GLB bosses (venomoni/infernolord) with a mesh-agnostic telegraph. Default ON;
+  // disable with localStorage `mds_gltf_bosses`='0' or URL `?glbboss=0`.
+  if (ctx.useGltfBosses === undefined) {
+    let on = true;
+    try { const s = localStorage.getItem('mds_gltf_bosses'); if (s === '1') on = true; else if (s === '0') on = false; } catch (_) {}
+    try { const q = new URLSearchParams(location.search).get('glbboss'); if (q === '1') on = true; else if (q === '0') on = false; } catch (_) {}
+    ctx.useGltfBosses = on;
+  }
+  if (ctx.useGltfEnemies || ctx.useGltfBosses) {
     import('./combat/enemyGlb.js').then(m => m.preloadEnemyGlbs()).catch(e => console.warn('[glb] enemy preload failed', e));
   }
 
